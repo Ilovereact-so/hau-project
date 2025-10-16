@@ -29,11 +29,11 @@ const ProductCarusel = () => {
     return (
     <div className='w-full h-auto font- mt-12'>
         <div className='flex justify-between mx-25 mb-11'>
-            <div className='flex'>
-                <h1 className='text-black text-[30px] '>Produkty objęte promocją: </h1>
-                <h1 className='text-black font-bold text-[30px] ml-5'>Znajdź psi przysmak</h1>
+            <div className='flex xl:flex-row flex-col'>
+                <h1 className='text-black text-[clamp(13px,2vw,30px)] '>Produkty objęte promocją: </h1>
+                <h1 className='text-black font-bold text-[clamp(13px,2vw,30px)] xl:ml-5'>Znajdź psi przysmak</h1>
             </div>
-            <div className='flex justify-center items-center space-x-3 px-6 py-3 bg-[#A7E4D9] rounded-[15px] mt-8'><p className='text-black text-[20px] font-bold'>Zobacz więcej</p><ArrowRight className='text-black'/></div>
+            <div className='inline-flex h-fit justify-center items-center space-x-3 px-6 py-3 bg-[#A7E4D9] rounded-[15px] xl:mt-8'><p className='text-black text-[clamp(10px,1.4vw,20px)] font-bold'>Zobacz więcej</p><ArrowRight className='text-black'/></div>
         </div>
         <div className='w-full flex flex-col items-center'>
             <div className='w-full pl-25 overflow-x-hidden flex justify-start'>
