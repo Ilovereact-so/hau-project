@@ -33,8 +33,8 @@ type BanerItem = {
   description:string;
   path: string;
   baner:string;
-  style: object;
-  buttonStyle: object;
+//   style: object;
+//   buttonStyle: object;
 };
 
 
@@ -44,23 +44,23 @@ export const banerVariants:BanerItem[] = [
         description: `Twój pies na pewno pokocha pluszowych przyjaciół marki <br> BUBA! Do tulenia, gryzienia, szarpania, rzucania, aportowania <br> i miętolenia.`,
         path: "",
         baner: "/baner0.png",
-        style: { paddingLeft: "120px", bottom:"18%"},
-        buttonStyle: {marginLeft:"32px"},
+        // style: { paddingLeft: "120px", bottom:"18%"},
+        // buttonStyle: {marginLeft:"32px"},
     },
     {
         title: "Zabawki BUBA",
         description: `Twój pies na pewno pokocha pluszowych przyjaciół marki <br> BUBA! Do tulenia, gryzienia, szarpania, rzucania, aportowania <br> i miętolenia.`,
         path: "",
         baner: "/baner1.png",
-        style: { paddingLeft: "120px", bottom:"18%"},
-        buttonStyle: {marginLeft:"32px"},
+        // style: { paddingLeft: "120px", bottom:"18%"},
+        // buttonStyle: {marginLeft:"32px"},
     },
     {
         title: "Zabawki BUBA",
         description: `Twój pies na pewno pokocha pluszowych przyjaciół marki <br> BUBA! Do tulenia, gryzienia, szarpania, rzucania, aportowania <br> i miętolenia.`,
         path: "",
         baner: "/baner0.png",
-        style: { paddingRight: "100px", bottom:"25%", alignItems: "end", textAlign:"right"},
-        buttonStyle: {},
+        // style: { paddingRight: "100px", bottom:"25%", alignItems: "end", textAlign:"right"},
+        // buttonStyle: {},
     }
 ]
