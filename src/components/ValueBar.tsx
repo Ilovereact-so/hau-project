@@ -25,12 +25,12 @@ const ValueBar = () => {
         },
     ]
     return (
-    <div className='bg-main px-15 py-12 flex justify-center items-center font-poppins space-x-[8%] mt-14'>
+    <div className='bg-main lg:px-15 px-12 py-12 flex justify-center items-center font-poppins lg:space-x-[8%] space-x-[6%] mt-14'>
         {
             Items.map((item,index)=>(
                 <div key={index} className='flex space-x-6'>
-                    <item.icon className='text-[#3CBCA5] w-[40px] h-[40px]'/>
-                    <p className='text-black text-[16px]' dangerouslySetInnerHTML={{ __html: item.title }}></p>
+                    <item.icon className='text-[#3CBCA5] lg:w-[40px] w-[32px] lg:h-[40px] h-[32px]'/>
+                    <p className='text-black text-[clamp(13px,1.3vw,16px)]' dangerouslySetInnerHTML={{ __html: item.title }}></p>
                 </div>
             ))
         }
