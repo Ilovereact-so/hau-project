@@ -68,7 +68,7 @@ export default function Home() {
                     key={index} className='w-full h-auto max-h-[100vh] overflow-hidden flex justify-center items-center top-0 left-0 z-[9] absolute '> {/**style={{backgroundImage:`url('${item.baner}')`}} */}
                     <Image src={item.baner} width={1648} height={912} alt='Zwierzak bwiący się zabawką BUBA' className='w-[100%] h-fit relative z-[2] saturate-50'/>
                     <Image src={item.baner} width={1648} height={912} alt='Zwierzak bwiący się zabawką BUBA' className='w-auto min-h-[100%] max-h-[120%] h-auto absolute z-[3] top-0 translate-x-[-50%] left-[50%]'/>
-                    <div className='absolute w-full flex flex-col z-[4] xl:pl-30 pl-22 bottom-[18%]'>
+                    <div className='absolute w-full flex flex-col z-[4] xl:pl-30 2lg:pl-22 pl-[7%] lg:bottom-[18%]'>
                         <h1 className='text-white text-[clamp(24px,6vw,96px)] font-bold xl:leading-[110px] leading-[90px]'>{item.title}</h1>
                         <p className='text-white text-[clamp(14px,1.5vw,24px)] mb-5' dangerouslySetInnerHTML={{ __html: item.description }}/>
                         <button className='bg-white rounded-[15px] ml-8 text-black text-[clamp(13px,1.5vw,24px)] font-poppins font-bold px-10 py-3 inline-flex w-fit'>Sprawdź</button>

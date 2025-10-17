@@ -1,5 +1,4 @@
 "use client";
-
 import VerifyEmailInput from "@/components/VerifyEmailInput";
 import { useSignUp } from "@clerk/nextjs";
 import { Eye, EyeOff, Undo2 } from "lucide-react";

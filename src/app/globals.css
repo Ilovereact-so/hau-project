@@ -13,6 +13,7 @@
   --font-poppins: var(--font-poppins);
   --color-main: var(--main);
   --breakpoint-2md: 920px;
+  --breakpoint-2lg: 1060px;
   --breakpoint-1.5xl: 88.75rem;
   --breakpoint-1xl: 88.75rem;
   --breakpoint-xs: 390px;

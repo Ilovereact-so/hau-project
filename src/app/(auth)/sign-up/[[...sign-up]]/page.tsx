@@ -67,7 +67,7 @@ export default function SignUpPage() {
     <div className="min-h-screen w-full flex items-center justify-center bg-[#20201F] p-4 font-poppins relative">
       <div className="max-w-[405px] w-full bg-[#0E0E0E] shadow-lg rounded-[70px] p-12 relative z-[2]">
         <div onClick={handleClick} ><Undo2 className="text-white mb-3 cursor-pointer"/></div>
-        <h1 className="text-[20px] text-left text-white font-poppins">Create your account in<br/><span className="font-bold text-[36px] leading-[36px]">StudyLab</span></h1>
+        <h1 className="text-[20px] text-left text-white font-poppins">Create your account in<br/><span className="font-bold text-[36px] leading-[36px]">Hau store</span></h1>
         {error && <p className="text-red-500 text-left text-[14px]">{error}</p>}
 
         {/* Social logins */}
