@@ -13,6 +13,7 @@
   --font-poppins: var(--font-poppins);
   --color-main: var(--main);
   --breakpoint-2md: 920px;
+  --breakpoint-1md: 840px;
   --breakpoint-2lg: 1060px;
   --breakpoint-1.5xl: 88.75rem;
   --breakpoint-1xl: 88.75rem;
@@ -32,6 +33,27 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+
+/* Dla przeglądarek opartych o WebKit (Chrome, Edge, Safari) */
+#navbar-scroll::-webkit-scrollbar {
+  height: 3px; /* dla poziomego scrolla */
+  
+}
+
+#navbar-scroll::-webkit-scrollbar-track {
+  background-color: #ffffff;
+  border-radius: 0px;
+}
+
+#navbar-scroll::-webkit-scrollbar-thumb {
+  background-color: #383838 ;
+  border-radius: 0px;
+}
+
+#navbar-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: #808080; /* ciemniejszy przy hoverze */
 }
 
 #item-progress-bar[type="range"]{

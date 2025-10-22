@@ -27,17 +27,17 @@ const ProductCarusel = () => {
         fetchData();
     },[])
     return (
-    <div className='w-full h-auto font- mt-12'>
-        <div className='flex justify-between mx-25 mb-11'>
+    <div className='w-full h-auto font-poppins lg:mt-12 mt-8'>
+        <div className='flex justify-between lg:mx-25 md:mx-18 mx-10 lg:mb-11 mb-8'>
             <div className='flex xl:flex-row flex-col'>
                 <h1 className='text-black text-[clamp(13px,2vw,30px)] '>Produkty objęte promocją: </h1>
                 <h1 className='text-black font-bold text-[clamp(13px,2vw,30px)] xl:ml-5'>Znajdź psi przysmak</h1>
             </div>
-            <div className='inline-flex h-fit justify-center items-center space-x-3 px-6 py-3 bg-[#A7E4D9] rounded-[15px] xl:mt-8'><p className='text-black text-[clamp(10px,1.4vw,20px)] font-bold'>Zobacz więcej</p><ArrowRight className='text-black'/></div>
+            <div className='inline-flex h-fit justify-center items-center space-x-3 px-6 lg:py-3 py-2 bg-[#A7E4D9] rounded-[15px] xl:mt-8'><p className='text-black text-[clamp(12px,1.4vw,20px)] font-bold'>Zobacz więcej</p><ArrowRight className='text-black lg:w-[24px] w-[20px] lg:h-[24px] h-[20px]'/></div>
         </div>
         <div className='w-full flex flex-col items-center'>
-            <div className='w-full pl-25 overflow-x-hidden flex justify-start'>
-                <div className='flex space-x-10 w-auto h-auto mb-20'>
+            <div className='w-full lg:pl-25 md:pl-18 pl-10 overflow-x-hidden flex justify-start'>
+                <div className='flex lg:space-x-10 space-x-5 w-auto h-auto lg:mb-20 mb-12'>
                     {
                         loading ? <span>Products is loading...</span> :
                         products?.map((item:Product)=>(

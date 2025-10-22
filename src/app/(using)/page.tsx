@@ -66,9 +66,30 @@ export default function Home() {
                     : { opacity: 0, zIndex: 1 }}
                     transition={{ duration: 0.6, ease: "easeInOut" }}
                     key={index} className='w-full h-auto max-h-[100vh] overflow-hidden flex justify-center items-center top-0 left-0 z-[9] absolute '> {/**style={{backgroundImage:`url('${item.baner}')`}} */}
-                    <Image src={item.baner} width={1648} height={912} alt='Zwierzak bwiący się zabawką BUBA' className='w-[100%] h-fit relative z-[2] saturate-50'/>
-                    <Image src={item.baner} width={1648} height={912} alt='Zwierzak bwiący się zabawką BUBA' className='w-auto min-h-[100%] max-h-[120%] h-auto absolute z-[3] top-0 translate-x-[-50%] left-[50%]'/>
-                    <div className='absolute w-full flex flex-col z-[4] xl:pl-30 2lg:pl-22 pl-[7%] lg:bottom-[18%]'>
+                    <div className="relative w-full h-[100vh] overflow-hidden">
+                      {/* BACKGROUND IMAGE */}
+                      <Image
+                        src={item.baner}
+                        alt="Zwierzak bawiący się zabawką BUBA - tło"
+                        fill
+                        className="object-cover saturate-50 z-[1]"
+                        priority
+                      />
+
+                      {/* FOREGROUND IMAGE */}
+                      <div className="absolute top-0 left-1/2 -translate-x-1/2 z-[2] h-[100vh] w-max max-w-[120vw] overflow-hidden flex justify-center">
+                        <Image
+                          src={item.baner}
+                          alt="Zwierzak bawiący się zabawką BUBA - pierwszy plan"
+                          width={1648}
+                          height={912}
+                          className=" object-contain w-auto max-w-[180vw]"
+                          priority
+                        />
+                      </div>
+                    </div>
+
+                    <div className='absolute w-full flex flex-col z-[4] xl:pl-30 2lg:pl-22 pl-[7%] bottom-[18%]'>
                         <h1 className='text-white text-[clamp(24px,6vw,96px)] font-bold xl:leading-[110px] leading-[90px]'>{item.title}</h1>
                         <p className='text-white text-[clamp(14px,1.5vw,24px)] mb-5' dangerouslySetInnerHTML={{ __html: item.description }}/>
                         <button className='bg-white rounded-[15px] ml-8 text-black text-[clamp(13px,1.5vw,24px)] font-poppins font-bold px-10 py-3 inline-flex w-fit'>Sprawdź</button>

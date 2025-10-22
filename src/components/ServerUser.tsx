@@ -10,9 +10,9 @@ const ServerUser = async() => {
     console.log(user?.imageUrl)
     const avatarUrl = user?.imageUrl ?? "/default-avatar.png";
   return (
-    <div className='flex space-x-4 xl:mt-3 rounded-full p-3 bg-[#c3c3c36e] h-fit'>
+    <div className='flex space-x-4 xl:mt-3 rounded-full 2lg:p-3 p-2 bg-[#c3c3c36e] h-fit min-w-[80px]'>
         {!user ? <SignInButton><User className='text-white w-[30px] h-[30px]'/></SignInButton> : <Image src={avatarUrl} alt='avatar' width={30} height={30} className='w-[30px] h-[30px] rounded-full'/> }
-        <ShoppingBasket className='text-white w-[30px] h-[30px]'/>
+        <ShoppingBasket className='text-white lg:w-[30px] h-[30px]'/>
     </div>
   )
 }
