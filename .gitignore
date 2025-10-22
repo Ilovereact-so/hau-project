@@ -20,5 +20,9 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+<<<<<<< HEAD
 postępy.json
 .gitignore
+=======
+/backend/.env
+>>>>>>> ee40cb2507deee766cba086643c10551fdac8335
