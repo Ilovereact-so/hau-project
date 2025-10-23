@@ -83,7 +83,7 @@ export default function Home() {
                           alt="Zwierzak bawiący się zabawką BUBA - pierwszy plan"
                           width={1648}
                           height={912}
-                          className=" object-contain w-auto max-w-[180vw]"
+                          className=" object-contain w-auto max-w-[400vw] relative 3xs:left-0 left-[-160px] ease-in-out duration-300"
                           priority
                         />
                       </div>

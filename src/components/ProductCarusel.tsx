@@ -33,7 +33,7 @@ const ProductCarusel = () => {
                 <h1 className='text-black text-[clamp(13px,2vw,30px)] '>Produkty objęte promocją: </h1>
                 <h1 className='text-black font-bold text-[clamp(13px,2vw,30px)] xl:ml-5'>Znajdź psi przysmak</h1>
             </div>
-            <div className='inline-flex h-fit justify-center items-center space-x-3 px-6 lg:py-3 py-2 bg-[#A7E4D9] rounded-[15px] xl:mt-8'><p className='text-black text-[clamp(12px,1.4vw,20px)] font-bold'>Zobacz więcej</p><ArrowRight className='text-black lg:w-[24px] w-[20px] lg:h-[24px] h-[20px]'/></div>
+            <div className='inline-flex h-fit justify-center items-center space-x-3 3xs:px-6 px-4 lg:py-3 py-2 bg-[#A7E4D9] rounded-[15px] xl:mt-8'><p className='text-black text-[clamp(10px,2.1vw,20px)] font-bold'>Zobacz więcej</p><ArrowRight className='text-black lg:w-[24px] w-[20px] lg:h-[24px] h-[20px]'/></div>
         </div>
         <div className='w-full flex flex-col items-center'>
             <div className='w-full lg:pl-25 md:pl-18 pl-10 overflow-x-hidden flex justify-start'>
