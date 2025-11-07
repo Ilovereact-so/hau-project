@@ -28,7 +28,7 @@ const ValueBar = () => {
     ]
     return (
     <motion.div initial={{x:0}} animate={{x:[0, ]}} className='bg-main lg:px-15 1md:px-8 px-4 py-12 flex lg:justify-center items-center font-poppins lg:space-x-[8%] justify-evenly mt-14 w-full'>
-        <ProductCarousel duration={25}>
+        <ProductCarousel duration={12}>
         {
             Items.map((item,index)=>(
                 <div key={index} className='flex justify-center 1md:space-x-6 space-x-3 min-w-[150px]'>

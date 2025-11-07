@@ -17,10 +17,10 @@
     "framer-motion": "^12.23.22",
     "lucide-react": "^0.544.0",
     "next": "15.5.4",
-    "next-sanity": "^9.8.7",
+    "next-sanity": "^11.6.2",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "sanity": "^2.36.6",
+    "sanity": "^4.11.0",
     "styled-components": "^6.1.19"
   },
   "devDependencies": {

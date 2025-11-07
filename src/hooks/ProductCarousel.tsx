@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, ReactNode } from "react";
 import { motion, useAnimationControls } from "framer-motion";
+import useMediaQuery from "./useMediaQuery";
 
 interface ProductCarouselProps {
   children: ReactNode;
@@ -14,32 +15,19 @@ export const ProductCarousel: React.FC<ProductCarouselProps> = ({
   const contentRef = useRef<HTMLDivElement>(null);
   const controls = useAnimationControls();
   const [isOverflowing, setIsOverflowing] = useState(false);
-
+  const mobile = useMediaQuery("(max-width: 768px)")
   // Sprawdzenie overflow
-  useEffect(() => {
-    const wrapper = wrapperRef.current;
-    const content = contentRef.current;
-    if (!wrapper || !content) return;
 
-    const checkOverflow = () => {
-      const overflowing = content.scrollWidth > wrapper.clientWidth;
-      setIsOverflowing(overflowing);
-    };
-
-    checkOverflow();
-    window.addEventListener("resize", checkOverflow);
-    return () => window.removeEventListener("resize", checkOverflow);
-  }, []);
 
   // Animacja tylko jeśli overflow
   useEffect(() => {
-    if (isOverflowing) {
+    if (mobile) {
       controls.start({
         x: ["0%", "-50%"],
         transition: {
           x: {
             repeat: Infinity,
-            repeatType: "loop",
+            repeatType: "mirror",
             ease: "linear",
             duration,
           },
@@ -49,7 +37,7 @@ export const ProductCarousel: React.FC<ProductCarouselProps> = ({
       controls.stop();
       controls.set({ x: 0 });
     }
-  }, [isOverflowing, controls, duration]);
+  }, [controls, duration, mobile]);
 
   return (
     <div
@@ -63,7 +51,7 @@ export const ProductCarousel: React.FC<ProductCarouselProps> = ({
         style={{ willChange: "transform" }}
       >
         {children}
-        {isOverflowing && children}
+        {mobile && children}
       </motion.div>
     </div>
   );

@@ -89,15 +89,15 @@ export default function Home() {
                       </div>
                     </div>
 
-                    <div className='absolute w-full flex flex-col z-[4] xl:pl-30 2lg:pl-22 pl-[7%] bottom-[18%]'>
-                        <h1 className='text-white text-[clamp(24px,6vw,96px)] font-bold xl:leading-[110px] leading-[90px]'>{item.title}</h1>
-                        <p className='text-white text-[clamp(14px,1.5vw,24px)] mb-5' dangerouslySetInnerHTML={{ __html: item.description }}/>
-                        <button className='bg-white rounded-[15px] ml-8 text-black text-[clamp(13px,1.5vw,24px)] font-poppins font-bold px-10 py-3 inline-flex w-fit'>Sprawdź</button>
+                    <div className='absolute w-full flex flex-col z-[4] xl:pl-30 lg:pl-22 pl-[7%] bottom-[18%]'>
+                        <h1 className='text-white text-[clamp(40px,5vw,96px)] font-bold 1xl:leading-[110px] sm:leading-[90px] leading-[60px]'>{item.title}</h1>
+                        <p className='text-white text-[clamp(16px,1.5vw,24px)] mb-5 max-w-[600px]' dangerouslySetInnerHTML={{ __html: item.description }}/>
+                        <button className='bg-white rounded-[15px] sm:ml-8 ml-3 text-black text-[clamp(13px,1.5vw,24px)] font-poppins font-bold px-10 py-3 inline-flex w-fit'>Sprawdź</button>
                     </div>
                 </motion.div>
             ))}
             
-            <div className='flex justify-center items-center absolute right-20 bottom-12 space-x-2 z-10'>
+            <div className='flex justify-center items-center absolute sm:right-20 right-0 max-sm:left-[50%]  max-sm:translate-x-[-50%] bottom-12 space-x-2 z-10'>
                 <motion.div whileTap={{scale:0.8}} onTap={()=>setIndex( isIndex > 0 ? isIndex-1 : banerVariants.length -1)} className='cursor-pointer' ><ChevronLeft className='text-white xl:w-[24px] w-[20px] xl:h-[24px] h-[20px]'/></motion.div>
                 {Array.from({ length: banerVariants.length }, (e, i) =>(
                     <motion.div initial={{backgroundColor:"#838383"}} animate={{backgroundColor: isIndex === i ? "#FEFEFE":"#838383" }} transition={{duration:0.2, ease:"easeInOut"}} key={i} className={`rounded-full xl:w-[17px] w-[15px] xl:h-[17px] h-[15px]`}></motion.div>

@@ -13,12 +13,12 @@ const AutoResizeInput: React.FC<AutoResizeInputProps> = ({
   ...props
 }) => {
   const [width, setWidth] = useState(minWidth);
-  const spanRef = useRef<HTMLSpanElement>(null);
+  const spanRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
     if (spanRef.current) {
       const newWidth = Math.min(
-        Math.max(spanRef.current.offsetWidth + 10, minWidth), // +10px jako bufor
+        Math.max(spanRef.current.offsetWidth, minWidth), // +10px jako bufor
         maxWidth
       );
       setWidth(newWidth);
@@ -26,7 +26,7 @@ const AutoResizeInput: React.FC<AutoResizeInputProps> = ({
   }, [props.value, minWidth, maxWidth]);
 
   return (
-    <div className="inline-flex items-center">
+    <div className="inline-flex items-center relative">
       <input
         {...props}
         style={{
@@ -37,12 +37,10 @@ const AutoResizeInput: React.FC<AutoResizeInputProps> = ({
         
       />
       {/* Ukryty span do mierzenia szerokości */}
-      <span
-        ref={spanRef}
-        className="absolute invisible whitespace-pre px-2 py-1"
-      >
-        {props.value || props.placeholder || ""}
-      </span>
+      <div className="absolute invisible whitespace-pre font-poppins text-[clamp(14px,1.2vw,16px)] font-normal tracking-normal overflow-hidden">
+        <h1 style={{maxWidth:maxWidth}} ref={spanRef}>{props.value || props.placeholder }</h1>
+      </div>
+      
     </div>
   );
 };
