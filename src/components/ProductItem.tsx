@@ -6,7 +6,7 @@ import { Heart } from 'lucide-react'
 
 const ProductItem = ({product}:{product: Product}) => {
   return (
-    <div className='relative 11xl:min-w-[290px] lg:min-w-[230px] min-w-[200px] 1xl:min-h-[290px] lg:min-h-[230px] min-h-[200px] flex flex-col'>
+    <div className='relative 1xl:min-w-[290px] lg:min-w-[230px] min-w-[200px] 1xl:min-h-[290px] lg:min-h-[230px] min-h-[200px] flex flex-col'>
       {product?.images && 
         <Image src={urlFor(product?.images[0]).url()} alt={String(product?.name)} width={290} height={290} className='1xl:w-[290px] lg:w-[230px] w-[200px] 1xl:h-[290px] lg:h-[230px] h-[200px]'/>
       }

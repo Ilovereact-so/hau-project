@@ -57,11 +57,15 @@ body {
     justify-content: space-between;
     align-items: flex-start;
   };
+  #navbar-scroll::-webkit-scrollbar {
+  height: 3px; /* dla poziomego scrolla */
+  
+}
 }
 
 /* Dla przeglądarek opartych o WebKit (Chrome, Edge, Safari) */
 #navbar-scroll::-webkit-scrollbar {
-  height: 3px; /* dla poziomego scrolla */
+  width: 4px; /* dla poziomego scrolla */
   
 }
 
