@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 interface SubmenuPortalProps {
-  anchorRef: React.RefObject<HTMLDivElement | null>;
+  anchorRef: React.RefObject<HTMLLabelElement | null>;
   open: boolean;
   children: React.ReactNode;
 }

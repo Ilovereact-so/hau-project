@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import ContentContainer from "@/components/ContentContainer";
 import ValueBar from "@/components/ValueBar";
+import Footer from "@/components/Footer";
 
 
 export default function Home() {
@@ -107,6 +108,7 @@ export default function Home() {
             </div>
       </header>
       <ContentContainer/>
+      <Footer/>
     </div>
   );
 }

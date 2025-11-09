@@ -3,6 +3,7 @@ import ProductGrid from './ProductGrid'
 import ProductCarusel from './ProductCarusel'
 import ValueBar from './ValueBar'
 import SubCategoryContent from './SubCategoryContent'
+import Newsletter from './Newsletter'
 
 const ContentContainer = () => {
   return (
@@ -17,6 +18,11 @@ const ContentContainer = () => {
           subtitle={"Pielęgnuj swojego psiaka"}
         />
         <SubCategoryContent/>
+        <Newsletter/>
+        <ProductCarusel
+          title={"Produkty objęte promocją"}
+          subtitle={"Idealne na wyjścia z pupilem"}
+        />
     </div>
   )
 }

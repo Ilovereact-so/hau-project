@@ -9,7 +9,7 @@ const NavHamburger = ({onClick, className, isOpen}: {onClick: () => void, classN
     }
   },[isOpen, refMenu])
   return (
-    <label htmlFor="check" className={className}>
+    <label id='Navlabel' htmlFor="check" className={className}>
       <input type="checkbox" id="check" ref={refMenu} onClick={onClick}/> 
       <span className={`${isOpen ? "bg-black":"bg-white"}`}></span>
       <span className={`${isOpen ? "bg-black":"bg-white"}`}></span>

@@ -7,7 +7,7 @@
 
 }
 
-@theme inline {
+:root {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-poppins: var(--font-poppins);
@@ -15,7 +15,7 @@
   --breakpoint-2md: 920px;
   --breakpoint-2lg: 1060px;
   --breakpoint-1md: 840px;
-  --breakpoint-1.5xl: 88.75rem;
+  --breakpoint-1\.5xl: 88.75rem;
   --breakpoint-1xl: 88.75rem;
   --breakpoint-xs: 390px;
   --breakpoint-2xs: 445px;
@@ -85,6 +85,7 @@ body {
 
 #item-progress-bar[type="range"]{
   -webkit-appearance: none;
+  appearance: none;
   width: 40vw;
   height: 3px;
   border-radius:20px;
@@ -97,6 +98,7 @@ body {
 
 #item-progress-bar[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
+  appearance: none;
   width: var(--thumb-size,10%);
   height: 3px;
   background-color:#383838;
@@ -104,13 +106,13 @@ body {
   cursor: pointer;
   transition: all 0.3s;
 }
-label{
+#Navlabel{
   flex-direction:column;
   width:30px;
   cursor:pointer;
 }
 
-label span{
+#Navlabel span{
   border-radius:5px;
   height:3px;
   margin: 3px 0;
@@ -119,17 +121,17 @@ label span{
 }
 
 
-span:nth-of-type(1){
+#Navlabel span:nth-of-type(1){
   width:50%;
   
 }
 
-span:nth-of-type(2){
+#Navlabel span:nth-of-type(2){
   width:100%;
 }
 
 
-span:nth-of-type(3){
+#Navlabel  span:nth-of-type(3){
   width:75%;
  
 }
@@ -140,23 +142,26 @@ input[type="checkbox"]{
 }
 
 
-input[type="checkbox"]:checked ~ span:nth-of-type(1){
+#Navlabel input[type="checkbox"]:checked ~ span:nth-of-type(1){
   transform-origin:bottom;
   transform:rotatez(45deg) translate(4px,0px)
 }
 
 
-input[type="checkbox"]:checked ~ span:nth-of-type(2){
+#Navlabel input[type="checkbox"]:checked ~ span:nth-of-type(2){
   
   transform-origin:top;
   transform:rotatez(-45deg)
 }
 
 
-input[type="checkbox"]:checked ~ span:nth-of-type(3){
+#Navlabel input[type="checkbox"]:checked ~ span:nth-of-type(3){
   
   transform-origin:bottom;
   width:50%;
   transform: translate(13px,-5px) rotatez(45deg);
 
+}
+#Footer td {
+  padding: 6px 2px; 
 }
