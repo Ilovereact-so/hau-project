@@ -33,7 +33,7 @@ jobs:
     - name: Prepare deployment folder
       run: |
         mkdir deploy
-        cp -r .next/standalone/* deploy/standalone
+        cp -r .next/standalone/ deploy/standalone
         cp -r .next/static deploy/static
         cp -r public deploy/public
         echo "Deployment folder structure:"
