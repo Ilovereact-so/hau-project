@@ -25,15 +25,35 @@ export default function ResetPassword() {
 
   const searchParams = useSearchParams();
   const step = searchParams?.get("step") ?? "1";
-
-  if (!isLoaded) return null;
   
+  // Dodajemy efekt do ładowania emaila z parametrów URL
   useEffect(() => {
     const emailParam = searchParams?.get("email");
     if (emailParam) {
       setEmail(String(emailParam));
     }
   }, [searchParams]);
+
+  // Wszystkie hooki muszą być zadeklarowane przed jakimkolwiek warunkowym zwrotem
+  useEffect(() => {
+    if (searchParams) {
+      const emailParam = searchParams.get("email");
+      if (emailParam) {
+        setEmail(String(emailParam));
+      }
+    }
+  }, [searchParams]);
+
+  // Cleanup effect dla animation frame
+  useEffect(() => {
+    return () => {
+      if (frameRef.current) {
+        cancelAnimationFrame(frameRef.current);
+      }
+    };
+  }, []);
+
+  if (!isLoaded) return null;
 
   const handleVerify = async () => {
     try {
@@ -113,13 +133,7 @@ export default function ResetPassword() {
     }
   };
 
-   // cleanup przy odmontowaniu
-  useEffect(() => {
-    const cleanup = () => {
-      if (frameRef.current) cancelAnimationFrame(frameRef.current);
-    };
-    return cleanup;
-  }, []);
+
 
   const filter = {
     times: [0,0.5,1],
