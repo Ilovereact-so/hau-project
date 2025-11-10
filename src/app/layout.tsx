@@ -4,9 +4,11 @@ import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 
 const poppins = Poppins({
-  weight:["400", "600"],
-  style:"normal"
-})
+  weight: ['400', '600'],
+  subsets: ['latin'],
+  display: 'swap',
+  preload: false, // wyłącza preload
+});
 
  
 export const viewport: Viewport = {

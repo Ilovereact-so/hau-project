@@ -7,7 +7,7 @@
 
 }
 
-:root {
+@theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-poppins: var(--font-poppins);
@@ -15,7 +15,7 @@
   --breakpoint-2md: 920px;
   --breakpoint-2lg: 1060px;
   --breakpoint-1md: 840px;
-  --breakpoint-1\.5xl: 88.75rem;
+  --breakpoint-1.5xl: 88.75rem;
   --breakpoint-1xl: 88.75rem;
   --breakpoint-xs: 390px;
   --breakpoint-2xs: 445px;
@@ -85,7 +85,6 @@ body {
 
 #item-progress-bar[type="range"]{
   -webkit-appearance: none;
-  appearance: none;
   width: 40vw;
   height: 3px;
   border-radius:20px;
@@ -98,7 +97,6 @@ body {
 
 #item-progress-bar[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
-  appearance: none;
   width: var(--thumb-size,10%);
   height: 3px;
   background-color:#383838;
