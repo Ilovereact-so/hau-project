@@ -30,14 +30,7 @@ jobs:
     - run: npm install
     - run: CI=false npm run build --if-present
       if: always()
-    # - name: Prepare deployment folder
-    #   run: |
-    #     mkdir deploy
-    #     cp -r .next/standalone/ deploy/standalone
-    #     cp -r .next/static deploy/static
-    #     cp -r public deploy/public
-    #     echo "Deployment folder structure:"
-    #     ls -R deploy
+
   
     - name: FTP Deploy standalone (Next.js server)
       if: always()
@@ -51,22 +44,27 @@ jobs:
         username: ${{ secrets.USERNAME }}
         # ftp password
         password: ${{ secrets.PASSWORD }}
-        # protocol to deploy with - ftp, ftps, or ftps-legacy
-        protocol: ftp
         # Folder to upload from, must end with trailing slash /
         local-dir: ./.next/standalone/
         # Path to upload to on the server. Must end with trailing slash /
         server-dir: /public_html/standalone/
-        
+        # protocol to deploy with - ftp, ftps, or ftps-legacy
+        protocol: ftp
+        port: 21
         security: loose
+        passive: true
         concurrency: 1
-        timeout: 120000
+        timeout: 180000
+        sync: true
         log-level: verbose
         dangerous-clean-slate: false
         # Path and name of the state file - this file is used to track which files have been deployed
         exclude: |
           **/cgi-bin*
-    
+
+    - name: Wait before next deploy
+      run: sleep 5
+
     - name: FTP Deploy Deploy static assets
       if: always()
     # You may pin to the exact commit or the version.
@@ -79,21 +77,26 @@ jobs:
         username: ${{ secrets.USERNAME }}
         # ftp password
         password: ${{ secrets.PASSWORD }}
-        # protocol to deploy with - ftp, ftps, or ftps-legacy
-        protocol: ftp
         # Folder to upload from, must end with trailing slash /
         local-dir: ./.next/static/
         # Path to upload to on the server. Must end with trailing slash /
         server-dir: /public_html/static/
-
+        # protocol to deploy with - ftp, ftps, or ftps-legacy
+        protocol: ftp
+        port: 21
         security: loose
+        passive: true
         concurrency: 1
-        timeout: 120000
+        timeout: 180000
+        sync: true
         log-level: verbose
         dangerous-clean-slate: false
         # Path and name of the state file - this file is used to track which files have been deployed
         exclude: |
           **/cgi-bin*
+
+    - name: Wait before next deploy
+      run: sleep 5
 
     - name: FTP Deploy public folder
       if: always()
@@ -107,15 +110,18 @@ jobs:
         username: ${{ secrets.USERNAME }}
         # ftp password
         password: ${{ secrets.PASSWORD }}
-        # protocol to deploy with - ftp, ftps, or ftps-legacy
         # Folder to upload from, must end with trailing slash /
         local-dir: ./public/
         # Path to upload to on the server. Must end with trailing slash /
         server-dir: /public_html/public/
-
+        # protocol to deploy with - ftp, ftps, or ftps-legacy
+        protocol: ftp
+        port: 21
         security: loose
+        passive: true
         concurrency: 1
-        timeout: 120000
+        timeout: 180000
+        sync: true
         log-level: verbose
         dangerous-clean-slate: false
         # Path and name of the state file - this file is used to track which files have been deployed
