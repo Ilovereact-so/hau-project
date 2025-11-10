@@ -16,7 +16,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [20.x]
+        node-version: [18.x ,20.x, 22.x]
         # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
 
     steps:
@@ -52,10 +52,7 @@ jobs:
         protocol: ftp
         port: 21
         security: loose
-        passive: true
-        concurrency: 1
         timeout: 180000
-        sync: true
         log-level: verbose
         dangerous-clean-slate: false
         # Path and name of the state file - this file is used to track which files have been deployed
@@ -86,10 +83,7 @@ jobs:
         protocol: ftp
         port: 21
         security: loose
-        passive: true
-        concurrency: 1
         timeout: 180000
-        sync: true
         log-level: verbose
         dangerous-clean-slate: false
         # Path and name of the state file - this file is used to track which files have been deployed
@@ -119,10 +113,7 @@ jobs:
         protocol: ftp
         port: 21
         security: loose
-        passive: true
-        concurrency: 1
         timeout: 180000
-        sync: true
         log-level: verbose
         dangerous-clean-slate: false
         # Path and name of the state file - this file is used to track which files have been deployed
