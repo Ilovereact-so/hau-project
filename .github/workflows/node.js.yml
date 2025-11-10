@@ -33,11 +33,11 @@ jobs:
     - name: Prepare deployment folder
       run: |
         mkdir deploy
-        cp -r public/* deploy/ || true
-        cp -r standalone/* deploy/ || true
-        cp -r static/* deploy/ || true
+        cp -r .next/standalone/* deploy/standalone
+        cp -r .next/static deploy/static
+        cp -r public deploy/public
         echo "Deployment folder structure:"
-        ls -la deploy
+        ls -R deploy
   
     - name: FTP Deploy
       if: always()
