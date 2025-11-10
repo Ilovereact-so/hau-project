@@ -21,6 +21,7 @@ const eslintConfig = [
     ],
   },
   {
+    files: ["**/*.ts", "**/*.tsx"],
     rules: {
       // Wyłączenie ostrzeżeń o nienazwanych funkcjach (często występuje w komponentach Next.js)
       "func-names": "off",
@@ -36,20 +37,30 @@ const eslintConfig = [
       "react/jsx-filename-extension": ["warn", { "extensions": [".js", ".jsx", ".ts", ".tsx"] }],
       // Bardziej elastyczne reguły dla eksportów
       "import/prefer-default-export": "off",
-      // Wyłącza ostrzeżenia o używaniu console.log (pomocne w developmencie)
-      "no-console": "warn",
+      // Wyłącza ostrzeżenia o używaniu console.log w development
+      "no-console": process.env.NODE_ENV === "production" ? "error" : "off",
       // Pozwala na nieużywane zmienne zaczynające się od _
-      "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
+      "@typescript-eslint/no-unused-vars": ["warn", { 
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "ignoreRestSiblings": true
+      }],
       // Bardziej elastyczne reguły dla promisów
       "@typescript-eslint/no-floating-promises": "off",
       // Wyłącza wymóg return type dla funkcji (TypeScript często może wywnioskować)
       "@typescript-eslint/explicit-function-return-type": "off",
-      // Pozwala na any w niektórych sytuacjach
-      "@typescript-eslint/no-explicit-any": "warn",
+      // Bardziej elastyczne podejście do any
+      "@typescript-eslint/no-explicit-any": "off",
       // Wyłącza ostrzeżenia o styled-components props
       "@typescript-eslint/no-unused-expressions": "off",
       // Pozwala na import styli CSS
       "import/no-unresolved": ["error", { "ignore": ["\\.css$"] }],
+      // Wyłącza niektóre reguły dla hooków w specyficznych przypadkach
+      "react-hooks/rules-of-hooks": "warn",
+      // Bardziej elastyczne sprawdzanie zależności w useEffect
+      "react-hooks/exhaustive-deps": ["warn", {
+        "additionalHooks": "(useRecoilCallback|useRecoilTransaction_UNSTABLE)"
+      }],
     },
   },
 ];

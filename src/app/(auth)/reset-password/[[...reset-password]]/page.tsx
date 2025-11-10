@@ -23,10 +23,10 @@ export default function ResetPassword() {
   const endTimeRef = useRef<number | null>(null);
   const frameRef = useRef<number | null>(null);
 
-  if (!isLoaded) return null;
-
   const searchParams = useSearchParams();
   const step = searchParams?.get("step") ?? "1";
+
+  if (!isLoaded) return null;
   
   useEffect(() => {
     const emailParam = searchParams?.get("email");
@@ -115,9 +115,10 @@ export default function ResetPassword() {
 
    // cleanup przy odmontowaniu
   useEffect(() => {
-    return () => {
+    const cleanup = () => {
       if (frameRef.current) cancelAnimationFrame(frameRef.current);
     };
+    return cleanup;
   }, []);
 
   const filter = {
