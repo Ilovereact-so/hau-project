@@ -16,7 +16,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [18.x, 20.x, 22.x]
+        node-version: [20.x]
         # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
 
     steps:
@@ -61,6 +61,7 @@ jobs:
         # Path and name of the state file - this file is used to track which files have been deployed
         exclude: |
           **/cgi-bin*
+          **/node_modules/**
 
     - name: Wait before next deploy
       run: sleep 5
