@@ -52,7 +52,9 @@ jobs:
         # ftp password
         password: ${{ secrets.PASSWORD }}
         # protocol to deploy with - ftp, ftps, or ftps-legacy
-        protocol: ftps
+        protocol: ftp
+        security: loose
+        timeout: 120000
         # Folder to upload from, must end with trailing slash /
         local-dir: ./deploy/
         # Path to upload to on the server. Must end with trailing slash /
