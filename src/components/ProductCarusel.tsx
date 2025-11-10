@@ -10,18 +10,19 @@ type Props =  {
     title : string,
     subtitle : string
 }
+const PRODUCTS_QUERY = `*[_type == "product" && references(*[ _type == "category" && (slug.current == $slug || slug == $slug) ]._id)
+        ]`
+const QUERY_PARAMS = {slug : "zabawki"}
+
 const ProductCarusel = ({title, subtitle}:Props) => {
     const [products, setProducts] = useState<Product[]>([]) 
     const [loading,setLoading] = useState<boolean>(true)
-    const query = `*[_type == "product" && references(*[ _type == "category" && (slug.current == $slug || slug == $slug) ]._id)
-        ]`
-    const params = {slug : "zabawki"}
 
     useEffect(()=>{
         const fetchData = async ()=>{
             setLoading(true)
             try{
-                const response = await client.fetch(query,params)
+                const response = await client.fetch(PRODUCTS_QUERY, QUERY_PARAMS)
                 setProducts(await response)
             } catch (error){
                 console.log("Product fetching Error", error)
@@ -30,7 +31,7 @@ const ProductCarusel = ({title, subtitle}:Props) => {
             }
         }
         fetchData();
-    },[query, params])
+    },[])
 
     return (
     <div className='w-full h-auto font-poppins lg:mt-12 mt-8'>

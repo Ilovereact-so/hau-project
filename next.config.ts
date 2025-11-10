@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // Konfiguracja dla dynamic export
+  output: 'standalone',
   // Pozostałe opcje
   images: {
     remotePatterns: [
@@ -18,7 +20,9 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-
+  // Optymalizacja dla produkcji
+  swcMinify: true,
+  poweredByHeader: false,
 };
 
 export default nextConfig;
