@@ -1,7 +1,7 @@
 # This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
 # For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
 
-name: Node.js CI + FTP Deploy
+name: Node.js CI
 
 on:
   push:
@@ -11,47 +11,52 @@ on:
 
 jobs:
   build:
+
     runs-on: ubuntu-latest
 
     strategy:
       matrix:
-        node-version: [18.x]
+        node-version: [18.x, 20.x, 22.x]
+        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build project
-        run: npm run build
-
-      # ⬇️ SCALANIE FOLDERÓW DO JEDNEGO KATALOGU "deploy/"
-      - name: Prepare deployment folder
-        run: |
-          mkdir deploy
-          cp -r public/* deploy/ || true
-          cp -r standalone/* deploy/ || true
-          cp -r static/* deploy/ || true
-          echo "Deployment folder structure:"
-          ls -la deploy
-
-      # ⬇️ DEPLOY NA FTP
-      - name: Deploy to FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4
-        with:
-          server: ${{ secrets.SERVER }}
-          username: ${{ secrets.USERNAME }}
-          password: ${{ secrets.PASSWORD }}
-          local-dir: ./deploy/
-          server-dir: /public_html/
-          protocol: ftp
-          port: 21
-          timeout: 60000
-          log-level: verbose
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+    - run: npm install
+    - run: CI=false npm run build --if-present
+      if: always()
+    - name: Prepare deployment folder
+      run: |
+        mkdir deploy
+        cp -r public/* deploy/ || true
+        cp -r standalone/* deploy/ || true
+        cp -r static/* deploy/ || true
+        echo "Deployment folder structure:"
+        ls -la deploy
+  
+    - name: FTP Deploy
+      if: always()
+  # You may pin to the exact commit or the version.
+  # uses: SamKirkland/FTP-Deploy-Action@a51268f67f6605236975928ae28b0f7e9971d50a
+      uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+      with:
+        # ftp server
+        server: ${{ secrets.SERVER }}
+        # ftp username
+        username: ${{ secrets.USERNAME }}
+        # ftp password
+        password: ${{ secrets.PASSWORD }}
+        # protocol to deploy with - ftp, ftps, or ftps-legacy
+        protocol: ftps
+        # Folder to upload from, must end with trailing slash /
+        local-dir: ./deploy/
+        # Path to upload to on the server. Must end with trailing slash /
+        server-dir: /public_html/
+        # Path and name of the state file - this file is used to track which files have been deployed
+        exclude: |
+          **/cgi-bin*
