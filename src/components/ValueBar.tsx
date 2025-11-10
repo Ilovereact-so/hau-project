@@ -1,4 +1,4 @@
-import { Bone, CreditCard, LucideProps, PawPrint, Truck } from 'lucide-react'
+import { Bone, CreditCard, PawPrint, Truck } from 'lucide-react'
 import React from 'react'
 import {motion} from "framer-motion"
 import { ProductCarousel } from '@/hooks/ProductCarousel'

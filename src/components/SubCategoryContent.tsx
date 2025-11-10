@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import Carousel from './Carousel'
 import { category } from '@/constants'
-import { Product } from '../../sanity.types'
 
 const SubCategoryContent = () => {
     type cat = {
@@ -14,7 +13,7 @@ const SubCategoryContent = () => {
     
     useEffect(() => {
         handleRandomize();
-    }, [category]);
+    }, []);
 
     useEffect(() => {
         console.log("Numbers zaktualizowane:", numbers);

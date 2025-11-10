@@ -9,12 +9,10 @@ import { useEffect, useRef, useState } from "react";
 export default function VerifyEmail() {
   const { isLoaded, signUp, setActive } = useSignUp();
   const router = useRouter();
-  const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
 
     // tu trzymamy tylko info czy przycisk aktywny
   const [disabled, setDisabled] = useState(false);
-  const cooldownRef = useRef<NodeJS.Timeout | null>(null);
   const timerRef = useRef<HTMLSpanElement | null>(null);
   const endTimeRef = useRef<number | null>(null);
   const frameRef = useRef<number | null>(null);

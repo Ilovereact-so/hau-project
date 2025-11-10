@@ -1,10 +1,9 @@
 'use client'
 import { client } from '@/sanity/lib/client'
-import { ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { Product } from '../../sanity.types'
 import ProductItem from './ProductItem'
-import { useScroll, useSpring, motion, useTransform } from 'framer-motion'
 import Carousel from './Carousel'
 
 type Props =  {
@@ -31,7 +30,7 @@ const ProductCarusel = ({title, subtitle}:Props) => {
             }
         }
         fetchData();
-    },[])
+    },[query, params])
 
     return (
     <div className='w-full h-auto font-poppins lg:mt-12 mt-8'>

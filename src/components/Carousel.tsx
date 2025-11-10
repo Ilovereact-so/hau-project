@@ -1,7 +1,5 @@
 import { useScroll, useSpring, useTransform, motion } from 'framer-motion';
 import React, { useEffect } from 'react'
-import ProductItem from './ProductItem';
-import { Product } from '../../sanity.types';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 type Props = {
@@ -12,7 +10,7 @@ const Carousel = ({children}:Props) => {
     const carouselRef = React.useRef<HTMLDivElement>(null);
     const carouselChildRef = React.useRef<HTMLDivElement>(null)
 
-    const {scrollX, scrollXProgress} = useScroll({
+    const {scrollXProgress} = useScroll({
         container: carouselRef,
         
     }) 
@@ -24,7 +22,7 @@ const Carousel = ({children}:Props) => {
     useEffect(() => {
         return smoothProgress.on("change", (latest) => {
         if(carouselRef.current && carouselChildRef.current){
-            let perW = carouselRef.current?.clientWidth / carouselChildRef.current?.clientWidth
+            const perW = carouselRef.current?.clientWidth / carouselChildRef.current?.clientWidth
             console.log(perW,carouselChildRef.current?.clientWidth,carouselRef.current?.clientWidth ,1-perW)
             const percentage = (perW*100)+ (1-perW)*latest*100 
             if (rangeRef.current) {

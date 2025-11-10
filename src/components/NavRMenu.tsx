@@ -7,11 +7,10 @@ import { category } from '@/constants'
 import Link from 'next/link'
 import { Search } from 'lucide-react'
 import Image from 'next/image'
-import { delay, motion, useMotionValueEvent, useScroll } from 'framer-motion'
+import { motion, useMotionValueEvent, useScroll } from 'framer-motion'
 import useMediaQuery from '@/hooks/useMediaQuery'
-import { circle, del, tr } from 'framer-motion/client'
 import SubmenuPortal from './SubmenuPortal'
-import { Arapey } from 'next/font/google'
+
 
 const NavRMenu = ({ className, style }: { className: string, style: React.CSSProperties }) => {
     const mobile  = useMediaQuery('(max-width: 639px)');
@@ -43,7 +42,7 @@ const NavRMenu = ({ className, style }: { className: string, style: React.CSSPro
         console.log(isFocus)
     },[itemRefs.current])
 
-    let globalDelay = 0.4
+    const globalDelay = 0.4
 
     const [isHover, setIsHover] = useState<boolean>(false)
     const BackgroundTheme = () =>{

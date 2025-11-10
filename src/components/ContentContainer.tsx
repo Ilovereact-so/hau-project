@@ -1,5 +1,4 @@
 import React from 'react'
-import ProductGrid from './ProductGrid'
 import ProductCarusel from './ProductCarusel'
 import ValueBar from './ValueBar'
 import SubCategoryContent from './SubCategoryContent'

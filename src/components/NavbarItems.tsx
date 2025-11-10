@@ -1,6 +1,6 @@
 'use client'
-import React, { useEffect, useRef, useState } from 'react'
-import {motion, useMotionValueEvent, useScroll, useTransform} from 'framer-motion'
+import React from 'react'
+import {motion, useScroll, useTransform} from 'framer-motion'
 import useMediaQuery from '@/hooks/useMediaQuery';
 
 const NavbarItems = ({ className, id , children, ref}: { className?: string, id?: string, children: React.ReactNode, ref: React.Ref<HTMLDivElement | null> }) => {

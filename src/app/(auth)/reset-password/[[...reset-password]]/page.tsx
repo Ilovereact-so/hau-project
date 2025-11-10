@@ -1,6 +1,5 @@
 "use client";
 import VerifyEmailInput from "@/components/VerifyEmailInput";
-import { useSignUp } from "@clerk/nextjs";
 import { Eye, EyeOff, Undo2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
@@ -27,12 +26,14 @@ export default function ResetPassword() {
   if (!isLoaded) return null;
 
   const searchParams = useSearchParams();
-  const step = searchParams.get("step") ?? "1";
+  const step = searchParams?.get("step") ?? "1";
   
-  useEffect(()=>{
-
-    setEmail(String(searchParams.get("email")))
-    },[])
+  useEffect(() => {
+    const emailParam = searchParams?.get("email");
+    if (emailParam) {
+      setEmail(String(emailParam));
+    }
+  }, [searchParams]);
 
   const handleVerify = async () => {
     try {
@@ -47,6 +48,7 @@ export default function ResetPassword() {
         setError('')
         router.push("/"); // 👈 redirect po udanym logowaniu
       }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       setError(err.errors?.[0]?.message || "Niepoprawny kod");
     }

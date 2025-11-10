@@ -14,7 +14,6 @@ export const ProductCarousel: React.FC<ProductCarouselProps> = ({
   const wrapperRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const controls = useAnimationControls();
-  const [isOverflowing, setIsOverflowing] = useState(false);
   const mobile = useMediaQuery("(max-width: 768px)")
   // Sprawdzenie overflow
 

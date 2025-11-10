@@ -5,7 +5,6 @@ import {motion} from 'framer-motion'
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import ContentContainer from "@/components/ContentContainer";
-import ValueBar from "@/components/ValueBar";
 import Footer from "@/components/Footer";
 
 

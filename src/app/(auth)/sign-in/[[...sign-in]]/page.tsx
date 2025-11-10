@@ -3,7 +3,7 @@
 import React, { useState, ChangeEvent, FormEvent } from "react";
 import { SignUpButton, useSignIn } from "@clerk/clerk-react";
 import Image from "next/image";
-import { ArrowLeft, ArrowLeftIcon, Eye, EyeOff, Undo2 } from "lucide-react";
+import { Eye, EyeOff, Undo2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {motion} from "framer-motion"
 // Typ dla błędów z Clerk
