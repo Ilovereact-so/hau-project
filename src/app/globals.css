@@ -51,6 +51,16 @@ body {
   grid-template-areas: "nav logo actions";
   grid-template-columns: 120px 1fr 120px;
 }
+#newsletterContainer{
+  display:  grid;
+  grid-template-areas: 
+    'heading'
+    'description'
+    'form';
+  grid-template-columns: auto;
+  row-gap: 3vh;
+  justify-content: center;
+}
 @media (min-width: 640px) {
     #navbar{
     display: flex;
@@ -60,8 +70,18 @@ body {
   #navbar-scroll::-webkit-scrollbar {
   height: 3px; /* dla poziomego scrolla */
   
+  }
+  #newsletterContainer{
+    display:  grid;
+    grid-template-areas: 
+    'heading description'
+    'form description';
+    grid-template-columns: auto auto;
+    column-gap: 8vw;
+    justify-content: space-evenly;
+  }
 }
-}
+
 
 /* Dla przeglądarek opartych o WebKit (Chrome, Edge, Safari) */
 #navbar-scroll::-webkit-scrollbar {

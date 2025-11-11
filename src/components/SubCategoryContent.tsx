@@ -118,7 +118,7 @@ const SubCategoryContent = () => {
                 {
                     loading ? <span>Products is loading...</span> :
                     isCategory?.map((item:cat, index)=>(
-                        <div key={index} ref={itemRef} className='w-[255px] h-[322px] rounded-[35px] bg-slate-300 relative'>
+                        <div key={index} ref={itemRef} className='w-[clamp(170px,25vw,255px)] h-[clamp(210px,30vw,322px)] rounded-[35px] bg-slate-300 relative'>
                             <BottomHeavyH1 text={item?.name} className='absolute left-5 bottom-5 text-white font-bold font-poppins text-[18px] w-[80%]'/>
                         </div>
                     ))

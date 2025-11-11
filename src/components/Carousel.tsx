@@ -23,7 +23,6 @@ const Carousel = ({children}:Props) => {
         return smoothProgress.on("change", (latest) => {
         if(carouselRef.current && carouselChildRef.current){
             const perW = carouselRef.current?.clientWidth / carouselChildRef.current?.clientWidth
-            console.log(perW,carouselChildRef.current?.clientWidth,carouselRef.current?.clientWidth ,1-perW)
             const percentage = (perW*100)+ (1-perW)*latest*100 
             if (rangeRef.current) {
                 rangeRef.current.style.setProperty("width", `${percentage}%`);

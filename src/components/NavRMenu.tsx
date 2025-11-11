@@ -30,8 +30,7 @@ const NavRMenu = ({ className, style }: { className: string, style: React.CSSPro
         // const tt = itemRefs.current.some((value, i)=> value.current === document.activeElement)
         // !tt && 
         // console.log(tt)
-
-        itemRefs.current[0].current.focus()
+        mobile && itemRefs.current[0].current.focus()
     }
     useEffect(()=>{
         autoMenu()
