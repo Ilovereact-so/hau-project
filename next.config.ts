@@ -7,8 +7,11 @@ const nextConfig: NextConfig = {
   },
   // Konfiguracja dla dynamic export
   output: 'standalone',
+  
   // Pozostałe opcje
   images: {
+    loader: 'default',  // domyślny loader Next.js
+    path: '/',           // punkt wyjścia dla public/
     remotePatterns: [
       {
         protocol: 'https',
@@ -21,7 +24,6 @@ const nextConfig: NextConfig = {
     ],
   },
   // Optymalizacja dla produkcji
-  swcMinify: true,
   poweredByHeader: false,
 };
 

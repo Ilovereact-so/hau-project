@@ -78,7 +78,7 @@ jobs:
         # Folder to upload from, must end with trailing slash /
         local-dir: ./.next/static/
         # Path to upload to on the server. Must end with trailing slash /
-        server-dir: /public_html/static/
+        server-dir: /public_html/_next/static/
         # protocol to deploy with - ftp, ftps, or ftps-legacy
         protocol: ftp
         port: 21
