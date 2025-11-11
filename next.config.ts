@@ -10,8 +10,6 @@ const nextConfig: NextConfig = {
   
   // Pozostałe opcje
   images: {
-    loader: 'default',  // domyślny loader Next.js
-    path: '/',           // punkt wyjścia dla public/
     remotePatterns: [
       {
         protocol: 'https',
