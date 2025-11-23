@@ -1,4 +1,5 @@
 import Footer from "@/components/Footer";
+import NavbarContainer from "@/components/NavbarContainer";
 import ProductsNavbar from "@/components/ProductsNavbar";
 
 
@@ -9,7 +10,7 @@ export default function UsingLayout({
 }>) {
   return (
     <>
-      <ProductsNavbar/>
+      <NavbarContainer mode={1}/>  {/** 1 for products */}
         {children}
       <Footer/>
     </>

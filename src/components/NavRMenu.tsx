@@ -1,5 +1,5 @@
 'use client'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { use, useEffect, useRef, useState } from 'react'
 import ResearchNav from './ResearchNav'
 import NavHamburger from './NavHamburger'
 import NavbarItems from './NavbarItems'
@@ -7,18 +7,30 @@ import { category } from '@/constants'
 import Link from 'next/link'
 import { Search } from 'lucide-react'
 import Image from 'next/image'
-import { motion, useMotionValueEvent, useScroll } from 'framer-motion'
+import { animate, motion, useMotionValueEvent, useScroll } from 'framer-motion'
 import useMediaQuery from '@/hooks/useMediaQuery'
 import SubmenuPortal from './SubmenuPortal'
+import SearchBarContext from './SearchBarContext'
 
 
-const NavRMenu = ({ className, style }: { className: string, style: React.CSSProperties }) => {
+
+const NavRMenu = ({ className, style, mode}: { className: string, style: React.CSSProperties, mode: number }) => {
     const mobile  = useMediaQuery('(max-width: 639px)');
     const [openMenu, setOpenMenu] = useState<boolean>(!mobile ? false : true);
     const navbarRef = useRef<HTMLDivElement>(null);
     const parentNavbarRef = useRef<HTMLDivElement>(null);
+    const [isMode, setIsMode] = useState<number>(mode);
+    const [SearchBarReady, setSearchBarReady] = useState<boolean>(false);
 
+    (function () {
+    function debugFn() {
+        setIsMode(isMode == 1 ? 0 : 1);
+        return isMode
+    }
 
+    (globalThis as any).debugFn = debugFn;
+    })();
+    
     const { scrollY } = useScroll({});
 
     useMotionValueEvent(scrollY, "change", (latest) => {
@@ -70,18 +82,63 @@ const NavRMenu = ({ className, style }: { className: string, style: React.CSSPro
 
 
     }
+
+
+    const NavbarVariants = {
+        default: {
+            x: "-115vw",
+            transition: {
+            duration: 0.5,
+            }
+        },
+
+        slide: {
+            x: "-15vw",
+            transition: {
+            duration: 0.5,
+            }
+        },
+
+        changeDirectionRow: {
+            flexDirection: "row",
+        },
+
+        changeDirectionColumn: {
+            flexDirection: "column",
+        }
+    };
+
+    useEffect(()=>{
+        if(mode === 1){
+        animate("#navbar2",{borderBottomWidth: mode === 1 && SearchBarReady ? "1px":"0"},{duration:0.5})
+        }
+    },[SearchBarReady , mode])
     return (
     <div className={className} style={style}>
-        <div className='flex justify-start w-full pl-10 lg:mt-0 mt-7 mb-0 relative z-10'>
+        {mode === 0 &&
+            (
+        <div className={`flex justify-start w-full pl-10  mb-0 relative z-10 lg:mt-0 mt-7`}>
             <NavHamburger isOpen={openMenu} onClick={() => setOpenMenu(!openMenu)} className='sm:hidden inline-flex'/>
         </div>
+            )
+        }
+        
         <motion.div animate={!mobile ? isHover ? {opacity:1, display:"block"} : {opacity:0, display:"none"} : openMenu ? {opacity:1, display:"block"} : {opacity:0, display:"none"}} transition={{duration:0.3, delay:globalDelay}} className='fixed top-0 left-0 w-full h-full bg-black/40 z-0'></motion.div>
-        <motion.div animate={{x: !mobile ? "0%" : openMenu ? "-15vw" : '-115vw'}} transition={{duration:0.5, ease:"backInOut", stiffness:100}} className='flex flex-col max-sm:fixed top-0 left-0 sm:w-full w-[115%] max-sm:bg-gradient-to-r from-[#a7e4d9a6] from-70% to-70% to-transparent max-sm:backdrop-blur-[4px] max-sm:h-screen h-auto sm:px-0 px-6 max-sm:pl-[20vw] sm:pb-0 pb-5'>
-            <motion.div className={`sm:rounded-[39px] flex sm:bg-[#A7E4D9]/65 justify-start max-sm:flex-1 sm:h-fit h-full lg:w-auto w-full xl:overflow-hidden sm:mt-0 mt-24 sm:overflow-hidden overflow-auto relative ease-in-out duration-300 delay-300 ${
+        <motion.div variants={NavbarVariants}
+        animate={[
+            !mobile ? "" : openMenu ? "slide" : "default",
+            isMode === 1 && SearchBarReady ? "changeDirectionRow" : "changeDirectionColumn"
+        ]}
+        transition={{duration:0.5, ease:"backInOut", stiffness:100}} className='flex flex-col max-sm:fixed top-0 left-0 sm:w-full w-[115%] max-sm:bg-gradient-to-r from-[#a7e4d9a6] from-70% to-70% to-transparent max-sm:backdrop-blur-[4px] max-sm:h-screen h-auto sm:px-0 px-6 max-sm:pl-[20vw] sm:pb-0 pb-5'>
+            <motion.div animate={isMode === 0 ? {backgroundColor:"#a7e4d9a6"} : {backgroundColor:"transparent"}} className={`sm:rounded-[39px] flex sm:bg-[#A7E4D9]/65 justify-start max-sm:flex-1 sm:h-fit h-full xl:overflow-hidden sm:mt-0 mt-24 sm:overflow-hidden overflow-auto relative ease-in-out duration-300 delay-300  z-2 ${
                 !mobile && isHover && "shadow-lg shadow-black/25"
+            } ${
+                mode === 0 ? "lg:w-auto w-full ":"w-auto mr-8"
             }`}>
-                <NavbarItems mode={0} ref={navbarRef} id="navbar-scroll" className='sm:rounded-[39px] flex sm:flex-row flex-col lg:justify-center justify-start sm:items-center sm:space-x-3 xl:px-25 lg:px-14 lg:pl-14 lg:pr-14 pl-0 pr-10 xl:py-3 lg:py-2 py-0 sm:h-fit h-full lg:w-auto w-full overflow-x-auto sm:overflow-y-visible overflow-y-auto max-sm:space-y-3'>
-                    <div className='max-lg:flex max-sm:hidden hidden'><Image src="/logo_hau.svg" alt='logo' className=' min-w-[40px] min-h-[40px] invert' width={40} height={40}/></div>                    
+                <NavbarItems mode={0} ref={navbarRef} id="navbar-scroll" className={`sm:rounded-[39px] flex sm:flex-row flex-col sm:items-center sm:space-x-3  xl:py-3 lg:py-2 py-0 sm:h-fit h-full lg:w-auto w-full overflow-x-auto sm:overflow-y-visible overflow-y-auto max-sm:space-y-3 ${
+                    isMode === 1 && SearchBarReady ? "px-4 justify-start" : "xl:px-25 lg:px-14 lg:pl-14 lg:pr-14 pl-0 pr-10 lg:justify-center justify-start"
+                }`}>
+                    <div className={` ${mode == 0 ? "max-lg:flex max-sm:hidden hidden" : "hidden" }`}><Image src="/logo_hau.svg" alt='logo' className=' min-w-[40px] min-h-[40px] invert' width={40} height={40}/></div>                    
                     {
                         category.map((item,index)=>(
                             <NavLink navRef={navbarRef} item={item} index={index} key={index} itemRef={itemRefs.current[index]} isHoverExport={BackgroundTheme} globalDelay = {globalDelay}/>
@@ -93,13 +150,7 @@ const NavRMenu = ({ className, style }: { className: string, style: React.CSSPro
                 <div className='h-[1px] bg-white w-[60%] mb-4'></div>
                 <h1 className='text-black text-[14px] mb-2'>Lub <span className='font-bold'>wyszukaj</span></h1>
             </div> {/**  0 - 640 relative, 640-1060 absolute, 1060+ relative */} 
-            <div className='w-full lg:relative sm:absolute relative h-auto flex sm:justify-center justify-start bottom-5 left-0 sm:px-10 max-sm:top-0 max-lg:top-25 top-0 lg:mt-5 mt-0 sm:ml-0 ml-4'>
-                <div className='bg-white h-fit rounded-full inline-flex space-x-5 px-3 py-2 w-auto'>
-                    <Search className='text-black xl:w-[24px] w-[20px] xl:h-[24px] h-[20px]'/>
-                    {/**<input placeholder='Obroża taktyczna..' className='focus:outline-none font-poppins text-[16px] placeholder:text-[16px] text-black placeholder:text-[#4E4E4E]'/> */}
-                    <ResearchNav isMobile={mobile} minWidth={200}/>
-                </div>    
-            </div>
+            <SearchBarContext mode={mode} SearchBarR={(e) => setSearchBarReady(e)} mobile={false} />
             
         </motion.div>
     </div>

@@ -55,6 +55,12 @@ body {
   grid-template-areas: "nav logo actions";
   grid-template-columns: 120px 1fr 120px;
 }
+#navbar2{
+  display: grid;
+  grid-template-areas: "nav logo actions";
+  grid-template-columns: 120px 1fr 120px;
+  border-bottom: 0px solid #838383;
+}
 #newsletterContainer{
   display:  grid;
   grid-template-areas: 
@@ -70,6 +76,11 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
+  };
+   #navbar2{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
   };
   #navbar-scroll::-webkit-scrollbar {
   height: 3px; /* dla poziomego scrolla */

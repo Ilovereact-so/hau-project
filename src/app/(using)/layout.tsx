@@ -9,7 +9,7 @@ export default function UsingLayout({
 }>) {
   return (
     <>
-      <NavbarContainer>
+      <NavbarContainer mode={0}>  {/** 0 for using */}
         {children}
       </NavbarContainer>
     </>

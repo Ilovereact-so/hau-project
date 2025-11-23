@@ -73,7 +73,7 @@ export const productType = defineType({
       name: "subcategory",
       title: "Subcategory",
       type: "reference",
-      to: [{ type: "subcategory" }, { type: "category" }], // dopuszcza różne typy jeśli masz
+      to: [{ type: "subcategory" }], // dopuszcza różne typy jeśli masz
       description: "Podkategoria (opcjonalnie). Przydatne do precyzyjnego wyszukiwania.",
     }),
 
