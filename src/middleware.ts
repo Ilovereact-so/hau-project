@@ -28,7 +28,7 @@ export default clerkMiddleware(async (auth, req) => {
   const role = (sessionClaims?.metadata as { role?: string })?.role;
   // 🔹 Jeśli user nie jest adminem → przekieruj na /403
   if (role !== "admin") {
-    return NextResponse.redirect(new URL("/(errors)/403", req.url));
+    return NextResponse.redirect(new URL("/403", req.url));
   }
 
   // ✅ Jeśli admin → przepuść

@@ -80,7 +80,7 @@ const NavRMenu = ({ className, style }: { className: string, style: React.CSSPro
             <motion.div className={`sm:rounded-[39px] flex sm:bg-[#A7E4D9]/65 justify-start max-sm:flex-1 sm:h-fit h-full lg:w-auto w-full xl:overflow-hidden sm:mt-0 mt-24 sm:overflow-hidden overflow-auto relative ease-in-out duration-300 delay-300 ${
                 !mobile && isHover && "shadow-lg shadow-black/25"
             }`}>
-                <NavbarItems ref={navbarRef} id="navbar-scroll" className='sm:rounded-[39px] flex sm:flex-row flex-col lg:justify-center justify-start sm:items-center sm:space-x-3 xl:px-25 lg:px-14 lg:pl-14 lg:pr-14 pl-0 pr-10 xl:py-3 lg:py-2 py-0 sm:h-fit h-full lg:w-auto w-full overflow-x-auto sm:overflow-y-visible overflow-y-auto max-sm:space-y-3'>
+                <NavbarItems mode={0} ref={navbarRef} id="navbar-scroll" className='sm:rounded-[39px] flex sm:flex-row flex-col lg:justify-center justify-start sm:items-center sm:space-x-3 xl:px-25 lg:px-14 lg:pl-14 lg:pr-14 pl-0 pr-10 xl:py-3 lg:py-2 py-0 sm:h-fit h-full lg:w-auto w-full overflow-x-auto sm:overflow-y-visible overflow-y-auto max-sm:space-y-3'>
                     <div className='max-lg:flex max-sm:hidden hidden'><Image src="/logo_hau.svg" alt='logo' className=' min-w-[40px] min-h-[40px] invert' width={40} height={40}/></div>                    
                     {
                         category.map((item,index)=>(
@@ -97,7 +97,7 @@ const NavRMenu = ({ className, style }: { className: string, style: React.CSSPro
                 <div className='bg-white h-fit rounded-full inline-flex space-x-5 px-3 py-2 w-auto'>
                     <Search className='text-black xl:w-[24px] w-[20px] xl:h-[24px] h-[20px]'/>
                     {/**<input placeholder='Obroża taktyczna..' className='focus:outline-none font-poppins text-[16px] placeholder:text-[16px] text-black placeholder:text-[#4E4E4E]'/> */}
-                    <ResearchNav isMobile={mobile}/>
+                    <ResearchNav isMobile={mobile} minWidth={200}/>
                 </div>    
             </div>
             
@@ -155,12 +155,12 @@ const NavLink = ({ item, index, navRef, itemRef, isHoverExport, globalDelay}: { 
                     className="space-y-3 z-[9999] bg-[#AF9E9E]/83 w-auto h-auto px-4 pb-3 pt-2 flex flex-col rounded-b-[20px] rounded-r-[20px] overflow-hidden backdrop-blur-[2px] shadow-lg shadow-black/25"
                 >
                     {item.subcategory?.map((subitem, subindex) => (
-                    <Link key={subindex} href={subitem.path} className="w-auto h-auto flex">
+                    <Link key={subindex} href={subitem.path} className="w-auto h-auto flex no-underline outline-none">
                         <motion.h1
                         initial={{ opacity: 0 }}
                         animate={isHover ? "textOpen" : "textClosed"}
                         variants={variants}
-                        className="text-black text-[14px] hover:underline"
+                        className="text-black text-[14px] hover:scale-[0.9] origin-left ease-in-out duration-300"
                         >
                         {subitem.name}
                         </motion.h1>
