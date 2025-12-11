@@ -152,22 +152,28 @@ export default function UploadProductsClient() {
 "Pumpkin Plush Toy","Soft Corduroy Pumpkin","Idealna miękka zabawka dla psów","PUM-001","pumpkin-plush","Pluszowa dynia — 3 rozmiary","Miękka dynia z materiału corduroy, idealna dla psów małych i średnich.",29.99,PLN,50,toys,plush,PetCo,PetCo,"dynia;halloween","", "S,M,L","orange,beige","rope",12,13,12,cm,140,180,corduroy,"Prać ręcznie",false,false,true,false,medium`;
 
   return (
-    <div className="p-6 w-full px-20 font-poppins bg-[#20201F]">
-      <h1 className="text-2xl font-bold mb-4">Upload CSV + ZIP → Sanity</h1>
+    <div className="p-6 w-full min-h-[100vh] px-20 font-poppins bg-[#20201F]">
+      <h1 className="text-3xl font-bold mb-4">Upload CSV + ZIP → Sanity</h1>
+      <div className='flex items-start space-x-5'>
+        <div className='flex flex-col'>
+          {/* CSV PICKER */}
+          <p className="block mb-2 font-medium">Wybierz plik CSV</p>
+          <label className="mb-4 bg-black px-7 py-3 rounded-full w-fit inline-flex cursor-pointer">
+            <input type="file" accept=".csv" className="hidden" onChange={(e) => handleCSV(e.target.files?.[0] || null)} />
+            <span className="font-bold text-white text-[16px]">Wybierz CSV</span>
+          </label>
+        </div>
+        <div className='flex flex-col'>
+          {/* ZIP PICKER */}
+          <p className="block mb-2 font-medium">Wybierz ZIP ze zdjęciami (slugN.jpg)</p>
+          <label className="mb-4 bg-black px-7 py-3 rounded-full w-fit inline-flex cursor-pointer">
+            <input type="file" accept=".zip" className="hidden" onChange={(e) => handleZip(e.target.files?.[0] || null)} />
+            <span className="font-bold text-white text-[16px]">Wybierz ZIP</span>
+          </label>
+        </div>
+      </div>
 
-      {/* CSV PICKER */}
-      <p className="block mb-2 font-medium">Wybierz plik CSV</p>
-      <label className="mb-4 bg-black px-7 py-3 rounded-full inline-flex cursor-pointer">
-        <input type="file" accept=".csv" className="hidden" onChange={(e) => handleCSV(e.target.files?.[0] || null)} />
-        <span className="font-bold text-white text-[16px]">Wybierz CSV</span>
-      </label>
 
-      {/* ZIP PICKER */}
-      <p className="block mb-2 mt-4 font-medium">Wybierz ZIP ze zdjęciami (slugN.jpg)</p>
-      <label className="mb-4 bg-black px-7 py-3 rounded-full inline-flex cursor-pointer">
-        <input type="file" accept=".zip" className="hidden" onChange={(e) => handleZip(e.target.files?.[0] || null)} />
-        <span className="font-bold text-white text-[16px]">Wybierz ZIP</span>
-      </label>
       {zipInfo && (
         <div className="text-sm text-green-400">
           ZIP: <b>{zipInfo.name}</b> — znaleziono {zipInfo.files} plików

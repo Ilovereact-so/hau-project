@@ -11,10 +11,11 @@ import { animate, motion, useMotionValueEvent, useScroll } from 'framer-motion'
 import useMediaQuery from '@/hooks/useMediaQuery'
 import SubmenuPortal from './SubmenuPortal'
 import SearchBarContext from './SearchBarContext'
+import { CategoryNode } from '@/hooks/categories'
 
 
 
-const NavRMenu = ({ className, style, mode}: { className: string, style: React.CSSProperties, mode: number }) => {
+const NavRMenu = ({ className, style, mode, categories}: { className: string, style: React.CSSProperties, mode: number, categories: CategoryNode[] }) => {
     const mobile  = useMediaQuery('(max-width: 639px)');
     const searchBarChange  = useMediaQuery('(max-width: 767px)');
     
@@ -143,7 +144,7 @@ const NavRMenu = ({ className, style, mode}: { className: string, style: React.C
                 }`}>
                     <div className={` ${mode == 0 ? "max-lg:flex max-sm:hidden pl-4 hidden" : "hidden" }`}><Image src="/logo_hau.svg" alt='logo' className=' min-w-[40px] min-h-[40px] invert' width={40} height={40}/></div>                    
                     {
-                        category.map((item,index)=>(
+                        categories.map((item,index)=>(
                             <NavLink navRef={navbarRef} item={item} index={index} key={index} itemRef={itemRefs.current[index]} isHoverExport={BackgroundTheme} globalDelay = {globalDelay}/>
                         ))
                     }
@@ -168,9 +169,14 @@ const NavRMenu = ({ className, style, mode}: { className: string, style: React.C
   )
 }
 type CategoryItem = {
-    name: string;
-    path: string;
-    subcategory?: { name: string; path: string }[];
+    _id: string;
+    title: string;
+    slug: string;
+    subcategory?: { 
+        _id: string;
+        title: string;
+        slug: string;
+     }[];
 }
 
 const NavLink = ({ item, index, navRef, itemRef, isHoverExport, globalDelay}: { item: CategoryItem, index: number, navRef: React.Ref<HTMLDivElement | null>, itemRef: React.Ref<HTMLLabelElement | null>, isHoverExport: VoidFunction, globalDelay:number}) => {
@@ -207,7 +213,7 @@ const NavLink = ({ item, index, navRef, itemRef, isHoverExport, globalDelay}: { 
                     <div className='sh-nav-rounded rounded-bl-[20px]'></div>
                 </motion.div>
             </motion.div>
-            <motion.a initial={{backgroundColor: "#f6f6f600"}} animate={isHover ? "circleOpen" : "circleClosed"} variants={variants} href={item.path} className='p-1 rounded-[10px] z-10'>{item.name}</motion.a>
+            <motion.a initial={{backgroundColor: "#f6f6f600"}} animate={isHover ? "circleOpen" : "circleClosed"} variants={variants} href={item.slug} className='p-1 rounded-[10px] z-10'>{item.title}</motion.a>
             
             <SubmenuPortal anchorRef={itemRef as React.RefObject<HTMLLabelElement>} open={isHover}>
                 <motion.div
@@ -217,14 +223,14 @@ const NavLink = ({ item, index, navRef, itemRef, isHoverExport, globalDelay}: { 
                     className="space-y-3 z-[9999] bg-[#AF9E9E]/83 w-auto h-auto px-4 pb-3 pt-2 flex flex-col rounded-b-[20px] rounded-r-[20px] overflow-hidden backdrop-blur-[2px] shadow-lg shadow-black/25"
                 >
                     {item.subcategory?.map((subitem, subindex) => (
-                    <Link key={subindex} href={subitem.path} className="w-auto h-auto flex no-underline outline-none">
+                    <Link key={subindex} href={subitem.slug} className="w-auto h-auto flex no-underline outline-none">
                         <motion.h1
                         initial={{ opacity: 0 }}
                         animate={isHover ? "textOpen" : "textClosed"}
                         variants={variants}
                         className="text-black text-[14px] hover:scale-[0.9] origin-left ease-in-out duration-300"
                         >
-                        {subitem.name}
+                        {subitem.title}
                         </motion.h1>
                     </Link>
                     ))}
@@ -237,7 +243,7 @@ const NavLink = ({ item, index, navRef, itemRef, isHoverExport, globalDelay}: { 
         <div className='px-[6px] sm:py-1 flex sm:flex-row flex-col justify-start sm:justify-center sm:items-center items-start'>
             
             <div className='z-10 relative px-2 py-[5px] h-auto'>
-                <motion.p initial={{backgroundColor: "#f6f6f600"}} animate={isHover ? "circleOpen" : "circleClosed"} variants={variants} className='p-1 rounded-[10px]'>{item.name}</motion.p>
+                <motion.p initial={{backgroundColor: "#f6f6f600"}} animate={isHover ? "circleOpen" : "circleClosed"} variants={variants} className='p-1 rounded-[10px]'>{item.title}</motion.p>
                 <motion.div initial={{height:0}} animate={isHover ? "borderOpen" : "borderClosed"} variants={variants} className='rounded-t-[20px] bg-[#AF9E9E]/83 absolute top-0 left-0 w-full h-full z-[-1]'>
                     <motion.div initial={{height:0, width:0}} animate={isHover ? "shadowOpen" : "shadowClosed"} variants={variants} className='absolute w-[50px] h-full left-[100%] bottom-0 overflow-hidden'>
                         <div className='sh-nav-rounded rounded-bl-[20px]'></div>
@@ -254,14 +260,14 @@ const NavLink = ({ item, index, navRef, itemRef, isHoverExport, globalDelay}: { 
                 }`}
             >
                 {item.subcategory?.map((subitem, subindex) => (
-                <Link key={subindex} href={subitem.path} className="w-auto h-auto flex">
+                <Link key={subindex} href={subitem.slug} className="w-auto h-auto flex">
                     <motion.h1
                     initial={{ opacity: 0 }}
                     animate={isHover ? "textOpen" : "textClosed"}
                     variants={variants}
                     className="text-black text-[14px] hover:underline"
                     >
-                    {subitem.name}
+                    {subitem.title}
                     </motion.h1>
                 </Link>
                 ))}
