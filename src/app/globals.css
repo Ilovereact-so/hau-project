@@ -30,7 +30,12 @@
   [data-page="400"] {
   --background: #20201F;
   --foreground: #eee;
-}
+  }
+  [data-page="admin"] {
+  --background: #20201F;
+  --foreground: #eee;
+  }
+
 }
 
 body {
@@ -57,10 +62,12 @@ body {
 }
 #navbar2{
   display: grid;
-  grid-template-areas: "nav logo actions";
-  grid-template-columns: 120px 1fr 120px;
+  grid-template-areas: 
+  "logo actions" 
+  "nav nav";
+  grid-template-columns: 1fr auto;
   border-bottom: 0px solid #838383;
-}
+};
 #newsletterContainer{
   display:  grid;
   grid-template-areas: 
@@ -71,17 +78,14 @@ body {
   row-gap: 3vh;
   justify-content: center;
 }
+
 @media (min-width: 640px) {
     #navbar{
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
   };
-   #navbar2{
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  };
+   
   #navbar-scroll::-webkit-scrollbar {
   height: 3px; /* dla poziomego scrolla */
   
@@ -100,7 +104,13 @@ body {
     justify-content: space-evenly;
   }
 }
-
+@media (min-width: 767px) {
+  #navbar2{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  };
+}
 
 /* Dla przeglądarek opartych o WebKit (Chrome, Edge, Safari) */
 #navbar-scroll::-webkit-scrollbar {

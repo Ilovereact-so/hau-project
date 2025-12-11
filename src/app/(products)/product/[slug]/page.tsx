@@ -8,6 +8,7 @@ import { getProductBySlug } from "@/sanity/helpers";
 import { Heart, MessageCircleQuestionMark, Share2, SquareDashedKanban, Truck } from "lucide-react";
 import { notFound } from "next/navigation";
 import React from "react";
+import { PortableText } from "next-sanity";
 
 const ProductPage = async ({
   params,
@@ -20,20 +21,19 @@ const ProductPage = async ({
   if (!product) {
     return notFound();
   }
-  console.log(product?.price, product?.discount);
   return (
     <div>
       <Container className="gap-10 py-10">
-        <div className="flex flex-col md:flex-row">
+        <div className="flex flex-col md:flex-row md:px-10 px-5 space-x-10">
           {product?.images && <ImageView images={product?.images} />}
           <div className="w-full md:w-[40%] flex flex-col gap-5 font-poppins">
             <div>
-              <p className="text-[clamp(26px,2.5vw,40px)] text-black">{product?.name}</p>
-              <p className="text-[clamp(18px,1.6vw,28px)] text-black mb-2">{product?.subname}</p>
+              <p className="text-[clamp(26px,2.5vw,40px)] text-black">{product?.title}</p>
+              <p className="text-[clamp(18px,1.6vw,28px)] text-black mb-2">{product?.subtitle}</p>
             </div>
             <PriceView
-                price={product?.price}
-                discount={product?.discount}
+                price={product?.comparePrice ? product?.price: product?.comparePrice}
+                discount={product?.comparePrice ? product?.price : undefined}
                 className=""
               />s
             {/**product?.stock && (
@@ -57,7 +57,9 @@ const ProductPage = async ({
           </div>
         </div>
         <div className="w-full flex flex-col lg:px-25 pd:mx-18 px-10 mt-10">
-            <p className="font-poppins text-black text-[clamp(16px,1.4vw,20px)]">{product?.description}</p>
+            <div className="font-poppins text-black text-[clamp(16px,1.4vw,20px)]">
+              {product?.description && <PortableText value={product.description} />}
+            </div>
         </div>
          <ProductCarusel
           title={"Produkty objęte promocją"}

@@ -7,6 +7,7 @@ export default defineType({
   fields: [
     defineField({ name: "title", title: "Title", type: "string", validation: (Rule) => Rule.required() }),
     defineField({ name: "slug", title: "Slug", type: "slug", options: { source: "title" } }),
+    defineField({ name: 'description', type: 'text', title: 'Description' }),
     defineField({
       name: "parent",
       title: "Parent category",

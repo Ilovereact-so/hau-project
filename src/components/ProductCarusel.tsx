@@ -10,9 +10,24 @@ type Props =  {
     title : string,
     subtitle : string
 }
-const PRODUCTS_QUERY = `*[_type == "product" && references(*[ _type == "category" && (slug.current == $slug || slug == $slug) ]._id)
-        ]`
-const QUERY_PARAMS = {slug : "zabawki"}
+const PRODUCTS_QUERY = `
+*[
+  _type == "product" &&
+  defined(category) &&
+  category->slug.current == $slug
+]
+[0...20]
+{
+  ...,
+  category->{
+    _id,
+    title,
+    slug
+  }
+}
+`
+
+const QUERY_PARAMS = { slug: 'feeding' }
 
 const ProductCarusel = ({title, subtitle}:Props) => {
     const [products, setProducts] = useState<Product[]>([]) 
@@ -22,11 +37,17 @@ const ProductCarusel = ({title, subtitle}:Props) => {
         const fetchData = async ()=>{
             setLoading(true)
             try{
-                const response = await client.fetch(PRODUCTS_QUERY, QUERY_PARAMS)
-                setProducts(await response)
+                // DEBUG: pokaż config klienta
+                // @ts-ignore
+                console.log('Sanity config:', client.config && client.config())
+                
+                const response = await client.fetch<Product[]>(PRODUCTS_QUERY, QUERY_PARAMS)
+                setProducts(response)
+                console.log("Fetched products:", response)
             } catch (error){
                 console.log("Product fetching Error", error)
             } finally{
+                console.log("Products fetched:", products.length)
                 setLoading(false)
             }
         }

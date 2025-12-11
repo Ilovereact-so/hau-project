@@ -9,6 +9,7 @@ const isPublicRoute = createRouteMatcher([
   "/sso-callback(.*)",
   "/403",
   "/404",
+  "/api/sanity/import-csv(.*)",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

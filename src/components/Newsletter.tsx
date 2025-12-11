@@ -1,4 +1,10 @@
-import React from 'react'
+'use client'
+import { client } from '@/sanity/lib/client'
+import React, { useEffect } from 'react'
+import { Product } from '../../sanity.types'
+
+
+
 
 const Newsletter = () => {
   return (

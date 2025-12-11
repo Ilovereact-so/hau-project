@@ -1,0 +1,211 @@
+[
+  {
+    "title": "Maty pod miski dla psa",
+    "slug": "dog-bowl-mats",
+    "description": "Antypoślizgowe maty chroniące podłogę i stabilizujące miskę psa.",
+    "parentSlug": "feeding"
+  },
+  {
+    "title": "Maty spowalniające dla psa",
+    "slug": "slow-feeder-mats",
+    "description": "Maty zaprojektowane, by spowolnić jedzenie i wspierać trawienie.",
+    "parentSlug": "feeding"
+  },
+  {
+    "title": "Lickmaty dla psa",
+    "slug": "lick-mats",
+    "description": "Maty do lizania redukujące stres i dostarczające zajęcia podczas karmienia.",
+    "parentSlug": "feeding"
+  },
+  {
+    "title": "Maty węchowe dla psa",
+    "slug": "snuffle-mats",
+    "description": "Stymulujące maty rozwijające węch i zachowania łowieckie psa.",
+    "parentSlug": "feeding"
+  },
+  {
+    "title": "Kule węchowe dla psa",
+    "slug": "snuffle-balls",
+    "description": "Węchowe kule idealne na smakołyki — zachęcają psa do eksploracji.",
+    "parentSlug": "feeding"
+  },
+  {
+    "title": "Zabawki na smakołyki dla psa",
+    "slug": "treat-dispensing-toys",
+    "description": "Zabawki, które nagradzają psa za interakcję ukrytymi smakołykami.",
+    "parentSlug": "feeding"
+  },
+  {
+    "title": "Podróże z psem",
+    "slug": "dog-travel-gear",
+    "description": "Akcesoria do karmienia i opieki nad psem w podróży.",
+    "parentSlug": "feeding"
+  },
+
+  {
+    "title": "Przysmaki dentystyczne dla psa",
+    "slug": "dental-treats",
+    "description": "Przysmaki wspierające higienę jamy ustnej i redukcję kamienia.",
+    "parentSlug": "treats"
+  },
+  {
+    "title": "Gryzaki naturalne dla psa",
+    "slug": "natural-chews",
+    "description": "Wytrzymałe, naturalne gryzaki wspierające potrzeby żucia.",
+    "parentSlug": "treats"
+  },
+  {
+    "title": "Przysmaki mięsne dla psa",
+    "slug": "meat-treats",
+    "description": "Smaczne mięsne kąski, idealne jako nagroda.",
+    "parentSlug": "treats"
+  },
+  {
+    "title": "Kości do żucia dla psa",
+    "slug": "chew-bones",
+    "description": "Kości do żucia, które zajmą psa na długi czas.",
+    "parentSlug": "treats"
+  },
+  {
+    "title": "Ciastka dla psa",
+    "slug": "dog-biscuits",
+    "description": "Chrupiące ciastka dla psa w różnych smakach.",
+    "parentSlug": "treats"
+  },
+  {
+    "title": "Przysmaki treningowe dla psa",
+    "slug": "training-treats",
+    "description": "Małe, miękkie smakołyki idealne do treningów.",
+    "parentSlug": "treats"
+  },
+  {
+    "title": "Dosmaczacze dla psa",
+    "slug": "food-toppers",
+    "description": "Dodatki smakowe zwiększające atrakcyjność posiłków.",
+    "parentSlug": "treats"
+  },
+  {
+    "title": "Oleje i pasty dla psa",
+    "slug": "oils-and-pastes",
+    "description": "Naturalne oleje i pasty wspierające zdrowie psa.",
+    "parentSlug": "treats"
+  },
+  {
+    "title": "Pozostałe",
+    "slug": "other-treats",
+    "description": "Różne przysmaki niewpisujące się w inne kategorie.",
+    "parentSlug": "treats"
+  },
+
+  {
+    "title": "Pluszaki dla psa",
+    "slug": "plush-toys",
+    "description": "Miękkie pluszowe zabawki dla psów.",
+    "parentSlug": "toys"
+  },
+  {
+    "title": "Szarpaki dla psa",
+    "slug": "tug-toys",
+    "description": "Zabawki do przeciągania wzmacniające więź i poprawiające kondycję psa.",
+    "parentSlug": "toys"
+  },
+  {
+    "title": "Gryzaki dla psa",
+    "slug": "chew-toys",
+    "description": "Wytrzymałe gryzaki wspierające naturalną potrzebę żucia.",
+    "parentSlug": "toys"
+  },
+  {
+    "title": "Piłki dla psa",
+    "slug": "dog-balls",
+    "description": "Różne rodzaje piłek dla psów — do aportowania i zabawy.",
+    "parentSlug": "toys"
+  },
+  {
+    "title": "Frisbee dla psa",
+    "slug": "dog-frisbee",
+    "description": "Latające dyski stworzone do bezpiecznych zabaw na zewnątrz.",
+    "parentSlug": "toys"
+  },
+
+  {
+    "title": "Linki",
+    "slug": "long-lines",
+    "description": "Długie linki idealne do treningów i eksploracji.",
+    "parentSlug": "walking"
+  },
+  {
+    "title": "Smycze dla psa",
+    "slug": "dog-leashes",
+    "description": "Smycze spacerowe w różnych długościach i stylach.",
+    "parentSlug": "walking"
+  },
+  {
+    "title": "Obroże dla psa",
+    "slug": "dog-collars",
+    "description": "Obroże dla psów różnej wielkości i stylu.",
+    "parentSlug": "walking"
+  },
+  {
+    "title": "Szelki dla psa",
+    "slug": "dog-harnesses",
+    "description": "Komfortowe i bezpieczne szelki dla każdego psa.",
+    "parentSlug": "walking"
+  },
+
+  {
+    "title": "Maty do spania dla psa",
+    "slug": "sleeping-mats",
+    "description": "Miękkie maty zapewniające komfort snu psa.",
+    "parentSlug": "bedding"
+  },
+  {
+    "title": "Dry-bed dla psa",
+    "slug": "dry-bed",
+    "description": "Oddychające maty odprowadzające wilgoć.",
+    "parentSlug": "bedding"
+  },
+
+  {
+    "title": "Cążki do pazurków dla psów",
+    "slug": "dog-nail-clippers",
+    "description": "Narzędzia do bezpiecznego skracania pazurów psa.",
+    "parentSlug": "grooming"
+  },
+  {
+    "title": "Czyściki dla łap dla psa",
+    "slug": "paw-cleaners",
+    "description": "Akcesoria do czyszczenia łap po spacerze.",
+    "parentSlug": "grooming"
+  },
+  {
+    "title": "Worki na odchody dla psa",
+    "slug": "poop-bags",
+    "description": "Ekologiczne worki na psie odchody.",
+    "parentSlug": "grooming"
+  },
+  {
+    "title": "Szczoteczki dla psa",
+    "slug": "dog-brushes",
+    "description": "Szczotki i grzebienie do pielęgnacji sierści psa.",
+    "parentSlug": "grooming"
+  },
+  {
+    "title": "Kosmetyki dla psa",
+    "slug": "dog-cosmetics",
+    "description": "Szampony, odżywki i preparaty pielęgnacyjne dla psów.",
+    "parentSlug": "grooming"
+  },
+  {
+    "title": "Ręczniki dla psa",
+    "slug": "dog-towels",
+    "description": "Chłonne ręczniki dla psa — idealne po kąpieli lub spacerze w deszczu.",
+    "parentSlug": "grooming"
+  },
+  {
+    "title": "Kleszczołapki",
+    "slug": "tick-removers",
+    "description": "Narzędzia do bezpiecznego usuwania kleszczy.",
+    "parentSlug": "grooming"
+  }
+]

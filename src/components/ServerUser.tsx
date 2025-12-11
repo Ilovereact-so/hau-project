@@ -10,7 +10,7 @@ const ServerUser = async({style = {}, mode}: {style?: React.CSSProperties, mode:
     console.log(user?.imageUrl)
     const avatarUrl = user?.imageUrl ?? "/default-avatar.png";
   return (
-    <div style={style} className={mode === 1 ? "flex justify-center items-center":"flex justify-end items-start max-sm:pr-8" }>
+    <div style={style} className={mode === 1 ? "flex justify-center items-center max-md:mr-6":"flex justify-end items-start max-sm:pr-8" }>
       <div className={mode ===1 ? "flex justify-center items-center w-fit space-x-2" : "flex lg:mt-0 mt-6 justify-between items-center xl:space-x-4 space-x-3 xl:mt-3 rounded-full xl:p-3 p-2 bg-[#c3c3c36e] h-fit xl:min-w-[80px] min-w-[70px] w-fit"}>
           {!user ? <SignInButton><User className={`lg:w-[25px] w-[20px] lg:h-[25px] h-[20px] stroke-[1.4px] ${
             mode === 1 ? "text-black":"text-white"

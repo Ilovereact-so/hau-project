@@ -2,8 +2,8 @@ import { twMerge } from "tailwind-merge";
 import PriceFormatter from "./PriceFormatter";
 
 interface Props {
-  price: number;
-  discount: number | undefined;
+  price: number | undefined;
+  discount?: number | undefined;
   className?: string;
 }
 const PriceView = ({ price, discount, className }: Props) => {
