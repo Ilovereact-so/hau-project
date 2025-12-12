@@ -29,7 +29,7 @@ const ProductItem = ({product}:{product: Product}) => {
         )
         :
         (
-          <h1 className='1xl:text-[16px] lg:text-[14px] text-[13px] text-black font-bold'><PriceFormatter amount={product?.price}/>zł</h1>
+          <h1 className='1xl:text-[16px] lg:text-[14px] text-[13px] text-black font-bold'><PriceFormatter amount={product?.price}/></h1>
         ) 
         }
           </div>
