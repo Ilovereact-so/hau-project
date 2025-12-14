@@ -8,7 +8,7 @@ import PriceFormatter from './PriceFormatter'
 
 const ProductItem = ({product}:{product: Product}) => {
   return (
-    <Link href={`/product/${product?.slug?.current}`} className='relative 1xl:min-w-[290px] lg:min-w-[230px] min-w-[200px] 1xl:min-h-[290px] lg:min-h-[230px] min-h-[200px] flex flex-col'>
+    <Link href={`/product/${product?.slug?.current}?variant=${product?.variants?.[0]?._key}`} className='relative 1xl:min-w-[290px] lg:min-w-[230px] min-w-[200px] 1xl:min-h-[290px] lg:min-h-[230px] min-h-[200px] flex flex-col'>
       {product?.images && 
         <Image src={urlFor(product?.images[0]).url()} alt={String(product?.title)} width={290} height={290} className='1xl:w-[290px] lg:w-[230px] w-[200px] 1xl:h-[290px] lg:h-[230px] h-[200px]'/>
       }
@@ -20,16 +20,16 @@ const ProductItem = ({product}:{product: Product}) => {
       </div>
       <div className='flex justify-between mt-2'>
         <div className='text-white 1xl:text-[14px] lg:text-[12px] text-[11px] font-bold bg-black rounded-[14px] 1xl:px-6 px-4 1xl:py-[10px] py-2 flex items-center'>Dodaj do koszyka</div>
-        <div className='flex flex-col'>
-          {product?.comparePrice ? 
-        (<>
+        <div className='flex flex-col justify-center'>
+          {product?.compareAtPrice ? 
+        (<div className='flex flex-col items-end'>
           <h1 className='1xl:text-[16px] lg:text-[14px] text-[13px] text-[#DD1919] font-bold'><PriceFormatter amount={product?.price}/></h1>
-          <h1 className='text-black 1xl:text-[13px] lg:text-[11px] text-[10px]'><span className='mr-1 line-through'>{product?.comparePrice}zł</span>{ (100 - ((parseFloat(String(product?.comparePrice)) / parseFloat(String(product?.price))) * 100)).toFixed(0)}%</h1>
-        </>
+          <h1 className='text-black 1xl:text-[13px] lg:text-[11px] text-[10px]'><span className='mr-1 line-through'>{product?.compareAtPrice}zł</span>{ (100 - ((parseFloat(String(product?.compareAtPrice)) / parseFloat(String(product?.price))) * 100)).toFixed(0)}%</h1>
+        </div>
         )
         :
         (
-          <h1 className='1xl:text-[16px] lg:text-[14px] text-[13px] text-black font-bold'><PriceFormatter amount={product?.price}/></h1>
+          <h1 className='1xl:text-[18px] lg:text-[14px] text-[13px] text-black font-bold'><PriceFormatter amount={product?.price}/></h1>
         ) 
         }
           </div>
