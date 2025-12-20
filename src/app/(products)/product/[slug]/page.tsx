@@ -62,7 +62,7 @@ const ProductPage = async ({
             <ProductDetailsList product={product} className={maxW}/>
           </div>
         </div>
-        <div className="w-full flex flex-col lg:px-25 md:mx-18 px-10 mt-15 mb-25">
+        <div className="w-full flex flex-col lg:px-25 px-10 mt-15 mb-25">
           <div className="font-poppins font-medium text-black text-[clamp(16px,1.4vw,24px)]">
               {product?.shortDescription}
             </div>
