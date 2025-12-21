@@ -22,7 +22,7 @@ const QuantityButtons = ({ product, className, borderStyle }: Props) => {
     if (itemCount > 1) {
       toast.success("Quantity Decreased successfully!");
     } else {
-      toast.success(`${product?.name?.substring(0, 12)} removed successfully!`);
+      toast.success(`${product?.title?.substring(0, 12)} removed successfully!`);
     }
   };
   return (

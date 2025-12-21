@@ -1,6 +1,5 @@
 import Footer from "@/components/Footer";
 import NavbarContainer from "@/components/NavbarContainer";
-import ProductsNavbar from "@/components/ProductsNavbar";
 
 
 export default function UsingLayout({

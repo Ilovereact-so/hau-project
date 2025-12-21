@@ -4,9 +4,6 @@ import React from 'react'
 import ServerUser from './ServerUser'
 import NavRMenu from './NavRMenu'
 import Link from 'next/link'
-import {motion} from 'framer-motion'
-import SearchBarContext from './SearchBarContext'
-import NavHamburger from './NavHamburger'
 import { getCategories } from '@/hooks/categories'
 
 export const revalidate = 60*10; // disable caching, always fetch fresh data
