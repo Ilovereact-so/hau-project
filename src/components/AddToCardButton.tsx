@@ -50,7 +50,7 @@ const AddToCartButton = ({ product, className }: Props) => {
           onClick={() => {
             addItem(product);
             toast.success(
-              `${product?.name?.substring(0, 12)}... added successfully!`
+              `${product?.title?.substring(0, 12)}... added successfully!`
             );
           }}
           disabled={isOutOfStock}
