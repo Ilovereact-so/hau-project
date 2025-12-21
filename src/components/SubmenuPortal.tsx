@@ -63,7 +63,7 @@ export default function SubmenuPortal({ anchorRef, open, children }: SubmenuPort
     position: "absolute",
     top: pos.top,
     left: pos.left,
-    minWidth: pos.width,
+    minWidth: pos.width + 40,
     zIndex: 9999,
   };
 

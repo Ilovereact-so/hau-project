@@ -19,9 +19,9 @@ const NavbarContainer = async ({ children, mode }: Readonly<{children?: React.Re
     }`}>
 
         <div id={mode === 0? "navbar":"navbar2"} className={`w-full h-auto z-10  ${
-            mode === 0 ? "absolute lg:pt-4 pt-0 sm:px-10" : "left-0 md:px-10"
+            mode === 0 ? "absolute lg:pt-4 pt-0 sm:px-10" : "left-0 md:px-10 border-b-1 border-[#838383]"
         }`}>
-            <Link  href={"/"} style={{gridArea:"logo"}} className={`lg:flex cursor-pointer relative z-10  contrast-70 brightness-80 ${
+            <Link href={"/"} style={{gridArea:"logo"}} className={`lg:flex cursor-pointer relative z-10  contrast-70 brightness-80 ${
                 mode === 1 ? "w-auto flex justify-start max-md:ml-6":"w-full max-sm:flex hidden justify-center"
             }`}><Image src="/logo_hau.svg" alt='logo' className='xl:w-[100px] lg:w-[90px] w-[75px] xl:h-[100px] lg:h-[90px] h-[75px]' width={130} height={130}/></Link>
             <NavRMenu style={{gridArea:"nav"}} mode={mode} categories={categories} className={`flex  items-center xl:space-y-6 space-y-0 lg:space-x-0 w-full ${

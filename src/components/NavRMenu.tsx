@@ -17,25 +17,13 @@ import { CategoryNode } from '@/hooks/categories'
 
 const NavRMenu = ({ className, style, mode, categories}: { className: string, style: React.CSSProperties, mode: number, categories: CategoryNode[] }) => {
     const mobile  = useMediaQuery('(max-width: 639px)');
-    const searchBarChange  = useMediaQuery('(max-width: 767px)');
     
     const [openMenu, setOpenMenu] = useState<boolean>(!mobile ? false : true);
     const navbarRef = useRef<HTMLDivElement>(null);
-    const parentNavbarRef = useRef<HTMLDivElement>(null);
     const [isMode, setIsMode] = useState<number>(mode);
-    const [SearchBarReady, setSearchBarReady] = useState<boolean>(false);
 
-    (function () {
-    function debugFn() {
-        setIsMode(isMode == 1 ? 0 : 1);
-        return isMode
-    }
-
-    (globalThis as any).debugFn = debugFn;
-    })();
     
     const { scrollY } = useScroll({});
-
     useMotionValueEvent(scrollY, "change", (latest) => {
         setOpenMenu(false)
     });
@@ -51,40 +39,55 @@ const NavRMenu = ({ className, style, mode, categories}: { className: string, st
         autoMenu()
     },[openMenu])
 
-    useEffect(()=>{
-        const isFocus = itemRefs.current.some((item,i)=>item.current.matches(":hover"))
-        console.log(isFocus)
-    },[itemRefs.current])
+    // useEffect(()=>{
+    //     const isFocus = itemRefs.current.some((item,i)=>item.current.matches(":hover"))
+    //     console.log(isFocus)
+    // },[itemRefs.current])
 
     const globalDelay = 0.4
 
     const [isHover, setIsHover] = useState<boolean>(false)
-    const BackgroundTheme = () =>{
-        
-        const handleMouseLeave = () => {
-        // sprawdzamy, czy żaden element nie jest już hovered
-        const anyHovered = itemRefs.current.some((item) =>
-            item.current?.matches(":hover")
-        );
-            setIsHover(anyHovered);
-        };
-        handleMouseLeave()
 
-        itemRefs.current.forEach((ref) => {
-            const el = ref.current;
-            el.addEventListener("mouseleave", handleMouseLeave);
-        });
+const BackgroundTheme = () => {
+  if (isMode !== 0) return;
 
-        return () => {
-            itemRefs.current.forEach((ref) => {
-                const el = ref.current;
-                if (!el) return;
-                el.removeEventListener("mouseleave", handleMouseLeave);
-            });
-        };
+  const handleMouseEnter = () => {
+    setIsHover(true);
+  };
 
+  const handleMouseLeave = (e: MouseEvent) => {
+    const related = e.relatedTarget as Node | null;
 
+    const stillInside = itemRefs.current.some((ref) => {
+      const el = ref.current;
+      return el && related && el.contains(related);
+    });
+
+    if (!stillInside) {
+      setIsHover(false);
     }
+  };
+
+  itemRefs.current.forEach((ref) => {
+    const el = ref.current;
+    if (!el) return;
+
+    el.addEventListener("mouseenter", handleMouseEnter);
+    el.addEventListener("mouseleave", handleMouseLeave);
+  });
+
+  return () => {
+    itemRefs.current.forEach((ref) => {
+      const el = ref.current;
+      if (!el) return;
+
+      el.removeEventListener("mouseenter", handleMouseEnter);
+      el.removeEventListener("mouseleave", handleMouseLeave);
+    });
+  };
+};
+
+
 
 
     const NavbarVariants = {
@@ -111,11 +114,11 @@ const NavRMenu = ({ className, style, mode, categories}: { className: string, st
         }
     };
 
-    useEffect(()=>{
-        if(mode === 1){
-        animate("#navbar2",{borderBottomWidth: mode === 1 && SearchBarReady ? "1px":"0"},{duration:0.5})
-        }
-    },[SearchBarReady , mode])
+    // useEffect(()=>{
+    //     if(mode === 1){
+    //     animate("#navbar2",{borderBottomWidth: mode === 1 && SearchBarReady ? "1px":"0"},{duration:0.5})
+    //     }
+    // },[SearchBarReady , mode])
     return (
     <div className={className} style={style}>
             
@@ -125,22 +128,26 @@ const NavRMenu = ({ className, style, mode, categories}: { className: string, st
             <NavHamburger isOpen={openMenu} onClick={() => setOpenMenu(!openMenu)} mode={isMode} className='sm:hidden inline-flex'/>
         </div>
         
-        <motion.div animate={!mobile ? isHover ? {opacity:1, display:"block"} : {opacity:0, display:"none"} : openMenu ? {opacity:1, display:"block"} : {opacity:0, display:"none"}} transition={{duration:0.3, delay:globalDelay}} className={`fixed top-0 left-0 w-full h-full bg-black/40  ${ isMode === 1 ? "z-2 ": "z-0" }`}></motion.div>
+        <motion.div initial={{opacity:0, display:"none"}} animate={!mobile ? isHover ? {opacity:1, display:"block"} : {opacity:0, display:"none"} : openMenu ? {opacity:1, display:"block"} : {opacity:0, display:"none"}} transition={{duration:0.3, delay:globalDelay}} className={`fixed top-0 left-0 w-full h-full bg-black/40  ${ isMode === 1 ? "z-2 ": "z-0" }`}></motion.div>
         <motion.div 
             variants={NavbarVariants} 
-            animate={[!mobile ? "" : openMenu ? "slide" : "default",isMode === 1 && SearchBarReady ? "changeDirectionRow" : "changeDirectionColumn"]}
+            animate={!mobile ? "" : openMenu ? "slide" : "default"}
             transition={{duration:0.5, ease:"backInOut", stiffness:100}} 
-            className={`flex flex-col max-sm:fixed top-0 left-0 sm:w-full w-[115%] max-sm:bg-gradient-to-r from-[#a7e4d9a6] from-70% to-70% to-transparent max-sm:backdrop-blur-[4px] max-sm:h-screen h-auto sm:px-0 px-6 max-sm:pl-[20vw] sm:pb-0 pb-5 ${
-                isMode === 1 && SearchBarReady ? "max-md:border-t-1 max-md:border-[#838383] z-2":""
+            className={`flex max-sm:fixed top-0 left-0 sm:w-full w-[115%] max-sm:bg-gradient-to-r from-[#a7e4d9a6] from-70% to-70% to-transparent max-sm:backdrop-blur-[4px] max-sm:h-screen h-auto sm:px-0 px-6 max-sm:pl-[20vw] sm:pb-0 pb-5 ${
+                isMode === 1 ? "max-md:border-t-1 justify-between max-md:border-[#838383] z-2":" z-2 "
+            }${
+                isMode === 1 ? !mobile ? " flex-row ":" flex-col ":" flex-col "
             }`}>
                 
-            <motion.div animate={isMode === 0 ? !mobile? {backgroundColor:"#a7e4d9a6"}: {backgroundColor:"transparent"} : {backgroundColor:"transparent"}} className={`sm:rounded-[39px] flex sm:bg-[#A7E4D9]/65 justify-start max-sm:flex-1 sm:h-fit h-full xl:overflow-hidden sm:overflow-hidden overflow-auto relative ease-in-out duration-300 delay-300  z-2 ${
-                !mobile && isHover && "shadow-lg shadow-black/25"
+            <motion.div className={`sm:rounded-[39px] flex justify-start max-sm:flex-1 sm:h-fit h-full xl:overflow-hidden sm:overflow-hidden overflow-auto relative ease-in-out duration-300 delay-300  z-2 ${
+                !mobile && isHover && "shadow-lg shadow-black/25 "
             } ${
-                mode === 0 ? "lg:w-auto w-full sm:mt-0 mt-24":"w-auto md:mr-8 sm:mt-0 mt-32"
+                mode === 0 ? "lg:w-auto w-full sm:mt-0 mt-24":"w-full md:mr-8 sm:mt-0 mt-32 "
+            }${
+                isMode === 0 ? !mobile? "bg-[#a7e4d9a6] sm:bg-[#A7E4D9]/65 ":" bg-transparent " : " bg-transparent "
             }`}>
-                <NavbarItems mode={0} ref={navbarRef} id="navbar-scroll" className={`sm:rounded-[39px] flex sm:flex-row flex-col sm:items-center sm:space-x-3  xl:py-3 lg:py-2 py-0 sm:h-fit h-full lg:w-auto w-full overflow-x-auto sm:overflow-y-visible overflow-y-auto max-sm:space-y-3 ${
-                    isMode === 1 && SearchBarReady ? "md:mx-4 ml-4 justify-start" : "xl:px-25 lg:px-14 lg:pl-14 lg:pr-14 pl-0 pr-10 lg:justify-center justify-start"
+                <NavbarItems mode={mode} ref={navbarRef} id="navbar-scroll" className={`sm:rounded-[39px] flex sm:flex-row flex-col sm:items-center sm:space-x-3  xl:py-3 lg:py-2 py-0 sm:h-fit h-full overflow-x-auto sm:overflow-y-visible overflow-y-auto max-sm:space-y-3 ${
+                    isMode === 1 ? "md:mx-4 sm:ml-4 justify-start pl-[8px] pr-[20px] w-full" : "xl:px-25 lg:px-14 lg:pl-14 lg:pr-14 pl-0 pr-10 lg:justify-center justify-start lg:w-auto w-full"
                 }`}>
                     <div className={` ${mode == 0 ? "max-lg:flex max-sm:hidden pl-4 hidden" : "hidden" }`}><Image src="/logo_hau.svg" alt='logo' className=' min-w-[40px] min-h-[40px] invert' width={40} height={40}/></div>                    
                     {
@@ -157,12 +164,12 @@ const NavRMenu = ({ className, style, mode, categories}: { className: string, st
             </div> 
             }
             {
-                mode === 1 ? !mobile  && <SearchBarContext mode={mode} SearchBarR={(e) => setSearchBarReady(e)} mobile={mobile} /> : <SearchBarContext mode={mode} SearchBarR={(e) => setSearchBarReady(e)} mobile={mobile} />
+                mode === 1 ? !mobile  && <SearchBarContext mode={mode} mobile={mobile} /> : <SearchBarContext mode={mode} mobile={mobile} />
             }
             
         </motion.div>
         {
-            mode === 1 && mobile && <SearchBarContext mode={mode} SearchBarR={(e) => setSearchBarReady(e)} mobile={mobile} />
+            mode === 1 && mobile && <SearchBarContext mode={mode} mobile={mobile} />
         }
 
     </div>
@@ -205,7 +212,7 @@ const NavLink = ({ item, index, navRef, itemRef, isHoverExport, globalDelay}: { 
         circleClosed:{backgroundColor: "#f6f6f600", transition:{duration:0.3}},
     }
     return (
-    <motion.label ref={itemRef} tabIndex={index} onFocus={() => {setIsHover(true)}} onBlur={() => {setIsHover(false)}} onHoverStart={() => {setIsHover(true); isHoverExport()}} onMouseLeave={() => setIsHover(false)} style={{ marginRight: index === category.length - 1 ? "0px" : "" }} key={index} className={`text-black outline-none relative sm:text-[clamp(13px,1.2vw,18px)] text-[16px] font-poppins whitespace-nowrap max-sm:w-fit`}>
+    <motion.label ref={itemRef} tabIndex={index} onFocus={() => {setIsHover(true)}} onBlur={() => {setIsHover(false)}} onMouseEnter={() => {setIsHover(true); isHoverExport()}} onMouseLeave={() => setIsHover(false)} style={{ marginRight: index === category.length - 1 ? "0px" : "" }} key={index} className={`text-black outline-none relative sm:text-[clamp(15px,1.3vw,18px)] text-[16px] font-poppins whitespace-nowrap max-sm:w-fit`}>
         {!mobile ? (
         <div className='px-[6px] sm:py-1 flex justify-start sm:justify-center items-center'>
             <motion.div initial={{height:0}} animate={isHover ? "borderOpen" : "borderClosed"} variants={variants} className='rounded-t-[20px] bg-[#AF9E9E]/83 absolute top-0 left-0 w-full h-full z-[9]'>
@@ -213,7 +220,7 @@ const NavLink = ({ item, index, navRef, itemRef, isHoverExport, globalDelay}: { 
                     <div className='sh-nav-rounded rounded-bl-[20px]'></div>
                 </motion.div>
             </motion.div>
-            <motion.a initial={{backgroundColor: "#f6f6f600"}} animate={isHover ? "circleOpen" : "circleClosed"} variants={variants} href={item.slug} className='p-1 rounded-[10px] z-10'>{item.title}</motion.a>
+            <motion.a initial={{backgroundColor: "#f6f6f600"}} animate={isHover ? "circleOpen" : "circleClosed"} variants={variants} className='p-1 rounded-[10px] z-10'>{item.title}</motion.a>
             
             <SubmenuPortal anchorRef={itemRef as React.RefObject<HTMLLabelElement>} open={isHover}>
                 <motion.div

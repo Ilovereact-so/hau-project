@@ -70,7 +70,7 @@ const VariantManage = ({ product, selectedVariantKey, className }: Props) => {
         <p className='text-[clamp(16px,1.6vw,16px)] text-black'>Kolor: <span className='font-medium font-poppins'>{isColor}</span></p>
         <div className=' grid grid-cols-4 gap-2 justify-start w-fit my-2 space-y-6'>
             {productOptionsColor?.map((color, i) => (
-                <div key={i} title={color.label} className={`${isColor === color.value && "border-1 border-black"} w-fit h-fit flex`}>
+                <div key={i} title={color.label} className={`${isColor === color.value && "border-1 border-[#838383]"} w-fit h-fit flex`}>
                     <button onClick={()=> setColor(color.value)} className='w-fit h-fit cursor-pointer'>
                             <Image
                             src={urlFor(images?.[0] || "").url()}

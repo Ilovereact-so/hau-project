@@ -184,20 +184,23 @@ export default {
 
   preview: {
     select: {
-      title: "title",
-      subtitle: "subtitle",
-      sku: "sku",
-      media: "images.0",
-      price: "price"
+      title: 'title',
+      subtitle: 'subtitle',
+      sku: 'sku',
+      media: 'images.0.asset',
+      price: 'price',
     },
     prepare(selection: any) {
-      const { title, subtitle, sku, media, price } = selection;
+      const { title, subtitle, sku, media } = selection
+
       return {
-        title: title,
-        subtitle: sku ? `${sku} · ${subtitle || ''}` : (subtitle || ''),
-        media
-      };
-    }
+        title: title || 'Brak tytułu',
+        subtitle: sku
+          ? `${sku}${subtitle ? ` · ${subtitle}` : ''}`
+          : subtitle || '',
+        media,
+      }
+    },
   }
 };
 

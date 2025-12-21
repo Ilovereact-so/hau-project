@@ -38,7 +38,7 @@ const ImageView = ({ images = [] }: Props) => {
               key={image._key}
               onClick={() => {setActive(image); setNumActive(_)}}
               className={`overflow-hidden hover:cursor-pointer ${
-                active._key === image._key ? "border-[1px] border-black" : ""
+                active._key === image._key ? "border-[1px] border-[#838383]" : ""
               }`}
             >
               <Image
@@ -46,6 +46,9 @@ const ImageView = ({ images = [] }: Props) => {
                 alt={`Thumbnail ${image._key}`}
                 width={100}
                 height={100}
+                priority
+                fetchPriority="high"
+                sizes="(max-width: 768px) 100vw, 50vw"
                 className="min-w-[118px] min-h-[118px] object-cover brightness-90"
               />
             </button>

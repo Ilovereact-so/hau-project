@@ -66,7 +66,7 @@ body {
   "logo actions" 
   "nav nav";
   grid-template-columns: 1fr auto;
-  border-bottom: 0px solid #838383;
+  /* border-bottom: 0px solid #838383; */
 };
 #newsletterContainer{
   display:  grid;

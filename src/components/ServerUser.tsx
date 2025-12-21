@@ -7,7 +7,7 @@ import { SignInButton, SignOutButton } from '@clerk/nextjs'
 
 const ServerUser = async({style = {}, mode}: {style?: React.CSSProperties, mode:number}) => {
     const user = await currentUser()
-    console.log(user?.imageUrl)
+    //console.log(user?.imageUrl)
     const avatarUrl = user?.imageUrl ?? "/default-avatar.png";
   return (
     <div style={style} className={mode === 1 ? "flex justify-center items-center max-md:mr-6":"flex justify-end items-start max-sm:pr-8" }>
