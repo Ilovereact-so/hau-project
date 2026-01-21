@@ -5,8 +5,10 @@ import optionList from './optionList'
 import subcategory from './subcategory'
 import productType from './productType'
 import banerVariants from './banerVariants'
+import filter from './filter'
+import filterValue from './filterValue'
 
 
 export const schema: { types: SchemaTypeDefinition[] } = {
-  types: [categoryType, productType, optionList, subcategory, banerVariants],
+  types: [categoryType, productType, optionList, subcategory, banerVariants, filter, filterValue],
 }

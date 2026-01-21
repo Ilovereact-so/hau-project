@@ -1,13 +1,13 @@
 import React from "react";
 import toast from "react-hot-toast";
-import { Product } from "../../sanity.types";
+import { GetSlugProduct, Product } from "../../sanity.types";
 import { twMerge } from "tailwind-merge";
 import { Button } from "./ui/button";
 import { Minus, Plus } from "lucide-react";
 import useCartStore from "../../store";
 
 interface Props {
-  product: Product;
+  product: GetSlugProduct;
   className?: string;
   borderStyle?: string;
 }

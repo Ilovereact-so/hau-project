@@ -8,13 +8,13 @@ import PriceFormatter from './PriceFormatter'
 
 const ProductItem = ({product}:{product: Product}) => {
   return (
-    <Link href={`/product/${product?.slug?.current}?variant=${product?.variants?.[0]?._key}`} className='relative 1xl:min-w-[290px] lg:min-w-[230px] min-w-[200px] 1xl:min-h-[290px] lg:min-h-[230px] min-h-[200px] flex flex-col'>
+    <Link href={`/product/${product?.slug?.current}?variant=${product?.variants?.[0]?._key}`} className='relative 1xl:min-w-[290px] lg:min-w-[230px] min-w-[200px] 1xl:min-h-[290px] lg:min-h-[230px] min-h-[200px] flex flex-col w-fit'>
       {product?.images && 
-        <Image src={urlFor(product?.images[0]).url()} alt={String(product?.title)} width={290} height={290} className='1xl:w-[290px] lg:w-[230px] w-[200px] 1xl:h-[290px] lg:h-[230px] h-[200px]'/>
+        <Image src={urlFor(product?.images[0]).url()} alt={String(product?.title)} width={290} height={290} className='1xl:w-[290px] lg:w-[230px] w-[200px] 1xl:h-[290px] lg:h-[230px] h-[200px] brightness-90'/>
       }
       <Heart className='text-black absolute top-5 right-5'/>
-      <h1 className='1xl:text-[16px] lg:text-[14px] text-[13px] text-black font-bold mt-3'>{product?.title}</h1>
-      <div className='flex justify-between text-black 1xl:text-[13px] lg:text-[11px] text-[9px] mt-1'>
+      <h1 className='1xl:text-[16px] text-[15px] text-black font-bold mt-3'>{product?.title}</h1>
+      <div className='flex justify-between text-black 1xl:text-[13px] text-[11px] mt-1'>
         <h1>Najniższa cena z ostatnich 30dni:</h1>
         <h1>52,00zł</h1>
       </div>

@@ -3,14 +3,16 @@ import React from 'react'
 import { motion } from 'framer-motion'
 import { Search } from 'lucide-react'
 import ResearchNav from './ResearchNav'
-import useMediaQuery from '@/hooks/useMediaQuery'
+import {useMediaQuery} from '@/hooks/useMediaQuery'
 import { useState } from 'react'
 
 type Props ={
     mode: number,
-    mobile: boolean
+    mobile: boolean,
+    focusChanges?: VoidFunction,
+    blurChanges?: VoidFunction
 }
-const SearchBarContext = ({mode, mobile}: Props) => {
+const SearchBarContext = ({mode, mobile, focusChanges, blurChanges}: Props) => {
     //const tab  = useMediaQuery('(max-width: 1023px)');
     const xl = useMediaQuery('(max-width: 1279px)');
     //const searchBarChange  = useMediaQuery('(max-width: 767px)');
@@ -102,14 +104,16 @@ const SearchBarContext = ({mode, mobile}: Props) => {
     //initial={mode==1 ? "startP" : "startU"} animate={mode == 1 ? "endP": "endU"}
   return (
     <motion.label className={`h-auto sm:justify-center left-0 justify-start flex items-center sm:ml-0 ml-4 z-1 ${
-        mode === 1 ? "mt-0 xl:min-w-[310px] min-w-[240px] md:px-5 relative top-0 w-auto":"lg:mt-5 mt-0 sm:px-10 lg:relative sm:absolute relative bottom-5 max-sm:top-0 max-lg:top-25 top-0 w-full"
+        mode === 1 ? "mt-0 xl:min-w-[310px] min-w-[240px] md:px-5 relative top-0 sm:w-auto w-full":"2xl:mt-5 mt-0 sm:px-10 2xl:relative absolute max-sm:relative bottom-5 max-sm:top-0 max-2xl:top-28 top-0 w-full"
     }`}>
-        <div className={` rounded-full inline-flex space-x-5 px-3 py-2    ${
-         mode === 1 ? "md:border-1 border-l-1 md:border-[#838383] border-[#838383] bg-[#F4F4F4] md:h-fit h-full max-sm:w-full":"bg-white h-fit w-auto"
+        <div className={` inline-flex space-x-5 px-3 py-2    ${
+         mode === 1 ? "md:border-1 border-l-1 md:border-[#838383] border-[#838383] bg-fancy-black md:h-fit h-full max-sm:w-full sm:rounded-full max-sm:rounded-l-full":"bg-white h-fit w-auto rounded-full"
         }`}>
-            <Search className='text-black xl:w-[24px] w-[20px] xl:h-[24px] h-[20px]'/>
+            <Search className={` xl:w-[24px] w-[20px] xl:h-[24px] h-[20px] ${
+                mode === 1 ? "text-white":"text-black"   
+            }`}/>
             {/**<input placeholder='Obroża taktyczna..' className='focus:outline-none font-poppins text-[16px] placeholder:text-[16px] text-black placeholder:text-[#4E4E4E]'/> */}
-            <ResearchNav isMobile={mobile} mode={mode} minWidth={!xl ? 200 : 140}/>
+            <ResearchNav isMobile={mobile} mode={mode} focusChanges={focusChanges} blurChanges={blurChanges} minWidth={!xl ? 200 : 140}/>
         </div>    
     </motion.label>
   )

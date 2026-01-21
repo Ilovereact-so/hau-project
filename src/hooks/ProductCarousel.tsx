@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, ReactNode } from "react";
 import { motion, useAnimationControls } from "framer-motion";
-import useMediaQuery from "./useMediaQuery";
+import {useMediaQuery} from "./useMediaQuery";
 
 interface ProductCarouselProps {
   children: ReactNode;

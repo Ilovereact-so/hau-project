@@ -3,209 +3,276 @@
     "title": "Maty pod miski dla psa",
     "slug": "dog-bowl-mats",
     "description": "Antypoślizgowe maty chroniące podłogę i stabilizujące miskę psa.",
-    "parentSlug": "feeding"
+    "parentSlug": "feeding",
+    "imagePath": "subcat_img_1.png"
   },
   {
     "title": "Maty spowalniające dla psa",
     "slug": "slow-feeder-mats",
     "description": "Maty zaprojektowane, by spowolnić jedzenie i wspierać trawienie.",
-    "parentSlug": "feeding"
+    "parentSlug": "feeding",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_1.png"
   },
   {
     "title": "Lickmaty dla psa",
     "slug": "lick-mats",
     "description": "Maty do lizania redukujące stres i dostarczające zajęcia podczas karmienia.",
-    "parentSlug": "feeding"
+    "parentSlug": "feeding",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_1.png"
   },
   {
     "title": "Maty węchowe dla psa",
     "slug": "snuffle-mats",
     "description": "Stymulujące maty rozwijające węch i zachowania łowieckie psa.",
-    "parentSlug": "feeding"
+    "parentSlug": "feeding",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_1.png"
   },
   {
     "title": "Kule węchowe dla psa",
     "slug": "snuffle-balls",
     "description": "Węchowe kule idealne na smakołyki — zachęcają psa do eksploracji.",
-    "parentSlug": "feeding"
+    "parentSlug": "feeding",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_1.png"
   },
   {
     "title": "Zabawki na smakołyki dla psa",
     "slug": "treat-dispensing-toys",
     "description": "Zabawki, które nagradzają psa za interakcję ukrytymi smakołykami.",
-    "parentSlug": "feeding"
+    "parentSlug": "feeding",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_1.png"
   },
   {
     "title": "Podróże z psem",
     "slug": "dog-travel-gear",
     "description": "Akcesoria do karmienia i opieki nad psem w podróży.",
-    "parentSlug": "feeding"
+    "parentSlug": "feeding",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_1.png"
   },
 
   {
     "title": "Przysmaki dentystyczne dla psa",
     "slug": "dental-treats",
     "description": "Przysmaki wspierające higienę jamy ustnej i redukcję kamienia.",
-    "parentSlug": "treats"
+    "parentSlug": "treats",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_3.png"
   },
   {
     "title": "Gryzaki naturalne dla psa",
     "slug": "natural-chews",
     "description": "Wytrzymałe, naturalne gryzaki wspierające potrzeby żucia.",
-    "parentSlug": "treats"
+    "parentSlug": "treats",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_3.png"
   },
   {
     "title": "Przysmaki mięsne dla psa",
     "slug": "meat-treats",
     "description": "Smaczne mięsne kąski, idealne jako nagroda.",
-    "parentSlug": "treats"
+    "parentSlug": "treats",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_3.png"
   },
   {
     "title": "Kości do żucia dla psa",
     "slug": "chew-bones",
     "description": "Kości do żucia, które zajmą psa na długi czas.",
-    "parentSlug": "treats"
+    "parentSlug": "treats",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_3.png"
   },
   {
     "title": "Ciastka dla psa",
     "slug": "dog-biscuits",
     "description": "Chrupiące ciastka dla psa w różnych smakach.",
-    "parentSlug": "treats"
+    "parentSlug": "treats",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_3.png"
   },
   {
     "title": "Przysmaki treningowe dla psa",
     "slug": "training-treats",
     "description": "Małe, miękkie smakołyki idealne do treningów.",
-    "parentSlug": "treats"
+    "parentSlug": "treats",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_3.png"
   },
   {
     "title": "Dosmaczacze dla psa",
     "slug": "food-toppers",
     "description": "Dodatki smakowe zwiększające atrakcyjność posiłków.",
-    "parentSlug": "treats"
+    "parentSlug": "treats",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_3.png"
   },
   {
     "title": "Oleje i pasty dla psa",
     "slug": "oils-and-pastes",
     "description": "Naturalne oleje i pasty wspierające zdrowie psa.",
-    "parentSlug": "treats"
+    "parentSlug": "treats",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_3.png"
   },
   {
     "title": "Pozostałe",
     "slug": "other-treats",
     "description": "Różne przysmaki niewpisujące się w inne kategorie.",
-    "parentSlug": "treats"
+    "parentSlug": "treats",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_3.png"
   },
 
   {
     "title": "Pluszaki dla psa",
     "slug": "plush-toys",
     "description": "Miękkie pluszowe zabawki dla psów.",
-    "parentSlug": "toys"
+    "parentSlug": "toys",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_0.png"
   },
   {
     "title": "Szarpaki dla psa",
     "slug": "tug-toys",
     "description": "Zabawki do przeciągania wzmacniające więź i poprawiające kondycję psa.",
-    "parentSlug": "toys"
+    "parentSlug": "toys",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_0.png"
   },
   {
     "title": "Gryzaki dla psa",
     "slug": "chew-toys",
     "description": "Wytrzymałe gryzaki wspierające naturalną potrzebę żucia.",
-    "parentSlug": "toys"
+    "parentSlug": "toys",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_0.png"
   },
   {
     "title": "Piłki dla psa",
     "slug": "dog-balls",
     "description": "Różne rodzaje piłek dla psów — do aportowania i zabawy.",
-    "parentSlug": "toys"
+    "parentSlug": "toys",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_0.png"
   },
   {
     "title": "Frisbee dla psa",
     "slug": "dog-frisbee",
     "description": "Latające dyski stworzone do bezpiecznych zabaw na zewnątrz.",
-    "parentSlug": "toys"
+    "parentSlug": "toys",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_0.png"
   },
 
   {
     "title": "Linki",
     "slug": "long-lines",
     "description": "Długie linki idealne do treningów i eksploracji.",
-    "parentSlug": "walking"
+    "parentSlug": "walking",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_2.png"
   },
   {
     "title": "Smycze dla psa",
     "slug": "dog-leashes",
     "description": "Smycze spacerowe w różnych długościach i stylach.",
-    "parentSlug": "walking"
+    "parentSlug": "walking",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_2.png"
   },
   {
     "title": "Obroże dla psa",
     "slug": "dog-collars",
     "description": "Obroże dla psów różnej wielkości i stylu.",
-    "parentSlug": "walking"
+    "parentSlug": "walking",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_2.png"
   },
   {
     "title": "Szelki dla psa",
     "slug": "dog-harnesses",
     "description": "Komfortowe i bezpieczne szelki dla każdego psa.",
-    "parentSlug": "walking"
+    "parentSlug": "walking",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_2.png"
   },
 
   {
     "title": "Maty do spania dla psa",
     "slug": "sleeping-mats",
     "description": "Miękkie maty zapewniające komfort snu psa.",
-    "parentSlug": "bedding"
+    "parentSlug": "bedding",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_1.png"
   },
   {
     "title": "Dry-bed dla psa",
     "slug": "dry-bed",
     "description": "Oddychające maty odprowadzające wilgoć.",
-    "parentSlug": "bedding"
+    "parentSlug": "bedding",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_1.png"
   },
 
   {
     "title": "Cążki do pazurków dla psów",
     "slug": "dog-nail-clippers",
     "description": "Narzędzia do bezpiecznego skracania pazurów psa.",
-    "parentSlug": "grooming"
+    "parentSlug": "grooming",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_2.png"
   },
   {
     "title": "Czyściki dla łap dla psa",
     "slug": "paw-cleaners",
     "description": "Akcesoria do czyszczenia łap po spacerze.",
-    "parentSlug": "grooming"
+    "parentSlug": "grooming",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_2.png"
   },
   {
     "title": "Worki na odchody dla psa",
     "slug": "poop-bags",
     "description": "Ekologiczne worki na psie odchody.",
-    "parentSlug": "grooming"
+    "parentSlug": "grooming",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_2.png"
   },
   {
     "title": "Szczoteczki dla psa",
     "slug": "dog-brushes",
     "description": "Szczotki i grzebienie do pielęgnacji sierści psa.",
-    "parentSlug": "grooming"
+    "parentSlug": "grooming",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_2.png"
   },
   {
     "title": "Kosmetyki dla psa",
     "slug": "dog-cosmetics",
     "description": "Szampony, odżywki i preparaty pielęgnacyjne dla psów.",
-    "parentSlug": "grooming"
+    "parentSlug": "grooming",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_2.png"
   },
   {
     "title": "Ręczniki dla psa",
     "slug": "dog-towels",
     "description": "Chłonne ręczniki dla psa — idealne po kąpieli lub spacerze w deszczu.",
-    "parentSlug": "grooming"
+    "parentSlug": "grooming",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_2.png"
   },
   {
     "title": "Kleszczołapki",
     "slug": "tick-removers",
     "description": "Narzędzia do bezpiecznego usuwania kleszczy.",
-    "parentSlug": "grooming"
+    "parentSlug": "grooming",
+    "availableFilters":["color","size"],
+    "imagePath": "subcat_img_2.png"
   }
 ]

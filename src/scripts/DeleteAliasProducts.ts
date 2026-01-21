@@ -46,7 +46,7 @@ async function deleteDevDocuments() {
     console.log(`Tryb: ${DRY_RUN ? 'SUCHY BIEG (DRY RUN)' : 'USUWANIE DANYCH'}`);
     console.log('------------------------------------------');
 
-    const groqQuery = `*[_type == "subcategory"]._id`;
+    const groqQuery = `*[_type == "product"]._id`;
 
     try {
         console.log(`Wyszukiwanie dokumentów za pomocą GROQ: ${groqQuery}`);

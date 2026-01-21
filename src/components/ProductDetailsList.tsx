@@ -1,6 +1,6 @@
 'use client'
 import React, { useState } from 'react'
-import { Product } from '../../sanity.types'
+import { GetSlugProduct, Product } from '../../sanity.types'
 import { ChevronDown } from 'lucide-react'
 import Image from 'next/image'
 import { motion } from 'framer-motion'
@@ -8,7 +8,7 @@ import { twMerge } from 'tailwind-merge'
 
 
 type Props = {
-    product : Product,
+    product : GetSlugProduct,
     className : string
 }
 const ProductDetailsList = ({product, className}:Props) => {

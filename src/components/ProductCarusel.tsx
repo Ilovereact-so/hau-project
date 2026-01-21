@@ -5,10 +5,12 @@ import React, { useEffect, useState } from 'react'
 import { Product } from '../../sanity.types'
 import ProductItem from './ProductItem'
 import Carousel from './Carousel'
+import { twMerge } from 'tailwind-merge'
 
 type Props =  {
     title : string,
-    subtitle : string
+    subtitle : string,
+    className?: string  
 }
 const PRODUCTS_QUERY = `
 *[
@@ -29,7 +31,7 @@ const PRODUCTS_QUERY = `
 
 const QUERY_PARAMS = { slug: 'feeding' }
 
-const ProductCarusel = ({title, subtitle}:Props) => {
+const ProductCarusel = ({title, subtitle, className}:Props) => {
     const [products, setProducts] = useState<Product[]>([]) 
     const [loading,setLoading] = useState<boolean>(true)
 
@@ -39,15 +41,15 @@ const ProductCarusel = ({title, subtitle}:Props) => {
             try{
                 // DEBUG: pokaż config klienta
                 // @ts-ignore
-                console.log('Sanity config:', client.config && client.config())
+                // console.log('Sanity config:', client.config && client.config())
                 
                 const response = await client.fetch<Product[]>(PRODUCTS_QUERY, QUERY_PARAMS)
                 setProducts(response)
-                console.log("Fetched products:", response)
+                // console.log("Fetched products:", response)
             } catch (error){
                 console.log("Product fetching Error", error)
             } finally{
-                console.log("Products fetched:", products.length)
+                // console.log("Products fetched:", products.length)
                 setLoading(false)
             }
         }
@@ -55,13 +57,16 @@ const ProductCarusel = ({title, subtitle}:Props) => {
     },[])
 
     return (
-    <div className='w-full h-auto font-poppins lg:mt-12 mt-8'>
-        <div className='flex justify-between lg:mx-25 md:mx-18 mx-10 lg:mb-11 mb-8'>
-            <div className='flex flex-col'>
-                <h1 className='text-black text-[clamp(13px,2vw,30px)] '>{title}: </h1>
-                <h1 className='text-black font-bold text-[clamp(13px,2vw,30px)]'>{subtitle}</h1>
+    <div className={twMerge('w-full h-auto font-poppins lg:mt-12 mt-8', className)}>
+        <div className='flex justify-between items-start lg:mx-25 md:mx-18 mx-10 lg:mb-11 mb-8'>
+            <div className='flex md:flex-row flex-col md:space-x-2 max-md:space-y-0'>
+                <h1 className='text-black sm:text-[clamp(16px,1.9vw,30px)] text-[16px] '>{title}: </h1>
+                <h1 className='text-black font-bold sm:text-[clamp(16px,1.9vw,30px)] text-[16px]'>{subtitle}</h1>
             </div>
-            <div className='inline-flex h-fit justify-center items-center space-x-3 3xs:px-6 px-4 lg:py-3 py-2 bg-[#A7E4D9] rounded-[15px] xl:mt-8'><p className='text-black text-[clamp(10px,2.1vw,20px)] font-bold'>Zobacz więcej</p><ArrowRight className='text-black lg:w-[24px] w-[20px] lg:h-[24px] h-[20px]'/></div>
+            <div className='inline-flex h-fit max-sm:w-min justify-center sm:items-start items-center space-x-2 sm:px-5 px-2 lg:py-3 py-2 border-1 border-black bg-transparent rounded-[15px] '>
+                <p className='text-black text-[clamp(13px,1.3vw,20px)] font-bold max-sm:hidden'>Zobacz więcej</p>
+                <ArrowRight className='text-black lg:w-[24px] w-[20px] lg:h-[24px] h-[20px]'/>
+            </div>
         </div>
         <Carousel>
             <div className='flex 1xl:space-x-10 lg:space-x-7 space-x-5 w-auto h-auto'>

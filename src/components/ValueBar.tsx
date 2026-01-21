@@ -31,9 +31,9 @@ const ValueBar = () => {
         <ProductCarousel duration={12}>
         {
             Items.map((item,index)=>(
-                <div key={index} className='flex justify-center 1md:space-x-6 space-x-3 min-w-[150px]'>
+                <div key={index} className='flex justify-center 1md:space-x-6 space-x-3 lg:min-w-[150px] min-w-[200px]'>
                     <item.icon className='text-[#3CBCA5] lg:w-[40px] w-[32px] lg:h-[40px] h-[32px]'/>
-                    <p className='text-black 1md:text-[clamp(13px,1.3vw,16px)] text-[clamp(10px,1.5vw,13px)] inline h-min w-fit' dangerouslySetInnerHTML={{ __html: item.title }}></p>
+                    <p className='text-black text-[clamp(13px,1.3vw,16px)]  inline h-min w-fit' dangerouslySetInnerHTML={{ __html: item.title }}></p>
                 </div>
             ))
         }

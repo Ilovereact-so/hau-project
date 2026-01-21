@@ -1,4 +1,4 @@
-import { BanerVariants } from "../../../sanity.types"
+import { BanerVariants, Subcategory } from "../../../sanity.types"
 import { client } from "../lib/client"
 
 export const getAllBaners = async () =>{
@@ -12,31 +12,35 @@ export const getAllBaners = async () =>{
     }
 }
 
+type SubcategoryNode = {
+    _id: string;
+    title: string;
+    slug: string;
+    imageWithAlt: Subcategory['imageWithAlt'];
+}
+export type CategoryNode = {
+    _id: string;
+    title: string;
+    slug: string;
+    subcategory?: SubcategoryNode[]
+}
+export async function getSubcategories(): Promise<CategoryNode[]> {
+    const query = `*[_type=="category"]{
+  _id,
+  title,
+  "slug": slug.current,
+  "subcategory": *[_type=="subcategory" && parent._ref == ^._id]{
+    _id, title, "slug": slug.current, imageWithAlt
+  }
+}`
+    const data = await client.fetch<CategoryNode[]>(query);
 
-// export const getAllBaners = async () =>{
-//   const ALL_BANERS_QUERY = defineQuery(`*[_type=="banerVariants"]`)
-//    try {
-//     const baners = await sanityFetch({
-//       query: ALL_BANERS_QUERY,
-//     });
-//     return baners?.data || [];
-//   } catch (error) {
-//     console.error("Error fetching baners:", error);
-//     return [];
-//   }
-// }
-
-// try{
-//     // DEBUG: pokaż config klienta
-//     // @ts-ignore
-//     console.log('Sanity config:', client.config && client.config())
-    
-//     const response = await client.fetch<Product[]>(PRODUCTS_QUERY, QUERY_PARAMS)
-//     setProducts(response)
-//     console.log("Fetched products:", response)
-// } catch (error){
-//     console.log("Product fetching Error", error)
-// } finally{
-//     console.log("Products fetched:", products.length)
-//     setLoading(false)
-// }
+    const sumData = data.map((c:any)=>({
+        _id: c._id,
+        title: c.title,
+        slug: c.slug,
+        subcategory: c.subcategory
+    }))
+    console.log("subcat",sumData)
+    return sumData
+}

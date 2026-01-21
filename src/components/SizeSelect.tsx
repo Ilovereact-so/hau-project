@@ -4,44 +4,43 @@ import * as React from "react"
 import { Select } from "@base-ui/react/select"
 import { Check, ChevronDown } from "lucide-react"
 import styles from '../app/index.module.css';
+import { GetSlugProduct, Slug } from "../../sanity.types";
+import { VariantOption } from "./OptionWidthImageFromVariant";
 
-type SizeOption = {
-  value?: string
-  label?: string
-}
 
 type Props = {
-  productOptionsSize?: SizeOption[]
-  value?: string | null
-  onChange?: (value: string | null) => void
+  filterValues?: GetSlugProduct["filterValues"];
+  option: VariantOption;
+  setValue?: (value: string) => void
 }
 
 export default function SizeSelect({
-  productOptionsSize = [],
-  value,
-  onChange,
+  option,
+  filterValues,
+  setValue,
 }: Props) {
   const items = React.useMemo(
     () =>
-      productOptionsSize
-        .map((size) => {
-          const finalValue = size.value?.toUpperCase()
-          if (!finalValue) return null
-
+      filterValues
+        ?.map((item) => {
           return {
-            label: size.label ?? finalValue,
-            value: finalValue,
+            label: item.value,
+            value: item.slug?.current,
           }
         })
         .filter(Boolean) as { label: string; value: string }[],
-    [productOptionsSize]
+    [filterValues]
   )
+
+  const handleValueChange = React.useCallback((value: string | null) => {
+    setValue?.(value as string)
+  }, [setValue])
 
   return (
     <Select.Root
       items={items}
-      value={value ?? null}
-      onValueChange={onChange}
+      value={option?.value?.slug?.current ?? null}
+      onValueChange={handleValueChange}
     >
       <Select.Trigger className={styles.Select}>
         <Select.Value className={styles.SelectValue}/>
@@ -59,7 +58,7 @@ export default function SizeSelect({
                   <Select.ItemIndicator className={styles.ItemIndicator}>
                     <Check className={styles.ItemIndicatorIcon}/>
                   </Select.ItemIndicator>
-                  <Select.ItemText className={styles.ItemText}>{value}</Select.ItemText>
+                  <Select.ItemText className={styles.ItemText}>{label}</Select.ItemText>
                 </Select.Item>
               ))}
             </Select.List>

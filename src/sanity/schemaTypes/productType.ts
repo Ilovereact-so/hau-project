@@ -84,45 +84,57 @@ export default {
     { name: "isWaterproof", title: "Is waterproof", type: "boolean" },
     { name: "isFeatured", title: "Is featured", type: "boolean" },
     { name: "isBestseller", title: "Is bestseller", type: "boolean" },
+    
+    // Options | filterValues
 
-    // Options — dopasowane do optionList (referencja) + inline fallback values
-    {
-      name: "options",
-      title: "Options",
-      type: "array",
-      of: [
-        {
-          type: "object",
-          name: "productOption",
-          fields: [
-            { name: "name", title: "Name", type: "string", description: "Human friendly option name, np. Size, Color" },
-            {
-              name: "optionList",
-              title: "Option list reference",
-              type: "reference",
-              to: [{ type: "optionList" }],
-              description: "Jeżeli wartość pochodzi z globalnej listy opcji (optionList), zreferuj ją tutaj."
-            },
-            {
-              name: "values",
-              title: "Values (inline fallback)",
-              type: "array",
-              of: [
-                {
-                  type: "object",
-                  fields: [
-                    { name: "label", title: "Label", type: "string" },
-                    { name: "value", title: "Value", type: "string" },
-                    { name: "image", title: "Image for value", type: "image" }
-                  ]
-                }
-              ],
-              description: "Warości inline jeżeli nie korzystasz z optionList. Importer potrafi wypełnić zarówno optionList jak i wartości inline." 
-            }
-          ]
-        }
-      ]
-    },
+    { name: 'filterValues', type: 'array', of: [{type: 'reference', to: [{ type: 'filterValue' }],},], title: 'Filter values' },
+    { name: 'productOptions', type: 'array', of: [{type: 'reference',to: [{ type: 'filter' }],},], title: 'Option Reference to filter data' },
+    
+    // {
+    // name: 'productOptions',
+    // type: 'document',
+    // fields: [
+    //   { name: 'key', type: 'string' }, // size, color
+    //   { name: 'label', type: 'string' },
+    // ],
+    // },
+    // {
+    //   name: "options",
+    //   title: "Options",
+    //   type: "array",
+    //   of: [
+    //     {
+    //       type: "object",
+    //       name: "productOption",
+    //       fields: [
+    //         { name: "name", title: "Name", type: "string", description: "Human friendly option name, np. Size, Color" },
+    //         {
+    //           name: "optionList",
+    //           title: "Option list reference",
+    //           type: "reference",
+    //           to: [{ type: "optionList" }],
+    //           description: "Jeżeli wartość pochodzi z globalnej listy opcji (optionList), zreferuj ją tutaj."
+    //         },
+    //         {
+    //           name: "values",
+    //           title: "Values (inline fallback)",
+    //           type: "array",
+    //           of: [
+    //             {
+    //               type: "object",
+    //               fields: [
+    //                 { name: "label", title: "Label", type: "string" },
+    //                 { name: "value", title: "Value", type: "string" },
+    //                 { name: "image", title: "Image for value", type: "image" }
+    //               ]
+    //             }
+    //           ],
+    //           description: "Warości inline jeżeli nie korzystasz z optionList. Importer potrafi wypełnić zarówno optionList jak i wartości inline." 
+    //         }
+    //       ]
+    //     }
+    //   ]
+    // },
 
     // Variants — strukturę zostawiamy elastyczną, importer wygeneruje z options
     {
@@ -144,11 +156,16 @@ export default {
                 {
                   type: "object",
                   fields: [
-                    { name: "optionName", title: "Option name", type: "string" },
-                    { name: "value", title: "Value", type: "string" }
+                    { name: "name", title: "Name", type: 'reference', to: [{ type: 'filter' }], },
+                    { name: "value", title: "Value", type: 'reference', to: [{ type: 'filterValue' }], },
+                    // 👇 TYLKO DO UI
+                    { name: "label", type: "string", readOnly: true, hidden: true, },
                   ]
                 }
-              ]
+              ],
+              preview: {
+                select: { title: "label" },
+              },
             },
             { name: "indexedOptions", title: "Indexed options", type: "array", of: [{ type: "string" }] },
             {
@@ -169,7 +186,6 @@ export default {
 
     // Helpers
     { name: "indexedOptions", title: "Indexed options (flat)", type: "array", of: [{ type: "string" }], readOnly: true },
-
     // SEO
     { name: "metaTitle", title: "Meta title", type: "string" },
     { name: "metaDescription", title: "Meta description", type: "string" },

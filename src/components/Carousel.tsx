@@ -1,11 +1,13 @@
 import { useScroll, useSpring, useTransform, motion } from 'framer-motion';
 import React, { useEffect } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { twMerge } from 'tailwind-merge';
 
 type Props = {
-    children: React.ReactNode
+    children: React.ReactNode,
+    bodyClassName?: string
 }
-const Carousel = ({children}:Props) => {
+const Carousel = ({children, bodyClassName}:Props) => {
     const rangeRef = React.useRef<HTMLInputElement>(null);
     const carouselRef = React.useRef<HTMLDivElement>(null);
     const carouselChildRef = React.useRef<HTMLDivElement>(null)
@@ -48,11 +50,11 @@ const Carousel = ({children}:Props) => {
         <div className='w-full flex relative '>
             <div ref={carouselRef} className='carousel w-full lg:pl-25 md:pl-18 pl-10 lg:pr-25 md:pr-18 pr-10 overflow-x-scroll flex justify-start'>
                 <motion.div style={{opacity:opacity2}} whileHover={{scale:0.9}} onClick={()=> handleClickPrev()} className='absolute z-10 left-6 p-3 rounded-[20px] bg-white top-[50%] translate-y-[-50%] cursor-pointer'><ChevronLeft className='text-black'/></motion.div>
-                <div ref={carouselChildRef} className='w-auto h-auto flex-1 flex'>{children}</div>
+                <div ref={carouselChildRef} className={twMerge('w-auto h-auto flex-1 flex', bodyClassName)}>{children}</div>
                 <motion.div style={{opacity}} whileHover={{scale:0.9}} onClick={()=> handleClickNext()} className='absolute z-10 right-6 p-3 rounded-[20px] bg-white top-[50%] translate-y-[-50%] cursor-pointer'><ChevronRight className='text-black'/></motion.div>
             </div>
         </div>
-        <div className='bg-[#BDBDBD] w-[40vw] h-[3px] rounded-full lg:mt-20 mt-12'>
+        <div className='bg-[#BDBDBD] sm:w-[40vw] w-[60vw] h-[3px] rounded-full lg:mt-12 mt-12'>
             <div ref={rangeRef} className='bg-[#383838] h-full rounded-full' style={{ width: 'var(--thumb-size, 10%)' }}></div>
         </div>
     </div>

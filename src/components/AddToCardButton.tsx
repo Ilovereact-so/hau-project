@@ -1,5 +1,5 @@
 "use client";
-import { Product } from "../../sanity.types";
+import { GetSlugProduct, Product } from "../../sanity.types";
 import React, { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import PriceFormatter from "./PriceFormatter";
@@ -9,7 +9,7 @@ import useCartStore from "../../store";
 import { Button } from "./ui/button";
 
 interface Props {
-  product: Product;
+  product: GetSlugProduct;
   className?: string;
 }
 

@@ -103,11 +103,25 @@ export function splitList(cell?: string) {
   return cell.split(/[;,]/).map(s => s.trim()).filter(Boolean);
 }
 
+export function parseFilterValues(row: Record<string, string | undefined>) {
+  const filterValues: string[] = [];
+  for (const key of Object.keys(row)) {
+    if (key.toLowerCase().startsWith('filter_')) {
+      const vals = splitList(row[key]);
+      if (vals.length) {
+        filterValues.push(...vals);
+      }
+    }
+  }
+  return filterValues;
+}
+
 export function parseOptionColumns(row: Record<string, string | undefined>) {
   const options: Array<any> = [];
+  const availableOptions = row.productOptions ? splitList(row.productOptions) : []; 
   for (const key of Object.keys(row)) {
-    if (key.toLowerCase().startsWith('option_')) {
-      const name = key.replace(/^option_/, '');
+    if (key.toLowerCase().startsWith('filter_') && availableOptions.includes(key.toLocaleLowerCase().replace('filter_', ''))) {
+      const name = key.replace(/^filter_/, '');
       const vals = splitList(row[key]);
       if (vals.length) {
         options.push({
@@ -148,18 +162,17 @@ export function generateVariants(
   return combos.map((c, idx) => {
     const optionValues = Object.entries(c).map(([k, v]) => ({
       _key: nanoid(),
-      optionName: k,
+      name: k,
       value: v as string,
     }));
 
-    const indexedOptions = optionValues.map(ov => `${normalizeValue(ov.optionName)}:${ov.value}`);
-
+    const indexedOptions = optionValues.map(ov => `${normalizeValue(ov.name)}:${ov.value}`);
     return {
       _key: nanoid(),              // 🔑 klucz wariantu (Sanity array item key)
       id: `variant-${idx + 1}`,
       sku: undefined,
       optionValues,               // 🔑 każdy ma _key
-      indexedOptions,
+      indexedOptions, 
     };
   });
 }
@@ -178,6 +191,7 @@ export function mapCsvRowToProductPartial(row: Record<string, string | undefined
   const images = splitList(row.images || '').map(url => url.trim()).filter(Boolean);
   const tags = splitList(row.tags || ';').map(t => t.trim()).filter(Boolean);
   const options = parseOptionColumns(row);
+  const filterValues = parseFilterValues(row);
   const dimensions: any = {};
   console.log(row)
   if (row.properties_width_cm) dimensions.width_cm = Number(row.properties_width_cm);
@@ -221,6 +235,7 @@ export function mapCsvRowToProductPartial(row: Record<string, string | undefined
   product.description = ensureBlockContent(product.description || row.description || row.shortDescription);
   product.options = ensureArrayKeys(product.options);
   product.variants = ensureArrayKeys(product.variants);
+  product.filterValues = ensureArrayKeys(product.filterValues);
   // add indexedOptions if possible
   const indexed = buildIndexedOptions(options);
   if (indexed.length) product.indexedOptions = indexed;

@@ -1,15 +1,15 @@
-import { Product } from "./sanity.types";
+import { GetSlugProduct, Product } from "./sanity.types";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 export interface CartItem {
-  product: Product;
+  product: GetSlugProduct;
   quantity: number;
 }
 
 interface CartState {
   items: CartItem[];
-  addItem: (product: Product) => void;
+  addItem: (product: GetSlugProduct) => void;
   removeItem: (productId: string) => void;
   deleteCartProduct: (productId: string) => void;
   resetCart: () => void;

@@ -11,6 +11,7 @@ import { PortableText } from "next-sanity";
 import { ConnectorOutSerializer } from "svix/dist/models/connectorOut";
 import VariantManage from "@/components/VariantManage";
 import ProductDetailsList from "@/components/ProductDetailsList";
+import { GetSlugProduct, Product } from "../../../../../sanity.types";
 
 const ProductPage = async ({
   params,
@@ -19,25 +20,27 @@ const ProductPage = async ({
   params: Promise<{ slug: string }>
   searchParams: Promise<{ variant?: string }>;
 }) => {
-  const { slug} = await params;
+  const { slug } = await params;
   const { variant } = await searchParams
-  const product = await getProductBySlug(slug);
+
+  const product = await getProductBySlug(slug) as GetSlugProduct;
 
   if (!product) {
     return notFound();
   }
   const productAtVariant = product?.variants?.find(v => v._key === variant);
+  console.log("productAtVariant", product)
   let maxW = 'md:max-w-[450px]'
   return (
     <div>
       <div className="gap-10 md:py-10 max-md:pb-10 md:mt-4">
-        <div className="flex flex-col md:justify-center md:flex-row md:px-10 space-x-16">
+        <div className="flex flex-col md:justify-center md:flex-row sm:px-10 md:space-x-16">
           {product?.images && <ImageView images={product?.images} />}
-          <div className="w-auto flex flex-col font-poppins max-md:px-10 max-md:mt-5">
+          <div className="w-auto flex flex-col font-poppins max-md:px-10 max-sm:px-7 max-md:mt-5">
             <div className="mb-2">
               <h1 className="text-[clamp(16px,1.6vw,20px)] text-black underline cursor-pointer">{product?.brand}</h1>
-              <h1 className="text-[clamp(26px,2.5vw,40px)] text-black leading-[clamp(26px,2.5vw,40px)] font-medium">{product?.title}</h1>
-              <h1 className="text-[clamp(18px,1.6vw,28px)] text-black mb-2">{product?.subtitle}</h1>
+              <h1 className="text-[clamp(23px,2.5vw,40px)] text-black leading-[clamp(23px,2.5vw,40px)] font-medium">{product?.title}</h1>
+              <h1 className="text-[clamp(16px,1.6vw,28px)] text-black mb-2">{product?.subtitle}</h1>
             </div>
             <PriceView
                 price={productAtVariant?.price}
@@ -62,8 +65,8 @@ const ProductPage = async ({
             <ProductDetailsList product={product} className={maxW}/>
           </div>
         </div>
-        <div className="w-full flex flex-col lg:px-25 px-10 mt-15 mb-25">
-          <div className="font-poppins font-medium text-black text-[clamp(16px,1.4vw,24px)]">
+        <div className="w-full flex flex-col lg:px-25 px-10 mt-15 mb-25 bg-main py-4 space-y-3">
+          <div className="font-poppins font-medium text-black text-[clamp(16px,1.4vw,24px)] ">
               {product?.shortDescription}
             </div>
             <div className="font-poppins text-black text-[clamp(16px,1.4vw,20px)]">
