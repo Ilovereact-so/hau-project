@@ -6,10 +6,9 @@ import { Check, FilterIcon, Trash, X } from 'lucide-react'
 import React, { Ref, use, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { GetSlugProduct, Slug } from 'sanity.types'
 import PriceFormatter from './PriceFormatter'
-import { FilterValue } from './OptionWidthImageFromVariant'
+import { Filter, FilterValue } from './OptionWidthImageFromVariant'
 import { Item } from 'node_modules/@base-ui/react/esm/select/index.parts'
 import { useRouter, useSearchParams } from 'next/navigation'
-import Filter from '@/sanity/schemaTypes/filter'
 import { FilterInlinePortal } from './FIlterInlinePortal'
 import { set } from 'sanity'
 import { useClickOutside } from '@/hooks/useClickOutside'
@@ -20,6 +19,14 @@ type Props ={
     products: GetSlugProduct[];
     paramsFilter: Record<string, string[]>
 }
+type FilterStateItem = {
+  selected: FilterValue[];
+  _id: string;
+  key: string;
+  label: string;
+  type: string;
+  UX_type: string;
+};
 const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter}:Props) => {
     const mobileSize = useMediaQuery('(max-width: 768px)')
     const miniSize = useMediaQuery('(max-width: 470px)')
@@ -130,7 +137,7 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter}
         return priceFormatter.format(value)
     }
     const hydrated = hydrateSelectedValues(paramsFilter)
-    const [isSelectedList, setSelectList] = useState(
+    const [isSelectedList, setSelectList] = useState<FilterStateItem[]>(
     avaibleFilters?.map(items => {
         const match = hydrated.find(
         h => h.parent_id === items._id
@@ -162,7 +169,7 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter}
         router.replace(url, { scroll: false })
     }
 
-    const changeFilter = (list : typeof isSelectedList, value?: React.RefObject<HTMLInputElement | null> ) => {
+    const changeFilter = (list : FilterStateItem[], value?: React.RefObject<HTMLInputElement | null> ) => {
         const params = new URLSearchParams(searchParams.toString())
         if(value!= null && value.current){
         params.delete("price")
@@ -189,40 +196,37 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter}
         router.replace(url, { scroll: false })
     }
     const containerRef = useRef<HTMLDivElement>(null)
-    const itemRefs = useRef<(HTMLDivElement | null)[]>([])
-    const [visibleCount, setVisibleCount] = useState( 0 )
+    const widthsRef = useRef(new Map<string, number>());
+    const [ready, setReady] = useState(false);
+    const [visibleCount, setVisibleCount] = useState(avaibleFilters?.length || 0)
+
+    const handleMeasure = (id: string, width: number) => {
+        widthsRef.current.set(id, width);
+
+        if (widthsRef.current.size === avaibleFilters?.length) {
+            setReady(true);
+        }
+    };
 
     useLayoutEffect(() => {
-    if (!containerRef.current || !avaibleFilters) return
-    const ro = new ResizeObserver(() => {
-        const containerWidth = containerRef.current!.offsetWidth
-        let usedWidth = 400
-        let count = 0
+    if (!ready || !containerRef.current) return;
 
-        for (let i = 0; i < avaibleFilters.length; i++) {
-        const el = itemRefs.current[i]
-        if (!el) continue
-        console.log(el)
-        const style = getComputedStyle(el)
-        const margin =
-            parseFloat(style.marginLeft) +
-            parseFloat(style.marginRight)
+    const containerWidth = containerRef.current.offsetWidth;
+    let used = 0;
+    let count = 0;
+    
+    if(!avaibleFilters) return;
+    for (const f of avaibleFilters) {
+        const w = widthsRef.current.get(f._id)!;
+        if (used + w > containerWidth) break;
+        used += w;
+        count++;
+    }
 
-        const w = el.offsetWidth + margin
-        if (usedWidth + w > containerWidth) break
-
-        usedWidth += w
-        count++
-        }
-        setVisibleCount(count)
-    })
-
-    ro.observe(containerRef.current)
-    return () => ro.disconnect()
-    }, [avaibleFilters])
-    const menuRef = useRef<HTMLDivElement>(null)
-    const [isOpenInlineMenu, setOpenInlineMenu] = useState(false)
-    useClickOutside(menuRef, () => setOpenInlineMenu(false));
+    setVisibleCount(count);
+    }, [ready, avaibleFilters]);
+    
+    
 
     const handleChangePrice = (ref:  React.RefObject<HTMLInputElement | null>)=>{
         if(ref.current){
@@ -461,67 +465,19 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter}
                         </p>
                     )}                        
                 </motion.div>   
-            }         
-            {comboAvailableFilters && comboAvailableFilters?.slice(0, visibleCount).map((item, i) => (
-                <motion.div key={i} ref={el => {itemRefs.current[i] = el}} className={`relative h-fit`}
-                    >
-                    {isOpenInlineMenu && (
-                        <AnimatePresence mode='wait'>
-                            <motion.div 
-                            initial={{opacity: 0}}
-                            animate={{opacity: 1}} 
-                            transition={{duration: 0.2, ease:"easeInOut"}}
-                            className={`absolute right-0 flex translate-y-[100%] h-[8px] bottom-0 w-full ease-in-out duration-200`}>
-                                <div className='bg-[#b9bbb7] w-full h-full'></div>
-                                <div className='absolute bottom-0 right-0 translate-x-[100%] overflow-hidden w-[14px] h-[14px]'>
-                                    <div id='sh-filter-menu' className={`rounded-bl-[14px]`}></div>
-                                </div>
-                            </motion.div>
-                        </AnimatePresence>
-                    )}
-                    
-                    <motion.div onClick={() => setOpenInlineMenu(!isOpenInlineMenu)} 
-                    className={`cursor-pointer px-8 py-2 text-[clamp(15px,1.4vw,17px)] font-medium`}
-                    initial={{backgroundColor: "#000000", color: "#ffffff", borderRadius: "20px"}}
-                    animate={isOpenInlineMenu ? {backgroundColor: "#b9bbb7", color: "#000000", borderRadius: "20px 20px 0 0"}:{backgroundColor: "#000000", color: "#ffffff", borderRadius: "20px"}}
-                    transition={{duration: 0.2, ease:"easeInOut"}}
-                    >
-                        <p >{item.label}</p>
-                    </motion.div>
-                    {isOpenInlineMenu && (
-                        <AnimatePresence mode='wait' >
-                        <motion.div ref={menuRef} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{opacity:0}} transition={{duration:0.2, ease:"easeInOut"}} className='bg-[#b9bbb7] absolute top-[calc(100%+8px)] rounded-b-[12px] px-5 space-y-3 py-3 rounded-r-[12px] flex flex-col'>
-                                {item.type === "enum" && item.filters.map((Fitem,index)=>(
-                                    <label key={index} 
-                                    onClick={()=>setSelectList(prev =>
-                                        prev?.map(Sitem =>
-                                            Sitem._id === item._id
-                                            ? {
-                                                ...Sitem,
-                                                selected: Sitem.selected.some(SSitem=> SSitem._id === Fitem._id)
-                                                    ? Sitem.selected.filter(v => v._id !== Fitem._id)
-                                                    : [...Sitem.selected, Fitem],
-                                                }
-                                            : Sitem
-                                        )
-                                        )
-                                    }
-                                    className='flex space-x-3 items-center justify-start cursor-pointer w-fit'>
-                                        <div className={`checkbox-filter flex justify-center items-center rounded-[4px] w-[14px] h-[14px] ${
-                                            isSelectedList?.find(Sitem => Sitem._id === item._id && Sitem.selected.some(SSitem=>SSitem._id === Fitem._id )) ? "bg-black":"bg-white"
-                                        }`}>
-                                            <Check className='w-[12px] h-[12px] text-white'/>
-                                        </div>
-                                        <p className="text-black rounded-md text-[14px] inline w-fit">
-                                            {Fitem.value}
-                                        </p>
-                                    </label>
-                                ))}
-                                <div onClick={() => changeFilter(isSelectedList)} className="cursor-pointer bg-black text-white px-4 flex justify-center py-[6px] rounded-[12px] font-poppins text-[14px] font-medium">Zatwierdź</div>
-                        </motion.div>
-                        </AnimatePresence>
-                    )}
-                </motion.div>
+            }
+            {!ready && comboAvailableFilters &&
+            comboAvailableFilters.map(f => (
+                <MeasureItem
+                key={f._id}
+                id={f._id}
+                onMeasure={handleMeasure}
+                >
+                <FilterCard item={f} setSelectList={setSelectList} isSelectedList={isSelectedList} changeFilter={changeFilter} />
+                </MeasureItem>
+            ))}
+            {ready &&comboAvailableFilters && comboAvailableFilters?.slice(0, visibleCount).map((item, i) => (
+                <FilterCard key={i} item={item} setSelectList={setSelectList} isSelectedList={isSelectedList} changeFilter={changeFilter} />
             ))}
             <div onClick={()=>setOpenMenu(true)} className={`md:bg-[#b9bbb7] bg-black md:mb-2 cursor-pointer py-2 text-[clamp(15px,1.4vw,17px)] md:text-black text-white font-medium whitespace-nowrap border-black border-1 ${!miniSize ? "px-8 rounded-[20px]":"px-4 rounded-[16px]"}`}>{!mobileSize ? "Więcej.." : !miniSize ? "Filtruj" : (
                 <div className='xs:py-[3px] py-[2px]'><FilterIcon className="w-[15px] h-[15px] text-white"/></div>
@@ -530,6 +486,111 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter}
         </div>
     </div>
   )
+}
+
+
+
+
+type filterCardProps = {
+    item: Filter & {filters: FilterValue[]},
+    setSelectList: React.Dispatch<React.SetStateAction<FilterStateItem[]>>,
+    isSelectedList: FilterStateItem[],
+    changeFilter: (list: FilterStateItem[], value?: React.RefObject<HTMLInputElement | null>) => void,
+}
+
+const FilterCard = ({item, setSelectList, isSelectedList, changeFilter}: filterCardProps)=>{
+    const [isOpenInlineMenu, setOpenInlineMenu] = useState(false)
+    const menuRef = useRef<HTMLDivElement>(null)
+    useClickOutside(menuRef, () => setOpenInlineMenu(false));
+
+    return (
+    <motion.div className={`relative h-fit`}>
+        {isOpenInlineMenu && (
+            <AnimatePresence mode='wait'>
+                <motion.div 
+                initial={{opacity: 0}}
+                animate={{opacity: 1}} 
+                transition={{duration: 0.2, ease:"easeInOut"}}
+                className={`absolute right-0 flex translate-y-[100%] h-[8px] bottom-0 w-full ease-in-out duration-200`}>
+                    <div className='bg-[#b9bbb7] w-full h-full'></div>
+                    <div className='absolute bottom-0 right-0 translate-x-[100%] overflow-hidden w-[14px] h-[14px]'>
+                        <div id='sh-filter-menu' className={`rounded-bl-[14px]`}></div>
+                    </div>
+                </motion.div>
+            </AnimatePresence>
+        )}
+        
+        <motion.div onClick={()=>setOpenInlineMenu(!isOpenInlineMenu)} 
+        className={`cursor-pointer px-8 py-2 text-[clamp(15px,1.4vw,17px)] font-medium`}
+        initial={{backgroundColor: "#000000", color: "#ffffff", borderRadius: "20px"}}
+        animate={isOpenInlineMenu ? {backgroundColor: "#b9bbb7", color: "#000000", borderRadius: "20px 20px 0 0"}:{backgroundColor: "#000000", color: "#ffffff", borderRadius: "20px"}}
+        transition={{duration: 0.2, ease:"easeInOut"}}
+        >
+            <p >{item.label}</p>
+        </motion.div>
+        {isOpenInlineMenu && (
+            <AnimatePresence mode='wait' >
+            <motion.div ref={menuRef} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{opacity:0}} transition={{duration:0.2, ease:"easeInOut"}} className='bg-[#b9bbb7] absolute top-[calc(100%+8px)] rounded-b-[12px] px-5 space-y-3 py-3 rounded-r-[12px] flex flex-col min-w-[calc(100%+26px)]'>
+                    {item.type === "enum" && item.filters.map((Fitem,index)=>(
+                        <label key={index} 
+                        onClick={()=>setSelectList(prev =>
+                            prev?.map(Sitem =>
+                                Sitem._id === item._id
+                                ? {
+                                    ...Sitem,
+                                    selected: Sitem.selected.some(SSitem=> SSitem._id === Fitem._id)
+                                        ? Sitem.selected.filter(v => v._id !== Fitem._id)
+                                        : [...Sitem.selected, Fitem],
+                                    }
+                                : Sitem
+                            )
+                            )
+                        }
+                        className='flex space-x-3 items-center justify-start cursor-pointer w-fit'>
+                            <div className={`checkbox-filter flex justify-center items-center rounded-[4px] w-[14px] h-[14px] ${
+                                isSelectedList?.find(Sitem => Sitem._id === item._id && Sitem.selected.some(SSitem=>SSitem._id === Fitem._id )) ? "bg-black":"bg-white"
+                            }`}>
+                                <Check className='w-[12px] h-[12px] text-white'/>
+                            </div>
+                            <p className="text-black rounded-md text-[14px] inline w-fit">
+                                {Fitem.value}
+                            </p>
+                        </label>
+                    ))}
+                    <div onClick={() => changeFilter(isSelectedList)} className="cursor-pointer bg-black text-white px-4 flex justify-center py-[6px] rounded-[12px] font-poppins text-[14px] font-medium">Zatwierdź</div>
+            </motion.div>
+            </AnimatePresence>
+        )}
+    </motion.div>
+    )
+}
+
+type MeasureItemProps = {
+  id: string;
+  onMeasure: (id: string, width: number) => void;
+  children: React.ReactNode;
+};
+function MeasureItem({ id, onMeasure, children }: MeasureItemProps) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (!ref.current) return;
+    const w = ref.current.offsetWidth;
+    onMeasure(id, w);
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        position: "absolute",
+        visibility: "hidden",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {children}
+    </div>
+  );
 }
 
 export default SubcategoryFilterContainer
