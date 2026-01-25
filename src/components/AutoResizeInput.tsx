@@ -26,7 +26,7 @@ const AutoResizeInput: React.FC<AutoResizeInputProps> = ({
   }, [props.value, minWidth, maxWidth]);
 
   return (
-    <div className="inline-flex items-center relative">
+    <div className="inline-flex max-w-[100%] overflow-hidden items-center relative">
       <input
         {...props}
         style={{

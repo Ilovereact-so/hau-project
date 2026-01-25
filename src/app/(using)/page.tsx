@@ -70,14 +70,14 @@ export default function Home() {
   },[])
   return (
     <div>
-        <header ref={containerRef} className='w-full min-h-[100vh] h-auto flex z-[9] relative'>            
+        <header ref={containerRef} className='w-full h-[600px]  flex z-[9] relative'>            
             {banerVariants &&  banerVariants.map((item,index)=>(
                 <motion.div ref={(el) => { slideRefs.current[index] = el }} initial={{opacity:0}} animate={isIndex === index 
                     ? { opacity: 1, zIndex: 2 } 
                     : { opacity: 0, zIndex: 1 }}
                     transition={{ duration: 0.6, ease: "easeInOut" }}
-                    key={index} className='w-full h-auto max-h-[100vh] overflow-hidden flex justify-center items-center top-0 left-0 z-[9] absolute '> {/**style={{backgroundImage:`url('${item.baner}')`}} */}
-                    <div className="relative w-full h-[100vh] overflow-hidden">
+                    key={index} className='w-full h-full overflow-hidden flex justify-center items-center top-0 left-0 z-[9] absolute '> {/**style={{backgroundImage:`url('${item.baner}')`}} */}
+                    <div className="relative w-full h-full overflow-hidden">
                       {/* BACKGROUND IMAGE */}
                       {item.imageWithAlt?.asset &&
                       <Image
@@ -92,7 +92,7 @@ export default function Home() {
                       }
                       {/* FOREGROUND IMAGE */}
                       {item.imageWithAlt?.asset &&
-                      <div className="absolute top-0 left-1/2 -translate-x-1/2 z-[2] h-[100vh] w-max max-w-[120vw] overflow-hidden flex justify-center">
+                      <div className="absolute top-0 left-1/2 -translate-x-1/2 z-[2] h-full w-max max-w-[120vw] overflow-hidden flex justify-center">
                         <Image
                           src={urlFor(item.imageWithAlt.asset).url()}
                           alt="Zwierzak bawiący się zabawką BUBA - pierwszy plan"

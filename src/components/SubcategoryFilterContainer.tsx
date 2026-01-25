@@ -200,6 +200,20 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter}
     const [ready, setReady] = useState(false);
     const [visibleCount, setVisibleCount] = useState(avaibleFilters?.length || 0)
 
+    const calculateVisibleCount = () => {
+        if (!containerRef.current || !avaibleFilters) return;
+        const containerWidth = containerRef.current.offsetWidth;
+        let used = 400;
+        let count = 0;
+        for (const f of avaibleFilters) {
+            const w = widthsRef.current.get(f._id);
+            if (!w || used + w > containerWidth) break;
+            used += w;
+            count++;
+        }
+        setVisibleCount(count);
+    };
+
     const handleMeasure = (id: string, width: number) => {
         widthsRef.current.set(id, width);
 
@@ -209,22 +223,20 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter}
     };
 
     useLayoutEffect(() => {
-    if (!ready || !containerRef.current) return;
-
-    const containerWidth = containerRef.current.offsetWidth;
-    let used = 0;
-    let count = 0;
-    
-    if(!avaibleFilters) return;
-    for (const f of avaibleFilters) {
-        const w = widthsRef.current.get(f._id)!;
-        if (used + w > containerWidth) break;
-        used += w;
-        count++;
-    }
-
-    setVisibleCount(count);
+        if (!ready) return;
+        calculateVisibleCount();
     }, [ready, avaibleFilters]);
+
+    useEffect(() => {
+        if (!containerRef.current) return;
+        const resizeObserver = new ResizeObserver(() => {
+            calculateVisibleCount();
+        });
+        resizeObserver.observe(containerRef.current);
+        return () => {
+            resizeObserver.disconnect();
+        };
+    }, [avaibleFilters]);
     
     
 
@@ -473,7 +485,7 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter}
                 id={f._id}
                 onMeasure={handleMeasure}
                 >
-                <FilterCard item={f} setSelectList={setSelectList} isSelectedList={isSelectedList} changeFilter={changeFilter} />
+                    <FilterCard item={f} setSelectList={setSelectList} isSelectedList={isSelectedList} changeFilter={changeFilter} />
                 </MeasureItem>
             ))}
             {ready &&comboAvailableFilters && comboAvailableFilters?.slice(0, visibleCount).map((item, i) => (

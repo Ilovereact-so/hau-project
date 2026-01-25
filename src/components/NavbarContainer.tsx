@@ -23,7 +23,7 @@ const NavbarContainer = async ({ children, mode }: Readonly<{children?: React.Re
             }`}><Image src="/logo_hau_white.svg" alt='logo' className='xl:w-[100px] lg:w-[90px] invert sm:w-[75px] w-[50px] xl:h-[100px] lg:h-[90px] sm:h-[75px] h-[50px] lg:m-3 ' width={130} height={130}/></Link>
             
             <NavRMenu style={{gridArea:"nav"}} mode={mode} categories={categories} className={`flex  items-center xl:space-y-6 space-y-0 lg:space-x-0 w-full ${
-                mode === 1 ? "sm:max-w-fit 1xl:max-w-[calc(100%-240px)] md:max-w-[calc(100%-100px)] sm:flex-col flex-row max-sm:border-t-1 max-sm:border-[#838383]":"sm:max-w-[calc(100%-100px)] max-w-fit flex-col"
+                mode === 1 ? "sm:max-w-fit 1xl:max-w-[calc(100%-240px)] md:max-w-[calc(100%-100px)] sm:flex-col flex-row max-sm:border-t-1 max-sm:border-[#838383]":"max-w-[calc(100%-120px)] max-lg:max-w-[calc(100%-100px)] max-sm:max-w-fit flex-col"
             }`}/>
             <ServerUser style={{gridArea:"actions", width: mode === 0 ? "100%": "auto" }} mode={mode}/>            
         </div>

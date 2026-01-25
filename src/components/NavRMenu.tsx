@@ -47,7 +47,7 @@ const NavRMenu = ({ className, style, mode, categories}: { className: string, st
     //     console.log(isFocus)
     // },[itemRefs.current])
 
-    const globalDelay = 0.4
+    const globalDelay = 0.2
 
     const [isHover, setIsHover] = useState<boolean>(false)
 
@@ -118,12 +118,12 @@ const BackgroundTheme = () => {
     // },[SearchBarReady , mode])
     const containerRef = useRef<HTMLDivElement | null>(null);
     const focusChanges = () => {
-        if (!containerRef.current) return;
+        if (!containerRef.current || mode === 1) return;
 
         containerRef.current.style.maxHeight = '30%';
     };
     const blurChanges = () => {
-        if (!containerRef.current) return;
+        if (!containerRef.current || mode === 1) return;
 
         containerRef.current.style.maxHeight = 'none';
     };
@@ -157,12 +157,12 @@ const BackgroundTheme = () => {
                 mode === 0 ? !mobile? "bg-[#A7E4D9] sm:bg-[#A7E4D9] ":" bg-transparent " : " bg-transparent "
             }`}>
                 <NavbarItems mode={mode} ref={navbarRef} id="navbar-scroll" className={`sm:rounded-[39px] flex sm:flex-row flex-col sm:items-center sm:space-x-3  xl:py-2 lg:py-2 py-0 sm:h-fit h-full overflow-x-auto sm:overflow-y-visible overflow-y-auto max-sm:space-y-3 ${
-                    mode === 1 ? "md:mx-4 sm:ml-4 justify-start pl-[8px] pr-[20px] w-full" : "1xl:px-25 lg:px-14 lg:pl-14 lg:pr-14 pl-0 pr-10 lg:justify-center justify-start lg:w-auto w-full"
+                    mode === 1 ? "md:mx-4 sm:ml-4 justify-start pl-[8px] pr-[20px] w-full" : "1xl:px-25 lg:px-14 lg:pl-14 lg:pr-14 pl-0 pr-10 justify-start lg:w-auto w-full"
                 }`}>
                     <div className={` ${mode == 0 ? "2xl:hidden flex max-sm:hidden pl-4" : "hidden" }`}><Image src="/logo_hau_white.svg" alt='logo' className=' min-w-[40px] min-h-[40px]' width={40} height={40}/></div>                    
                     {
                         categories.map((item,index)=>(
-                            <NavLink navRef={navbarRef} item={item} index={index} key={index} itemRef={itemRefs.current[index]} isHoverExport={BackgroundTheme} globalDelay = {globalDelay}/>
+                            <NavLink navRef={navbarRef} mode={mode} item={item} index={index} key={index} itemRef={itemRefs.current[index]} isHoverExport={BackgroundTheme} globalDelay = {globalDelay}/>
                         ))
                     }
                 </NavbarItems>
@@ -196,7 +196,7 @@ type CategoryItem = {
      }[];
 }
 
-const NavLink = ({ item, index, navRef, itemRef, isHoverExport, globalDelay}: { item: CategoryItem, index: number, navRef: React.Ref<HTMLDivElement | null>, itemRef: React.Ref<HTMLLabelElement | null>, isHoverExport: VoidFunction, globalDelay:number}) => {
+const NavLink = ({ item, index, navRef, itemRef, isHoverExport, globalDelay, mode}: { item: CategoryItem, index: number, navRef: React.Ref<HTMLDivElement | null>, itemRef: React.Ref<HTMLLabelElement | null>, isHoverExport: VoidFunction, globalDelay:number, mode: number}) => {
     const mobile  = useMediaQuery('(max-width: 639px)');
     const [isHover, setIsHover] = useState<boolean>(false);
     
@@ -212,7 +212,7 @@ const NavLink = ({ item, index, navRef, itemRef, isHoverExport, globalDelay}: { 
     const variants = {
         borderOpen: { height: "100%", transition: { duration: 0.3 , delay: globalDelay} },
         borderClosed: { height: 0, transition: { duration: 0.3 , delay: 0.3 } },
-        ListOpen: { maxHeight: 350, display: "block", transition: { duration: 0.3 , delay: 0.32 + globalDelay } },
+        ListOpen: { maxHeight: 350, display: "block", transition: { duration: 0.3 , delay: 0.27 + globalDelay}},
         ListClosed: { maxHeight: 0, display: "none", transition: { duration: 0.3 } },
         shadowOpen: { height: "100%", width: 50, transition: { duration: 0.3, delay: 0.1 + globalDelay } },
         shadowClosed: { height: 0, width: 0, transition: { duration: 0.3 , delay: 0.3 } },
@@ -224,7 +224,9 @@ const NavLink = ({ item, index, navRef, itemRef, isHoverExport, globalDelay}: { 
     return (
     <motion.label ref={itemRef} tabIndex={index} onFocus={() => {setIsHover(true)}} onBlur={() => {setIsHover(false)}} onMouseEnter={() => {setIsHover(true); isHoverExport()}} onMouseLeave={() => setIsHover(false)} style={{ marginRight: index === category.length - 1 ? "0px" : "" }} key={index} className={`text-black outline-none relative sm:text-[clamp(15px,1.3vw,18px)] max-lg:py-1 text-[16px] font-poppins whitespace-nowrap max-sm:w-fit`}>
         {!mobile ? (
-        <div className='px-[6px] sm:py-1 flex justify-start sm:justify-center items-center'>
+        <div className={`px-[6px] flex justify-start sm:justify-center items-center ${
+            mode === 1 ? "":"sm:py-1"
+        }`}>
             <motion.div initial={{height:0}} animate={isHover ? "borderOpen" : "borderClosed"} variants={variants} className='rounded-t-[20px] bg-[#AF9E9E]/83 absolute top-0 left-0 w-full h-full z-[9]'>
                 <motion.div initial={{height:0, width:0}} animate={isHover ? "shadowOpen" : "shadowClosed"} variants={variants} className='absolute w-[50px] h-full left-[100%] bottom-0 overflow-hidden'>
                     <div className='sh-nav-rounded rounded-bl-[20px]'></div>
@@ -237,6 +239,7 @@ const NavLink = ({ item, index, navRef, itemRef, isHoverExport, globalDelay}: { 
                     initial={{ maxHeight: 0, display: "none" }}
                     animate={isHover ? "ListOpen" : "ListClosed"}
                     variants={variants}
+                    transition={{ease:"linear"}}
                     className="space-y-3 z-[9999] bg-[#AF9E9E]/83 w-auto h-auto px-4 pb-3 pt-2 flex flex-col rounded-b-[20px] rounded-r-[20px] overflow-hidden backdrop-blur-[2px] shadow-lg shadow-black/25"
                 >
                     {item.subcategory?.map((subitem, subindex) => (
@@ -245,7 +248,7 @@ const NavLink = ({ item, index, navRef, itemRef, isHoverExport, globalDelay}: { 
                         initial={{ opacity: 0 }}
                         animate={isHover ? "textOpen" : "textClosed"}
                         variants={variants}
-                        className="text-black text-[14px] hover:scale-[0.9] origin-left ease-in-out duration-300"
+                        className="text-black text-[14px] hover:scale-[0.96] origin-left ease-in-out duration-300"
                         >
                         {subitem.title}
                         </motion.h1>
