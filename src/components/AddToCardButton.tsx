@@ -7,22 +7,39 @@ import { cn } from "@/lib/utils";
 import QuantityButtons from "./QuantityButtons";
 import useCartStore from "../../store";
 import { Button } from "./ui/button";
+import { motion } from "framer-motion";
+import { Loader2 } from "lucide-react";
 
 interface Props {
   product: GetSlugProduct;
   className?: string;
+  variant: string
 }
 
-const AddToCartButton = ({ product, className }: Props) => {
+const AddToCartButton = ({ product, className, variant }: Props) => {
   const { addItem, getItemCount } = useCartStore();
   const [isClient, setIsClient] = useState(false);
 
-  const itemCount = getItemCount(product?._id);
   const isOutOfStock = product?.stock === 0;
+  //const successAdded = getItemCount(product._id) > 0;
+  const [isClicked, setIsClicked] = useState(false);
 
   // Use useEffect to set isClient to true after component mounts
   // This ensures that the component only renders on the client-side
   // Preventing hydration errors due to server/client mismatch
+  const handleClick = async () => {
+    setIsClicked(true)
+
+    await Promise.all([
+        addItem(product, variant),           // twoja akcja
+        new Promise(resolve => setTimeout(resolve, 700)) // minimum 1s
+    ]);
+    
+    toast.success(
+      `${product?.title?.substring(0, 12)}... added successfully!`
+    );
+    setIsClicked(false)
+  }
 
   useEffect(() => {
     setIsClient(true);
@@ -32,36 +49,26 @@ const AddToCartButton = ({ product, className }: Props) => {
   }
   return (
     <div className="w-full h-12 flex items-center">
-      {itemCount ? (
-        <div className="text-sm w-full">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">Quantity</span>
-            <QuantityButtons product={product} />
-          </div>
-          <div className="flex items-center justify-between border-t pt-1">
-            <span className="text-xs font-semibold">Subtotal</span>
-            <PriceFormatter
-              amount={product?.price ? product.price * itemCount : 0}
-            />
-          </div>
-        </div>
-      ) : (
-        <Button
-          onClick={() => {
-            addItem(product);
-            toast.success(
-              `${product?.title?.substring(0, 12)}... added successfully!`
-            );
-          }}
+        <motion.button
+          onClick={() => 
+            handleClick()
+          }
+          whileTap={{filter:"contrast(0.6)"}}
           disabled={isOutOfStock}
           className={cn(
             "w-full bg-black rounded-[20px] h-[50px] flex justify-center items-center font-poppins text-whie text-[clamp(16px,1.3vw,20px)] font-bold tracking-wide cursor-pointer",
             className
           )}
         >
-          Dodaj do koszyka
-        </Button>
-      )}
+          {isClicked ? (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} className="flex items-center text-white">
+              <Loader2 className=" animate-spin" /> 
+            </motion.div>
+          ) : <motion.h1 initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>Dodaj do koszyka</motion.h1>
+          
+          }
+          
+        </motion.button>
     </div>
   );
 };

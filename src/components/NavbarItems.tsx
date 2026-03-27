@@ -1,76 +1,69 @@
 'use client'
 import React, { useEffect, useState } from 'react'
-import {motion, useScroll, useTransform} from 'framer-motion'
-import {useMediaQuery} from '@/hooks/useMediaQuery';
+import { motion, useScroll, useTransform } from 'framer-motion'
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
-const NavbarItems = ({ className, id , children, ref, mode}: { className?: string, id?: string, children: React.ReactNode, ref: React.Ref<HTMLDivElement | null>, mode?: number }) => {
-    
-    const mobile = useMediaQuery('(max-width: 1059px)');
+// NavbarItems odpowiada za:
+// - wrapper scroll kontenera (ref przekazany z rodzica)
+// - fade-wskaźniki TYLKO na mobile (max-sm) przy scroll pionowym
+// - na desktop (sm+) fade i strzałki obsługuje NavRMenu
+
+const NavbarItems = ({
+    className,
+    id,
+    children,
+    ref,
+    mode,
+}: {
+    className?: string
+    id?: string
+    children: React.ReactNode
+    ref: React.Ref<HTMLDivElement | null>
+    mode?: number
+}) => {
     const mobileNav = useMediaQuery('(max-width: 639px)');
 
-    const {scrollX, scrollXProgress, scrollYProgress, scrollY} = useScroll({
+    // Scroll progress potrzebny tylko dla mobile fade (oś Y)
+    const { scrollYProgress } = useScroll({
         container: ref as React.RefObject<HTMLElement>,
-        offset: ["start start", "end end"]
-        
-    })  
-    
-    const hasScrollX = useHasHorizontalScroll(ref as React.RefObject<HTMLElement>);
-    const opacity = useTransform(!mobileNav ? scrollXProgress : scrollYProgress, (pos)=> {
-        return pos > 0.05 && (mode == 1 ? true : !mobile ?  scrollY.get()!= 0 : true) ? 1 : 0
-    })
-    const opacity2 = useTransform(!mobileNav ? scrollXProgress : scrollYProgress, (pos)=> {
-        return pos < 0.9 ? 1 : 0
-    })
-    
+        offset: ['start start', 'end end'],
+    });
+
+    // Fade górny – pojawia się gdy użytkownik przewinął w dół
+    const opacityTop = useTransform(scrollYProgress, (pos) => (pos > 0.05 ? 1 : 0));
+    // Fade dolny – znika gdy użytkownik dobrnął do końca
+    const opacityBottom = useTransform(scrollYProgress, (pos) => (pos < 0.9 ? 1 : 0));
+
+    // Mobile fade renderujemy tylko gdy: jesteśmy na mobile + mode !== 1
+    const showMobileFade = mobileNav && mode !== 1;
 
     return (
-    <motion.div ref={ref} className={className} id={id}>
-        {hasScrollX && 
-            <motion.div style={{ opacity }} className={`sticky z-20 top-0 sm:left-[-5px] left-0 sm:w-auto w-full lg:min-h-[40px] min-h-[49px] ease-in-out duration-300 ${
-                mode === 1 ? "hidden":"max-lg:flex max-sm:flex hidden"
-            }`}>
-                <div className='sm:backdrop-blur-[1px] sm:bg-gradient-to-r bg-gradient-to-b sm:from-[#73b9ad] from-black/40 from-30% to-transparent min-h-[49px] absolute sm:w-[40px] w-full h-full sm:rounded-l-[39px] sm:rounded-r-[10px] max-sm:rounded-b-[5px] max-sm:rounded-t-[10px]'></div>
-            </motion.div>
-    }  
-        {children}
-        {hasScrollX && 
-            <motion.div style={{ opacity: opacity2 }} className={`sticky z-20 sm:top-0 max-sm:bottom-0 max-sm:left-0 sm:w-0 w-full lg:min-h-[40px] min-h-[49px] min-w-[0px] ease-in-out duration-300 ${
-                mode === 1 ? "hidden translate-x-[40px]":" flex lg:right-[0px] right-[-5px] lg:translate-x-[56px] translate-x-[40px]"
-            }`}>
-                <div className='sm:backdrop-blur-[1px] sm:bg-gradient-to-l bg-gradient-to-t sm:from-[#73b9ad] from-black/40 from-30% to-transparent min-h-[49px] absolute right-0 top-[50%] translate-y-[-50%] sm:w-[40px] w-full h-full sm:rounded-r-[39px] sm:rounded-l-[10px] max-sm:rounded-t-[5px] max-sm:rounded-b-[10px]'></div>
-            </motion.div>
-        }
-    </motion.div>
-  )
-}
+        <motion.div ref={ref} className={className} id={id}>
 
-function useHasHorizontalScroll(ref: React.RefObject<HTMLElement>) {
-  const [hasScrollX, setHasScrollX] = useState(false);
+            {/* Fade górny – tylko mobile mode 0 */}
+            {showMobileFade && (
+                <motion.div
+                    style={{ opacity: opacityTop }}
+                    className="sticky z-20 top-0 left-0 w-full min-h-[49px] ease-in-out duration-300 flex"
+                >
+                    <div className="bg-gradient-to-b from-black/40 from-30% to-transparent min-h-[49px] absolute w-full h-full rounded-b-[5px] rounded-t-[10px]" />
+                </motion.div>
+            )}
 
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
+            {children}
 
-    const check = () => {
-      setHasScrollX(el.scrollWidth > el.clientWidth);
-    };
+            {/* Fade dolny – tylko mobile mode 0 */}
+            {showMobileFade && (
+                <motion.div
+                    style={{ opacity: opacityBottom }}
+                    className="sticky z-20 bottom-0 left-0 w-full min-h-[49px] ease-in-out duration-300 flex"
+                >
+                    <div className="bg-gradient-to-t from-black/40 from-30% to-transparent min-h-[49px] absolute right-0 top-[50%] translate-y-[-50%] w-full h-full rounded-t-[5px] rounded-b-[10px]" />
+                </motion.div>
+            )}
 
-    check();
-
-    const ro = new ResizeObserver(() => {
-      check();
-    });
-    ro.observe(el);
-
-    window.addEventListener("resize", check);
-
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", check);
-    };
-  }, [ref]);
-
-  return hasScrollX;
+        </motion.div>
+    );
 }
 
 export default NavbarItems

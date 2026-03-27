@@ -28,24 +28,25 @@ export const getAllCategories = async (quantity?: number) => {
   }
 };
 
-export const searchProductsByName = async (searchParam: string) => {
-  const PRODUCT_SEARCH_QUERY = defineQuery(
-    `*[_type == "product" && name match $searchParam] | order(name asc)`
-  );
+// export const searchProductsByName = async (searchParam: string, controller: AbortController) => {
+//   const PRODUCT_SEARCH_QUERY = defineQuery(
+//     `*[_type == "product" && title match $searchParam] | order(title asc)`
+//   );
 
-  try {
-    const products = await sanityFetch({
-      query: PRODUCT_SEARCH_QUERY,
-      params: {
-        searchParam: `${searchParam}`,
-      },
-    });
-    return products?.data || [];
-  } catch (error) {
-    console.error("Error fetching products by name:", error);
-    return [];
-  }
-};
+//   try {
+//     const products = await sanityFetch({
+//       query: PRODUCT_SEARCH_QUERY,
+//       params: {
+//         searchParam: `${searchParam}`,
+//       },
+//       signal: controller.signal,
+//     });
+//     return products?.data || [];
+//   } catch (error) {
+//     console.error("Error fetching products by name:", error);
+//     return [];
+//   }
+// };
 type CategoryType = {
   _id: string;
   title: string;

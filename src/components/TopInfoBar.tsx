@@ -26,7 +26,7 @@ const TopInfoBar = () => {
         }
     ]
     return (
-        <div className='flex w-full justify-center bg-fancy-black px-3 text-center py-2 text-[clamp(13px,1.5vw,16px)]'>
+        <div className='flex w-full justify-center bg-[#D1EAE6] px-3 text-center text-black py-2 text-[clamp(13px,1.5vw,16px)]'>
             <PortableText value={content}/>
         </div>
     )

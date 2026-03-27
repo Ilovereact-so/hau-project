@@ -49,9 +49,9 @@ const Carousel = ({children, bodyClassName}:Props) => {
     <div className='w-full flex flex-col items-center'>
         <div className='w-full flex relative '>
             <div ref={carouselRef} className='carousel w-full lg:pl-25 md:pl-18 pl-10 lg:pr-25 md:pr-18 pr-10 overflow-x-scroll flex justify-start'>
-                <motion.div style={{opacity:opacity2}} whileHover={{scale:0.9}} onClick={()=> handleClickPrev()} className='absolute z-10 left-6 p-3 rounded-[20px] bg-white top-[50%] translate-y-[-50%] cursor-pointer'><ChevronLeft className='text-black'/></motion.div>
+                <motion.div style={{opacity:opacity2}} whileHover={{scale:0.9}} onClick={()=> handleClickPrev()} className='absolute z-2 left-6 lg:p-3 p-2 rounded-[15px] bg-white top-[50%] translate-y-[-50%] cursor-pointer'><ChevronLeft className='text-black w-[20px] h-[20px]'/></motion.div>
                 <div ref={carouselChildRef} className={twMerge('w-auto h-auto flex-1 flex', bodyClassName)}>{children}</div>
-                <motion.div style={{opacity}} whileHover={{scale:0.9}} onClick={()=> handleClickNext()} className='absolute z-10 right-6 p-3 rounded-[20px] bg-white top-[50%] translate-y-[-50%] cursor-pointer'><ChevronRight className='text-black'/></motion.div>
+                <motion.div style={{opacity}} whileHover={{scale:0.9}} onClick={()=> handleClickNext()} className='absolute z-2 right-6 lg:p-3 p-2 rounded-[15px] bg-white top-[50%] translate-y-[-50%] cursor-pointer'><ChevronRight className='text-black w-[20px] h-[20px]'/></motion.div>
             </div>
         </div>
         <div className='bg-[#BDBDBD] sm:w-[40vw] w-[60vw] h-[3px] rounded-full lg:mt-12 mt-12'>

@@ -1,49 +1,59 @@
-import { GetSlugProduct, Product } from "./sanity.types";
+import { GetSlugProduct } from "./sanity.types";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 export interface CartItem {
   product: GetSlugProduct;
   quantity: number;
+  variant: string;
 }
 
 interface CartState {
   items: CartItem[];
-  addItem: (product: GetSlugProduct) => void;
-  removeItem: (productId: string) => void;
-  deleteCartProduct: (productId: string) => void;
+  addItem: (product: GetSlugProduct, variant: string) => void;
+  removeItem: (productId: string, variant: string) => void;
+  deleteCartProduct: (productId: string, variant: string) => void;
   resetCart: () => void;
   getTotalPrice: () => number;
   getSubTotalPrice: () => number;
-  getItemCount: (productId: string) => number;
+  getItemCount: (productId: string, variant: string) => number;
   getGroupedItems: () => CartItem[];
+  getLatestItem: () => CartItem | null;
+  onItemAdded: ((item: CartItem) => void) | null;
+  setOnItemAdded: (cb: ((item: CartItem) => void) | null) => void;
 }
 
 const useCartStore = create<CartState>()(
   persist(
     (set, get) => ({
       items: [],
-      addItem: (product) =>
+      onItemAdded: null,
+      setOnItemAdded: (cb) => set({ onItemAdded: cb }),
+
+      addItem: (product, variant) =>
         set((state) => {
           const existingItem = state.items.find(
-            (item) => item.product._id === product._id
+            (item) => item.product._id === product._id && item.variant === variant
           );
           if (existingItem) {
+            get().onItemAdded?.({ ...existingItem, quantity: existingItem.quantity + 1 });
             return {
-              items: state.items.map((item) =>
-                item.product._id === product._id
-                  ? { ...item, quantity: item.quantity + 1 }
-                  : item
-              ),
+              items: [
+                ...state.items.filter(
+                  (item) => !(item.product._id === product._id && item.variant === variant)
+                ),
+                { ...existingItem, quantity: existingItem.quantity + 1 },
+              ],
             };
           } else {
-            return { items: [...state.items, { product, quantity: 1 }] };
+            get().onItemAdded?.({ product, quantity: 1, variant });
+            return { items: [...state.items, { product, quantity: 1, variant }] };
           }
         }),
-      removeItem: (productId) =>
+      removeItem: (productId, variant) =>
         set((state) => ({
           items: state.items.reduce((acc, item) => {
-            if (item.product._id === productId) {
+            if (item.product._id === productId && item.variant === variant) {
               if (item.quantity > 1) {
                 acc.push({ ...item, quantity: item.quantity - 1 });
               }
@@ -53,32 +63,40 @@ const useCartStore = create<CartState>()(
             return acc;
           }, [] as CartItem[]),
         })),
-      deleteCartProduct: (productId) =>
+
+      deleteCartProduct: (productId, variant) =>
         set((state) => ({
           items: state.items.filter(
-            ({ product }) => product?._id !== productId
+            (item) => !(item.product._id === productId && item.variant === variant)
           ),
         })),
+
       resetCart: () => set({ items: [] }),
+
       getTotalPrice: () => {
         return get().items.reduce(
           (total, item) => total + (item.product.price ?? 0) * item.quantity,
           0
         );
       },
+
       getSubTotalPrice: () => {
         return get().items.reduce((total, item) => {
           const price = item.product.price ?? 0;
-          const discount = ((item.product.compareAtPrice ?? 0) * price) / 100;
-          const discountedPrice = price + discount;
-          return total + discountedPrice * item.quantity;
+          return total + price * item.quantity;
         }, 0);
       },
-      getItemCount: (productId) => {
-        const item = get().items.find((item) => item.product._id === productId);
+
+      getItemCount: (productId, variant) => {
+        const item = get().items.find(
+          (item) => item.product._id === productId && item.variant === variant
+        );
         return item ? item.quantity : 0;
       },
+
       getGroupedItems: () => get().items,
+
+      getLatestItem: () => get().items.at(-1) ?? null,
     }),
     { name: "cart-store" }
   )

@@ -70,7 +70,7 @@ export default function Home() {
   },[])
   return (
     <div>
-        <header ref={containerRef} className='w-full h-[600px]  flex z-[9] relative'>            
+        <header ref={containerRef} className='w-full min-h-[600px] 3xl:h-[80vh] h-[70vh]  flex z-[9] relative'>            
             {banerVariants &&  banerVariants.map((item,index)=>(
                 <motion.div ref={(el) => { slideRefs.current[index] = el }} initial={{opacity:0}} animate={isIndex === index 
                     ? { opacity: 1, zIndex: 2 } 
@@ -78,7 +78,7 @@ export default function Home() {
                     transition={{ duration: 0.6, ease: "easeInOut" }}
                     key={index} className='w-full h-full overflow-hidden flex justify-center items-center top-0 left-0 z-[9] absolute '> {/**style={{backgroundImage:`url('${item.baner}')`}} */}
                     <div className="relative w-full h-full overflow-hidden">
-                      {/* BACKGROUND IMAGE */}
+                      {/* BACKGROUND IMAGE 
                       {item.imageWithAlt?.asset &&
                       <Image
                         src={urlFor(item.imageWithAlt.asset).url()}
@@ -90,15 +90,16 @@ export default function Home() {
                         sizes="(max-width: 768px) 100vw, 50vw"
                       />
                       }
+                      */}
                       {/* FOREGROUND IMAGE */}
                       {item.imageWithAlt?.asset &&
-                      <div className="absolute top-0 left-1/2 -translate-x-1/2 z-[2] h-full w-max max-w-[120vw] overflow-hidden flex justify-center">
+                      <div className="absolute top-0 left-1/2 -translate-x-1/2 z-[2] h-full w-full max-w-[120vw] overflow-hidden flex justify-center">
                         <Image
                           src={urlFor(item.imageWithAlt.asset).url()}
                           alt="Zwierzak bawiący się zabawką BUBA - pierwszy plan"
                           width={1648}
                           height={912}
-                          className=" object-contain w-auto max-w-[400vw] relative 3xs:left-0 left-[-160px] ease-in-out duration-300"
+                          className=" object-cover sm:object-top w-full object-[65%] relative ease-in-out duration-300"
                           priority
                         />
                       </div>

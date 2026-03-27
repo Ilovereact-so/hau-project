@@ -1,77 +1,79 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
 interface SubmenuPortalProps {
   anchorRef: React.RefObject<HTMLLabelElement | null>;
   open: boolean;
   children: React.ReactNode;
+  scrollRef: React.RefObject<HTMLDivElement | null>;
+  exit: () => void;
 }
 
-export default function SubmenuPortal({ anchorRef, open, children }: SubmenuPortalProps) {
-  const elRef = useRef<HTMLDivElement | null>(null);
-  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
-  const [shouldRender, setShouldRender] = useState<boolean>(open);
+export default function SubmenuPortal({ anchorRef, open, children, scrollRef, exit }: SubmenuPortalProps) {
+  const portalRef = useRef<HTMLDivElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // ⏱️ zapobiega znikaniu portalu zanim skończy się animacja
-  useEffect(() => {
-    if (open) {
-      setShouldRender(true);
-    } else {
-      const timeout = setTimeout(() => setShouldRender(false), 350); // tyle trwa Twoja animacja
-      return () => clearTimeout(timeout);
-    }
-  }, [open]);
-
-  // tworzymy kontener w body
+  // tworzymy portal container
   useEffect(() => {
     const el = document.createElement("div");
     document.body.appendChild(el);
-    elRef.current = el;
+    portalRef.current = el;
+
     return () => {
       document.body.removeChild(el);
     };
   }, []);
 
-  // aktualizacja pozycji submenu
   useEffect(() => {
-    if (!shouldRender) return;
+    //if (!open) return;
 
     const updatePosition = () => {
       const anchor = anchorRef.current;
-      if (!anchor) return;
+      const container = containerRef.current;
+
+      if (!anchor || !container) return;
+
       const rect = anchor.getBoundingClientRect();
-      setPos({
-        top: rect.bottom + window.scrollY,
-        left: rect.left + window.scrollX,
-        width: rect.width,
-      });
+      //const scrollRect = scrollContainer.getBoundingClientRect();
+      container.style.top = `${rect.bottom + window.scrollY}px`;
+      container.style.left = `${rect.left + window.scrollX}px`;
+      container.style.minWidth = `${rect.width + 40}px`;
+      // if( (rect.left < scrollRect.left || rect.right > scrollRect.right) && open){
+      //   //exit();
+      //    anchor.scrollIntoView({
+      //       behavior: "instant",
+      //       block: "nearest",
+      //       inline: "nearest"
+      //   });
+      //   console.log("scrolling left", containerRef, scrollRect.left)
+      // }
     };
 
     updatePosition();
+
     window.addEventListener("scroll", updatePosition, true);
     window.addEventListener("resize", updatePosition);
+
     return () => {
       window.removeEventListener("scroll", updatePosition, true);
       window.removeEventListener("resize", updatePosition);
     };
-  }, [shouldRender, anchorRef]);
+  }, [open, anchorRef]);
 
-  if (!elRef.current || !shouldRender || !pos) return null;
-
-  const style: React.CSSProperties = {
-    position: "absolute",
-    top: pos.top,
-    left: pos.left,
-    minWidth: pos.width + 40,
-    zIndex: 9999,
-  };
+  if (!portalRef.current) return null;
 
   return createPortal(
-    <div style={style} className="relative z-[9999] pointer-events-none">
-      {/* pointer-events w rodzicu wyłączone — kontrola w childzie */}
+    <div
+      ref={containerRef}
+      style={{
+        position: "absolute",
+        zIndex: 9999,
+      }}
+      className="pointer-events-none"
+    >
       <div className="pointer-events-auto">{children}</div>
     </div>,
-    elRef.current
+    portalRef.current
   );
 }
