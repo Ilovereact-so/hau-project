@@ -7,7 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { urlFor } from "@/sanity/lib/image";
 import useCartStore from "store";
 import { useAuth, useUser } from "@clerk/nextjs";
-import { Heart, ShoppingBag, Trash } from "lucide-react";
+import { ChevronDown, Heart, ShoppingBag, Trash } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import React, { useEffect, useState } from "react";
@@ -76,182 +76,110 @@ const CartPage = () => {
     // }
   };
 
-  const handleDeleteProduct = (id: string) => {
-    deleteCartProduct(id);
+  const handleDeleteProduct = (id: string, variant: string) => {
+    deleteCartProduct(id, variant);
     toast.success("Product deleted successfully!");
   };
+
   return (
-    <div className="bg-gray-50 pb-52 md:pb-10">
+    <div className="">
       {isSignedIn ? (
-        <Container>
+        <Container className="px-15 my-10 font-poppins">
           {groupedItems?.length ? (
             <>
-              <div className="flex items-center gap-2 py-5">
-                <ShoppingBag className="h-6 w-6 text-darkColor" />
-                <h1 className="text-2xl font-semibold">Shopping Cart</h1>
+              <div className="flex items-center ">
+                <h1 className="text-[clamp(16px,1.5vw,23px)] text-black font-medium">Koszyk</h1>
               </div>
               <div className="grid lg:grid-cols-3 md:gap-8">
                 {/* Product View start */}
-                <div className="lg:col-span-2 rounded-lg">
-                  <div className="border bg-white rounded-md">
-                    {groupedItems?.map(({ product }) => {
-                      const itemCount = getItemCount(product?._id);
+                <div className="lg:col-span-2">
+                  <div className="">
+                    {groupedItems?.map(({ product, variant }) => {
+                      const itemCount = getItemCount(product?._id, variant);
+                      const variantsProperties = product.variants?.find(v => v._key === variant);
                       return (
                         <div
                           key={product?._id}
-                          className="border-b p-2.5 last:border-b-0 flex items-center justify-between gap-5"
+                          className="border-b last:border-b-0 border-[#BBBBBB] flex items-center justify-between py-4"
                         >
                           <div className="flex flex-1 items-start gap-2 h-36 md:h-44">
                             {product?.images && (
-                              <div className="border p-0.5 md:p-1 mr-2 rounded-md overflow-hidden group">
+                              <div className="p-0.5 md:p-1 mr-2 rounded-md overflow-hidden group">
                                 <Image
                                   src={urlFor(product.images[0]).url()}
                                   alt="productImage"
                                   width={500}
                                   height={500}
                                   loading="lazy"
-                                  className="w-32 md:w-40 h-32 md:h-40 object-cover group-hover:scale-105 overflow-hidden transition-transform duration-500"
+                                  className="w-32 md:w-40 h-32 md:h-40 object-cover group-hover:scale-105 overflow-hidden transition-transform duration-500 brightness-90"
                                 />
                               </div>
                             )}
-                            <div className="h-full flex flex-1 flex-col justify-between py-1">
-                              <div className="flex flex-col gap-0.5 md:gap-1.5">
-                                <h2 className="text-base font-semibold line-clamp-1">
-                                  {product?.title}
-                                </h2>
-                                <p className="text-sm text-lightColor font-medium">
-                                  {product?.intro}
+                            <div className="h-full flex flex-1 flex-col justify-around py-2">
+                              <div className="flex flex-col">
+                                <p className="text-[18px] text-black">
+                                  {product?.brand}
                                 </p>
-                                <p className="text-sm capitalize">
-                                  Variant:{" "}
-                                  <span className="font-semibold">
-                                    {product?.slug ? product?.slug.current : "Default" }
-                                  </span>
-                                </p>
-                                <p className="text-sm capitalize">
-                                  Status:{" "}
-                                  <span className="font-semibold">
-                                    {/* {product?.status} */}
-                                  </span>
-                                </p>
+                                <h2 className="text-[20px] font-semibold text-black line-clamp-1">
+                                {product?.title}
+                              </h2>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger>
-                                      <Heart className="w-4 h-4 md:w-5 md:h-5 mr-1 text-gray-500 hover:text-red-600 hoverEffect" />
-                                    </TooltipTrigger>
-                                    <TooltipContent className="font-bold">
-                                      Add to Favorite
-                                    </TooltipContent>
-                                  </Tooltip>
-                                  <Tooltip>
-                                    <TooltipTrigger>
-                                      <Trash
-                                        onClick={() =>
-                                          handleDeleteProduct(product?._id)
-                                        }
-                                        className="w-4 h-4 md:w-5 md:h-5 mr-1 text-gray-500 hover:text-red-600 hoverEffect"
-                                      />
-                                    </TooltipTrigger>
-                                    <TooltipContent className="font-bold bg-red-600">
-                                      Delete product
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
+                              <div className="flex flex-col">
+                                {variantsProperties?.optionValues?.map((item, index) => (
+                                <div key={index} className='text-[#6C6C6C] flex space-x-2'> 
+                                    <p>{item.name?.label}</p>
+                                    <p>{item.value?.value}</p>
+                                </div>
+                                ))}
                               </div>
                             </div>
                           </div>
-                          <div className="flex flex-col items-start justify-between h-36 md:h-44 p-0.5 md:p-1">
+                          <div className="flex flex-col items-end space-y-3 ">
                             <PriceFormatter
                               amount={(product?.price as number) * itemCount}
-                              className="font-bold text-lg"
+                              className="font-bold text-black text-[16px]"
                             />
-                            <QuantityButtons product={product} />
+                            <QuantityButtons product={product} variant={variant} />
                           </div>
                         </div>
                       );
                     })}
                     <Button
                       onClick={handleResetCart}
-                      className="m-5 font-semibold"
+                      className="mt-3 font-bold text-white bg-fancy-black rounded-[20px] px-6 py-5.5 text-[16px]"
                       variant="destructive"
                     >
-                      Reset Cart
+                      Wyczyść koszyk
                     </Button>
                   </div>
                 </div>
 
                 {/* Product View end */}
 
-                <div className="lg:col-span-1">
-                  <div className="hidden md:inline-block w-full bg-white p-6 rounded-lg border">
-                    <h2 className="text-xl font-semibold mb-4">
-                      Order Summary
+                <div className="lg:col-span-1 max-w-[500px]">
+                  <div className="flex flex-col w-full p-6">
+                    <h2 className="text-[clamp(16px,1.5vw,23px)] text-black font-semibold">
+                      Podsumowanie
                     </h2>
-                    <div className="space-y-4">
-                      <div className="flex justify-between">
-                        <span>SubTotal</span>
-                        <PriceFormatter amount={getSubTotalPrice()} />
+                    <div className="text-black bg-[#E1E1E1] rounded-full flex flex-col py-3 px-6 mt-6">
+                      <div className="flex justify-between items-center text-black text-[16px] font-medium">
+                        <p>Masz kod promocyjny ?</p>
+                        <ChevronDown/>
                       </div>
-                      <div className="flex justify-between">
-                        <span>Discount</span>
-                        <PriceFormatter
-                          amount={getSubTotalPrice() - getTotalPrice()}
-                        />
-                      </div>
-
-                      <Separator />
-                      <div className="flex justify-between font-semibold text-lg">
-                        <span>Total</span>
-
-                        <PriceFormatter
-                          amount={useCartStore?.getState().getTotalPrice()}
-                          className="text-lg font-bold text-black"
-                        />
-                      </div>
-                      <Button
-                        onClick={handleCheckout}
-                        disabled={loading}
-                        className="w-full cursor-pointer rounded-full font-semibold tracking-wide"
-                        size="lg"
-                      >
-                        {loading ? "Processing" : "Proceed to Checkout"}
-                      </Button>
-                      <Link
-                        href="/"
-                        className="text-center text-sm text-darkColor hover:underline border border-darkColor/50 rounded-full flex items-center justify-center py-2 hover:bg-darkColor/5 hover:border-darkColor hoverEffect"
-                      >
-                        <Image
-                          src={paypalLogo}
-                          className="w-20"
-                          alt="paypalLogo"
-                        />
-                      </Link>
                     </div>
-                  </div>
-                </div>
-                {/* Order summary mobile view */}
-                <div className="md:hidden fixed bottom-0 left-0 w-full bg-white pt-2">
-                  <div className="bg-white p-4 rounded-lg border mx-4">
-                    <h2 className="text-lg font-semibold mb-2">
-                      Order Summary
-                    </h2>
-                    <div className="space-y-2">
+                    <div className="text-black text-[16px] mt-6">
                       <div className="flex justify-between">
-                        <span>SubTotal</span>
-                        <PriceFormatter amount={getSubTotalPrice()} />
+                        <span>Wartość produktów</span>
+                        <PriceFormatter amount={getSubTotalPrice()} className="font-normal" />
                       </div>
                       <div className="flex justify-between">
-                        <span>Discount</span>
-                        <PriceFormatter
-                          amount={getSubTotalPrice() - getTotalPrice()}
-                        />
+                        <span>Dostawa od</span>
+                        <PriceFormatter amount={10.49} className="font-normal"/>
                       </div>
 
                       <Separator />
-                      <div className="flex justify-between font-semibold text-lg">
-                        <span>Total</span>
+                      <div className="flex justify-between font-bold text-[16px] my-4">
+                        <p>Do zapłaty <span className="font-normal">w tym VAT</span></p>
 
                         <PriceFormatter
                           amount={useCartStore?.getState().getTotalPrice()}
@@ -261,21 +189,12 @@ const CartPage = () => {
                       <Button
                         onClick={handleCheckout}
                         disabled={loading}
-                        className="w-full rounded-full font-semibold tracking-wide"
-                        size="lg"
+                        className="w-auto cursor-pointer rounded-full font-bold tracking-wide bg-fancy-black text-white text-[16px] py-6 px-8"
                       >
-                        {loading ? "Processing" : "Proceed to Checkout"}
+                        {loading ? "Processing" : "Przejdź do kasy"}
                       </Button>
-                      <Link
-                        href="/"
-                        className="text-center text-sm text-darkColor hover:underline border border-darkColor/50 rounded-full flex items-center justify-center py-2 hover:bg-darkColor/5 hover:border-darkColor hoverEffect"
-                      >
-                        <Image
-                          src={paypalLogo}
-                          className="w-20"
-                          alt="paypalLogo"
-                        />
-                      </Link>
+                      <p className="text-black text-[16px] mt-4 mb-2">Akceptujemy</p>
+                      <Image src="/payment.png" width={300} height={30} alt="payment"/>
                     </div>
                   </div>
                 </div>
