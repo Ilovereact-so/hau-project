@@ -18,24 +18,24 @@ const page = () => {
         setIsClient(true);
       }, []);
 
-      if (!isClient) {
-        return <Loading />;
-      }
+    //   if (!isClient) {
+    //     return <Loading />;
+    //   }
   return (
     <div className=''>
-        <Container className="px-15 my-10 font-poppins flex flex-col">
-            <h1 className='text-[20px] text-black font-semibold'>Polubione</h1>
+        <Container className="px-15 my-14 font-poppins flex flex-col">
+            <h1 className='text-[20px] text-black font-medium mb-5'>Ububione</h1>
             {groupedItems &&
-            <div className='mt-4 grid grid-cols-3 gap-2'>
+            <div className='mt-4 grid 2.5xl:grid-cols-4 grid-cols-3 gap-x-[18px] gap-y-[75px]'>
                 {groupedItems?.map(({ product, variant }) => {
                     const variantsProperties = product.variants?.find(v => v._key === variant);
                     return (
-                    <div key={product._id + variant} className='flex flex-col w-min relative'>
+                    <div key={product._id + variant} className='flex flex-col w-full relative'>
                         {product?.images&&
                             <Image
                                 src={urlFor(product.images[0]).url()}
                                 alt="Product Image"
-                                className="min-w-[290px] h-[290px] brightness-90"
+                                className="min-w-[290px] w-[clamp(290px,100%,500px)] h-auto min-h-[290px] brightness-90"
                                 width={290}
                                 height={290}
                             />

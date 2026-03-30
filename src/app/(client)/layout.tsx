@@ -1,6 +1,7 @@
 import Footer from "@/components/Footer";
 import NavbarContainer from "@/components/NavbarContainer";
 import ProductCarusel from "@/components/ProductCarusel";
+import ProductCarusel2 from "@/components/ProductCarusel2";
 import TopInfoBar from "@/components/TopInfoBar";
 
 
@@ -14,9 +15,8 @@ export default function ClientLayout({
         <TopInfoBar />
         <NavbarContainer mode={1}/>  {/** 1 for products */}
             {children}
-        <ProductCarusel
-          title={"Produkty objęte promocją"}
-          subtitle={"Idealne na wyjścia z pupilem"}
+        <ProductCarusel2
+          title={"Dopasuj do swojego pupila"}
         />
         <Footer/>
     </>
