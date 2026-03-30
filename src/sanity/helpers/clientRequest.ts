@@ -1,4 +1,4 @@
-import { BanerVariants, Product, Subcategory } from "../../../sanity.types"
+import { BanerVariants, GetSlugProduct, Product, Subcategory } from "../../../sanity.types"
 import { client } from "../lib/client"
 
 export const getAllBaners = async () =>{
@@ -147,6 +147,67 @@ export const searchProductsByName = async (name: string, controller: AbortContro
     try {
         const data = await client.fetch<ProductSearchResult[]>(SEARCH_QUERY, params , { signal: controller.signal });
         return rankProducts(data, tokens) || [];
+    } catch (error) {
+        console.error("Error fetching products by name:", error);
+        return [];
+    }
+}
+
+export const getCarouselProduct = async(params : string) =>{
+  const QUERY = `*[_type == "product" && defined(category) &&
+    category->slug.current == $slug]{
+    ...,
+    category->{
+    _id,
+    title,
+    slug
+    },
+    type->{
+    _id,
+    title,
+    slug
+    },
+    productOptions[]->{
+      _id,
+      key,
+      label,
+      type,
+      UX_type
+    },
+    filterValues[]->{
+      filter,
+      _id,
+      value,
+      slug
+    },
+    variants[]{
+      _key,
+      price,
+      sku,
+      stock,
+      optionValues[]{
+        _key,
+        label,
+        "name":name->{
+          _id,
+          key,
+          label,
+          type,
+          UX_type
+        },
+        "value":value->{
+          _id,
+          value,
+          slug
+        }
+      }
+    }
+  }[0...20]
+  `
+
+  try {
+        const data = await client.fetch<GetSlugProduct[]>(QUERY, {slug:params});
+        return data
     } catch (error) {
         console.error("Error fetching products by name:", error);
         return [];

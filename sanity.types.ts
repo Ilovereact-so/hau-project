@@ -129,15 +129,15 @@ export type GetSlugProduct = {
   visibility?: "draft" | "published" | "storefront";
 
   category?: {
-    _ref: string;
-    _type: "reference";
-    _weak?: boolean;
+    _id:string;
+    title?:string
+    slug?: Slug
   };
 
   type?: {
-    _ref: string;
-    _type: "reference";
-    _weak?: boolean;
+    _id:string;
+    title?:string
+    slug?: Slug
   };
 
   brand?: string;

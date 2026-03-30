@@ -2,10 +2,11 @@
 import { client } from '@/sanity/lib/client'
 import { ArrowRight } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
-import { Product } from '../../sanity.types'
+import { GetSlugProduct, Product } from '../../sanity.types'
 import ProductItem from './ProductItem'
 import Carousel from './Carousel'
 import { twMerge } from 'tailwind-merge'
+import { getCarouselProduct } from '@/sanity/helpers/clientRequest'
 
 type Props =  {
     title : string,
@@ -32,29 +33,15 @@ const PRODUCTS_QUERY = `
 const QUERY_PARAMS = { slug: 'feeding' }
 
 const ProductCarusel = ({title, subtitle, className}:Props) => {
-    const [products, setProducts] = useState<Product[]>([]) 
-    const [loading,setLoading] = useState<boolean>(true)
+    const [products, setProducts] = useState<GetSlugProduct[]>([])
+    const [loading, setLoading] = useState<boolean>(true)
 
-    useEffect(()=>{
-        const fetchData = async ()=>{
-            setLoading(true)
-            try{
-                // DEBUG: pokaż config klienta
-                // @ts-ignore
-                // console.log('Sanity config:', client.config && client.config())
-                
-                const response = await client.fetch<Product[]>(PRODUCTS_QUERY, QUERY_PARAMS)
-                setProducts(response)
-                // console.log("Fetched products:", response)
-            } catch (error){
-                console.log("Product fetching Error", error)
-            } finally{
-                // console.log("Products fetched:", products.length)
-                setLoading(false)
-            }
-        }
-        fetchData();
-    },[])
+    useEffect(() => {
+        getCarouselProduct("feeding").then((data) => {
+            setProducts(data)
+            setLoading(false)
+        })
+    }, [])
 
     return (
     <div className={twMerge('w-full h-auto font-poppins lg:mt-12 mt-8', className)}>
@@ -72,7 +59,7 @@ const ProductCarusel = ({title, subtitle, className}:Props) => {
             <div className='flex 1xl:space-x-10 lg:space-x-7 space-x-5 w-auto h-auto'>
                 {
                     loading ? <span>Products is loading...</span> :
-                    products?.map((item:Product)=>(
+                    products.map((item: GetSlugProduct)=>(
                         <ProductItem product={item} key={item?._id}/>
                     ))
                 }

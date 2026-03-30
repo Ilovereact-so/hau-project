@@ -1,5 +1,6 @@
 import Footer from "@/components/Footer";
 import NavbarContainer from "@/components/NavbarContainer";
+import TopInfoBar from "@/components/TopInfoBar";
 
 
 export default function UsingLayout({
@@ -9,6 +10,7 @@ export default function UsingLayout({
 }>) {
   return (
     <>
+      <TopInfoBar/>
       <NavbarContainer mode={1}/>  {/** 1 for products */}
         {children}
       <Footer/>

@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1774786106995,
+      "tag": "0000_brainy_stellaris",
+      "breakpoints": true
+    }
+  ]
+}

@@ -99,7 +99,7 @@ const CartPage = () => {
                       const variantsProperties = product.variants?.find(v => v._key === variant);
                       return (
                         <div
-                          key={product?._id}
+                          key={product?._id + variant}
                           className="border-b last:border-b-0 border-[#BBBBBB] flex items-center justify-between py-4"
                         >
                           <div className="flex flex-1 items-start gap-2 h-36 md:h-44">

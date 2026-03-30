@@ -166,23 +166,23 @@ const BackgroundTheme = () => {
 
 
 
-    const NavbarVariants = {
-        default: {
-            x: "-115vw",
-        },
+    // const NavbarVariants = {
+    //     default: {
+    //         x: "-115vw",
+    //     },
 
-        slide: {
-            x: "-15vw",
-        },
+    //     slide: {
+    //         x: "-15vw",
+    //     },
 
-        changeDirectionRow: {
-            flexDirection: !mobile ? "row" : "column",
-        },
+    //     changeDirectionRow: {
+    //         flexDirection: !mobile ? "row" : "column",
+    //     },
 
-        changeDirectionColumn: {
-            flexDirection: "column",
-        }
-    };
+    //     changeDirectionColumn: {
+    //         flexDirection: "column",
+    //     }
+    // };
 
     // useEffect(()=>{
     //     if(mode === 1){
@@ -245,15 +245,14 @@ const BackgroundTheme = () => {
         
         <motion.div initial={{opacity:0, display:"none"}} animate={!mobile ? isHover ? {opacity:1, display:"block"} : {opacity:0, display:"none"} : openMenu ? {opacity:1, display:"block"} : {opacity:0, display:"none"}} transition={{duration:0.3, delay:globalDelay}} className={`fixed top-0 left-0 w-full h-full bg-black/40  ${ mode === 1 ? "z-2 ": "z-0" }`}></motion.div>
         
-        <motion.div 
+        <div 
             id='search-body'
-            initial={{x: "-115vw"}}
-            animate={!mobile ? {x:"0vw"} : openMenu ? {x:"-15vw"} : { x: "-115vw" }} 
-            transition={{duration:0.3, ease:"linear"}} 
             className={`flex max-sm:fixed top-0 left-0 sm:w-full w-[115%] max-sm:bg-gradient-to-r from-main/80 from-70% to-70% to-transparent max-sm:backdrop-blur-[4px] max-sm:h-[100dvh] max-sm:max-h-[100dvh] h-auto sm:px-0 px-6 max-sm:pl-[20vw] sm:pb-0 pb-5 ${
                 mode === 1 ? "max-md:border-t-1 justify-between max-md:border-[#838383] z-4":" z-4 "
             }${
                 mode === 1 ? !mobile ? " flex-row ":" flex-col ":" flex-col "
+            }${
+                openMenu ? "max-sm:translate-x-[-15vw]":"max-sm:translate-x-[-115vw]"
             }`}>
             <motion.div onClick={()=>setOpenMenu(false)} initial={{opacity:0, display:"none"}} animate={!mobile ? isHover ? {opacity:1, display:"block"} : {opacity:0, display:"none"} : openMenu ? {opacity:1, display:"block"} : {opacity:0, display:"none"}} transition={{duration:0.3, delay:globalDelay}} className={`absolute top-0 right-0 w-[30%] h-full  ${ mode === 1 ? "z-2 ": "z-2" }`}></motion.div>
             <motion.div ref={containerRef} className={`sm:rounded-[39px] flex justify-start max-sm:flex-1 sm:h-fit h-full xl:overflow-hidden sm:overflow-hidden overflow-auto relative ease-in-out duration-300 delay-300  z-2 ${
@@ -361,7 +360,7 @@ const BackgroundTheme = () => {
                 mode === 1 ? !mobile  && <SearchBarContext mode={mode} focusChanges={focusChanges} blurChanges={blurChanges} mobile={mobile} onQueryChange={setQuery} /> : <SearchBarContext mode={mode} focusChanges={focusChanges} blurChanges={blurChanges} mobile={mobile} onQueryChange={setQuery} />
             }
             
-        </motion.div>
+        </div>
         {
             mode === 1 && mobile && <SearchBarContext mode={mode} mobile={mobile} onQueryChange={setQuery} />
         }
