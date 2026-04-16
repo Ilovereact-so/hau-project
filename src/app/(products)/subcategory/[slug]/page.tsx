@@ -7,6 +7,7 @@ import Image from "next/image";
 import ProductItem from "@/components/ProductItem";
 import ProductItemWithoutBTN from "@/components/ProductItemWithoutBTN";
 import SubcategoryFilterContainer from "@/components/SubcategoryFilterContainer";
+import Container from "@/components/Container";
 
 const SubCategoryProductPage = async ({
   params,
@@ -97,8 +98,8 @@ function filterProductsByVariantOptions(
     const filteredProducts = filterProductsByVariantOptions(products, filters)
     console.log("Products in Subcategory:", products);
     return(
-        <div id="sub-category-container" className="flex justify-center mt-10 md:px-10 sm:px-8 px-6 min-h-[100vh]">
-            <div className="flex flex-col h-full w-full max-w-[1600px] relative">
+        <Container id="sub-category-container" className="flex justify-center mt-10 md:px-10 sm:px-8 px-6 min-h-[100vh]">
+            <div className="flex flex-col h-full w-full relative">
                 <div className="flex w-full relative z-[3]">
                     <div className="flex flex-col space-y-1">
                         <div className="flex items-center space-x-2">
@@ -127,13 +128,13 @@ function filterProductsByVariantOptions(
                         </div>
                     </div>
                 </div>
-                <div className="3xs:grid flex max-3xs:flex-wrap justify-center gap-y-8 3xl:gap-x-5 max-3xl:gap-x-5 max-1xl:gap-x-5 justify-items-center 3xl:grid-cols-[repeat(5,290px)] max-3xl:grid-cols-[repeat(auto-fit,290px)] max-1xl:grid-cols-[repeat(auto-fit,230px)] max-lg:grid-cols-[repeat(auto-fit,200px)] mt-12 mb-15">
+                <div className="3xs:grid flex max-3xs:flex-wrap justify-center justify-items-center mt-4 2.5xl:grid-cols-4 grid-cols-3 gap-x-[18px] gap-y-[75px] mt-12 mb-15">
                     {filteredProducts.map((product, index)=>(
                         <ProductItemWithoutBTN key={index} product={product as GetSlugProduct & { defaultVariant?: string }}/>
                     ))}
                 </div>
             </div>
-        </div>
+        </Container>
     )
 }
 

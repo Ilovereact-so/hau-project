@@ -2,11 +2,11 @@ import React, { useEffect, useRef, useState } from 'react'
 import Carousel from './Carousel'
 import { category } from '@/constants'
 import { getSubcategories } from '@/sanity/helpers/clientRequest'
-import { Image } from 'sanity'
 import { Subcategory } from '../../sanity.types'
 import { urlFor } from '@/sanity/lib/image'
 import { get } from 'http'
 import Newsletter from './Newsletter'
+import Container from './Container'
 
 const SubCategoryContainer = () => {
     type cat = {
@@ -112,14 +112,15 @@ const SubCategoryContainer = () => {
         <div className='w-full overflow-hidden h-[100px] mb-8'>
             <div className='h-[200px] relative top-[-100px] bg-background rounded-b-[100%]'></div>
         </div>
-        <div className='flex justify-between lg:mx-25 md:mx-18 mx-10 mb-5'>
+        <Container>
+        <div className='flex justify-between lg:mx-25 md:mx-18 mx-10 mb-6'>
             <div className='flex flex-col'>
-                <h1 className='text-black text-[clamp(16px,1.9vw,30px)]'>Przyspiesz szukanie: </h1>
-                <h1 className='text-black font-bold text-[clamp(16px,1.9vw,30px)]'>Przeglądaj Podkategorie</h1>
+                <h1 className='text-black text-[clamp(16px,1.9vw,24px)]'>Przyspiesz szukanie: </h1>
+                <h1 className='text-black font-bold text-[clamp(16px,1.9vw,24px)]'>Przeglądaj Podkategorie</h1>
             </div>
         </div>
         <Carousel bodyClassName="bg-fancy-black rounded-[clamp(40px,8vw,68px)] xl:p-6 sm:p-5 p-3">
-            <div className='flex 1xl:space-x-10 lg:space-x-5 sm:space-x-5 space-x-3 w-auto h-auto'>
+            <div className='flex 1xl:space-x-6 lg:space-x-5 sm:space-x-5 space-x-3 w-auto h-auto'>
                 {
                     SubcatData?.map((item:cat, index)=>(
                         <div key={index} ref={itemRef} style={item.imageWithAlt?.asset && {backgroundImage:`url(${urlFor(item.imageWithAlt.asset).url()})`}} className='w-[clamp(170px,18vw,255px)] h-[clamp(220px,22vw,322px)] bg-white bg-cover rounded-[35px] relative'>
@@ -130,7 +131,7 @@ const SubCategoryContainer = () => {
             </div>
         </Carousel>
         <Newsletter/>
-        
+        </Container>
     </div>
   )
 }

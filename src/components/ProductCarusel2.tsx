@@ -8,6 +8,7 @@ import Carousel from './Carousel'
 import { twMerge } from 'tailwind-merge'
 import { getCarouselProduct } from '@/sanity/helpers/clientRequest'
 import ProductItem2 from './ProductItem2'
+import Container from './Container'
 
 type Props =  {
     title : string,
@@ -29,7 +30,7 @@ const ProductCarusel2 = ({title, className}:Props) => {
     const leftChevronRef = React.useRef<HTMLDivElement>(null);
     const rightChevronRef = React.useRef<HTMLDivElement>(null);
     return (
-    <div className={twMerge('w-full h-auto font-poppins lg:mt-12 mt-8', className)}>
+    <Container className={twMerge('w-full h-auto font-poppins lg:mt-12 mt-8', className)}>
         <div className='flex justify-between items-start lg:mx-15 mx-10 mb-6'>
             <div className='flex md:flex-row flex-col md:space-x-2 max-md:space-x-0'>
                 <h1 className='text-black sm:text-[clamp(16px,1.9vw,24px)] text-[16px] font-medium'>{title}: </h1>
@@ -53,7 +54,7 @@ const ProductCarusel2 = ({title, className}:Props) => {
                 }
             </div>
         </Carousel>
-    </div>
+    </Container>
   )
 }
 

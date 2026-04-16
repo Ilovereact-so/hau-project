@@ -68,11 +68,11 @@ const Carousel = ({children, bodyClassName, rightBtn, leftBtn}:Props) => {
   return (
     <div className='w-full flex flex-col items-center'>
         <div className='w-full flex relative '>
-            <div ref={carouselRef} className='carousel w-full px-15 pr-10 overflow-x-scroll flex justify-start'>
+            <div ref={carouselRef} className='carousel w-full max-4xl:px-15 pr-10 overflow-x-scroll flex justify-start'>
                 <div ref={carouselChildRef} className={twMerge('w-auto h-auto flex-1 flex', bodyClassName)}>{children}</div>
             </div>
         </div>
-        <div className='bg-[#BDBDBD] sm:w-[60vw] w-[60vw] h-[3px] rounded-full mt-14 mb-10'>
+        <div className='bg-[#BDBDBD] sm:w-[60vw] w-[60vw] max-w-[1900px] h-[3px] rounded-full mt-14 mb-10'>
             <div ref={rangeRef} className='bg-[#383838] h-full rounded-full' style={{ width: 'var(--thumb-size, 10%)' }}></div>
         </div>
     </div>

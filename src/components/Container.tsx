@@ -3,11 +3,12 @@ import { cn } from "@/lib/utils";
 interface Props {
   children: React.ReactNode;
   className?: string;
+  id?:string;
 }
 
-const Container = ({ children, className }: Props) => {
+const Container = ({ children, className, id }: Props) => {
   return (
-    <div className={cn("mx-auto", className)}>
+    <div id={id} className={cn("mx-auto max-w-[1900px]", className)}>
       {children}
     </div>
   );

@@ -5,31 +5,39 @@ import { urlFor } from '@/sanity/lib/image'
 import { Heart } from 'lucide-react'
 import Link from 'next/link'
 import PriceFormatter from './PriceFormatter'
+import { WishlistButton } from './WishlistButton'
 
 const ProductItemWithoutBTN = ({product}:{product: GetSlugProduct & { defaultVariant?: string }}) => {
   return (
-    <Link href={`/product/${product?.slug?.current}?variant=${product.defaultVariant ? product.defaultVariant : product?.variants?.[0]?._key}`} className='relative 1xl:min-w-[290px] lg:min-w-[230px] 3xs:min-w-[200px] min-w-[100px] 1xl:min-h-[290px] lg:min-h-[230px] 3xs:min-h-[200px] min-h-[100px] flex flex-col 3xs:w-fit w-min'>
+    <div className='relative w-max flex flex-col justify-between h-fit'>
       {product?.images && 
-        <Image src={urlFor(product?.images[0]).url()} alt={String(product?.title)} width={290} height={290} className='1xl:w-[290px] lg:w-[230px] 3xs:w-[200px] w-auto max-3xs:min-w-[clamp(100px,35vw,190px)] 1xl:h-[290px] lg:h-[230px] 3xs:h-[200px] h-[clamp(100px,35vw,190px)] brightness-90'/>
+        <Link href={`/product/${product?.slug?.current}?variant=${product?.variants?.[0]?._key}`} className='' >
+          <Image src={urlFor(product?.images[0]).url()} alt={String(product?.title)} width={290} height={290} className='max-2.5xl:w-[calc((100vw-156px)/3))] w-[calc((100vw-156px)/4))] 4xl:w-[calc((1900px-156px)/4))] min-2.5xl:h-[calc((100vw-156px)/3))] h-[calc((100vw-156px)/4))] 4xl:h-[calc((1900px-156px)/4))] brightness-90'/>
+        </Link>
       }
-      <Heart className='text-black absolute 3xs:top-5 top-3 3xs:right-5 right-3 3xs:w-[24px] w-[18px] 3xs:h-[24px] h-[18px]'/>
-      <h1 className='1xl:text-[16px] text-[15px] text-black font-bold mt-3'>{product?.title}</h1>
-      <div className='flex justify-start mt-1'>
-        <h1 className={`1xl:text-[16px] lg:text-[14px] text-[13px]  font-bold ${
-        product?.compareAtPrice ? "text-[#DD1919]" : "text-black"
-        }`}><PriceFormatter amount={product?.price}/></h1>
-      </div>
-
-      <div className='flex justify-between text-black 1xl:text-[13px] text-[11px]'>
-        <h1>Najniższa cena z ostatnich 30dni:</h1>
-        <h1>52,00zł</h1>
-      </div>
-      <div className='flex justify-start'>
-        {product?.compareAtPrice && 
-          <h1 className='text-black 1xl:text-[13px] lg:text-[11px] text-[10px]'><span className='mr-1 line-through'>{product?.compareAtPrice}zł</span>{ (100 - ((parseFloat(String(product?.compareAtPrice)) / parseFloat(String(product?.price))) * 100)).toFixed(0)}%</h1>
+      <WishlistButton productId={product._id} product={product} className='absolute top-4 left-4'/>
+      
+      
+      <div className='flex flex-col'>
+        <div className='text-black mt-4'>
+            <p className='text-[16px]'>{product.brand}</p>
+            <h1 className='text-[18px] font-semibold line-clamp-2'>{product.title}</h1>
+        </div>
+        <p className='mt-1 text-[#6C6C6C] text-[16px] line-clamp-2'>Najniższa cena z ostatnich 30dni:</p>
+        <p className='text-[#6C6C6C] text-[16px] line-clamp-2'><PriceFormatter amount={product?.price} className='font-normal'/></p>
+        <div className='mt-2'>
+          {product?.compareAtPrice ? 
+          <div className='text-[16px] space-x-2 flex'>
+            <p className='text-black'><PriceFormatter amount={product?.price} className='font-medium'/></p>
+            <div className='text-[#6C6C6C] flex'><span className='line-through'><PriceFormatter amount={product?.compareAtPrice} className='font-normal'/></span><span>{(100 - ((parseFloat(String(product?.compareAtPrice)) / parseFloat(String(product?.price))) * 100)).toFixed(0)}%</span></div>
+          </div>
+          :
+          <p className='text-black'><PriceFormatter amount={product?.price} className='font-medium'/></p>
         }
+        </div>
+          
       </div>
-    </Link>
+    </div>
   )
 }
 

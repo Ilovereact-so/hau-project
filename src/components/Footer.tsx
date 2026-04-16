@@ -1,9 +1,11 @@
 import { Heart, ShoppingBag } from 'lucide-react'
 import React from 'react'
+import Container from './Container'
 
 const Footer = () => {
   return (
-    <div id='footer' className='w-full bg-fancy-black sm:px-10 px-7 py-8'>
+    <div className='w-full bg-fancy-black '>
+        <Container id='footer' className='sm:px-10 px-7 py-8 w-full'>
         <div style={{gridArea:"short-info"}} className='space-y-2 flex flex-col max-1md:flex-row max-sm:flex-col 1md:space-x-0 space-x-8 max-sm:mb-5'>
             <h1 className='text-main font-medium text-[clamp(16px,1.3vw,20px)]'>Sprawdz najnowsze oferty</h1>
             <h1 className='text-white font-medium text-[clamp(16px,1.3vw,20px)]'>Przejdź do newslettera</h1>
@@ -48,7 +50,7 @@ const Footer = () => {
             <h1 className='text-[clamp(20px,1.9vw,32px)] font-bold'>HAU sklep</h1>
             <h1 className='text-white sm:text-[clamp(16px,1.3vw,20px)] text-[14px] mr-5'>© 2025 Hau sklep. Wszystkie prawa zastrzeżone.</h1>
         </div>
-
+        </Container>
     </div>
   )
 }
