@@ -8,6 +8,27 @@
       "when": 1774786106995,
       "tag": "0000_brainy_stellaris",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1774966611962,
+      "tag": "0001_serious_salo",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1774966642722,
+      "tag": "0002_sour_infant_terrible",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1775167803230,
+      "tag": "0003_sleepy_ikaris",
+      "breakpoints": true
     }
   ]
 }

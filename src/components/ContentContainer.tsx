@@ -4,13 +4,13 @@ import ValueBar from './ValueBar'
 import SubCategoryContainer from './SubcategoryContainer'
 import Newsletter from './Newsletter'
 import AboutAs from './AboutAs'
+import ProductCarusel2 from './ProductCarusel2'
 
 const ContentContainer = () => {
   return (
     <div className='w-full h-full'>
-        <ProductCarusel
-          title={"Produkty objęte promocją"}
-          subtitle={"Znajdź psi przysmak"}
+        <ProductCarusel2
+          title={"Znajdź psi przysmak"}
         />
         <ValueBar/>
         <ProductCarusel

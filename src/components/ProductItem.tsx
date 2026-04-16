@@ -5,10 +5,10 @@ import { urlFor } from '@/sanity/lib/image'
 import { Heart } from 'lucide-react'
 import Link from 'next/link'
 import PriceFormatter from './PriceFormatter'
-import { useWishListStore } from 'store'
+
 
 const ProductItem = ({product}:{product: GetSlugProduct}) => {
-  const {addItem} = useWishListStore()
+
   return (
     <div className='relative 1xl:min-w-[290px] lg:min-w-[230px] min-w-[200px] 1xl:min-h-[290px] lg:min-h-[230px] min-h-[200px] flex flex-col justify-between w-fit'>
       {product?.images && 
@@ -16,7 +16,8 @@ const ProductItem = ({product}:{product: GetSlugProduct}) => {
           <Image src={urlFor(product?.images[0]).url()} alt={String(product?.title)} width={290} height={290} className='1xl:w-[290px] lg:w-[230px] w-[200px] 1xl:h-[290px] lg:h-[230px] h-[200px] brightness-90'/>
         </Link>
       }
-      <div onClick={()=>product.variants?.[0]._key && addItem(product, product?.variants?.[0]._key)} className='cursor-pointer'>
+      {/* onClick={()=>product.variants?.[0]._key && addItem(product, product?.variants?.[0]._key)} */}
+      <div  className='cursor-pointer'>
         <Heart className='text-black absolute top-5 right-5'/>
       </div>
       <div className='flex flex-col'>

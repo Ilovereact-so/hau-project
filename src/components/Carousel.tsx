@@ -5,9 +5,11 @@ import { twMerge } from 'tailwind-merge';
 
 type Props = {
     children: React.ReactNode,
-    bodyClassName?: string
+    bodyClassName?: string,
+    rightBtn?: React.RefObject<HTMLDivElement | null>,
+    leftBtn?: React.RefObject<HTMLDivElement | null>,
 }
-const Carousel = ({children, bodyClassName}:Props) => {
+const Carousel = ({children, bodyClassName, rightBtn, leftBtn}:Props) => {
     const rangeRef = React.useRef<HTMLInputElement>(null);
     const carouselRef = React.useRef<HTMLDivElement>(null);
     const carouselChildRef = React.useRef<HTMLDivElement>(null)
@@ -16,6 +18,7 @@ const Carousel = ({children, bodyClassName}:Props) => {
         container: carouselRef,
         
     }) 
+    
     
     const smoothProgress = useSpring(scrollXProgress, { stiffness: 100, damping: 20 });
     const opacity = useTransform(smoothProgress, [0.7, 1], [1, 0]);
@@ -33,28 +36,43 @@ const Carousel = ({children, bodyClassName}:Props) => {
     });
   }, [smoothProgress]);
 
-    const handleClickNext = () => {
-        if (carouselRef.current) {
-          carouselRef.current.scrollBy({ left: 300, behavior: 'smooth' });
-        }
-    }
+  useEffect(() => {
+        const right = rightBtn?.current
+        const left = leftBtn?.current
+        if (!right || !left) return
 
-    const handleClickPrev = () => {
-        if (carouselRef.current) {
-          carouselRef.current.scrollBy({ left: -300, behavior: 'smooth' });
+        const scrollRight = () => carouselRef.current?.scrollBy({ left: 500, behavior: 'smooth' })
+        const scrollLeft  = () => carouselRef.current?.scrollBy({ left: -500, behavior: 'smooth' })
+
+        right.addEventListener('click', scrollRight)
+        left.addEventListener('click', scrollLeft)
+
+        return () => {
+        right.removeEventListener('click', scrollRight)
+        left.removeEventListener('click', scrollLeft)
         }
-    }
+    }, [rightBtn, leftBtn])
+    
+    // const handleClickNext = () => {
+    //     if (carouselRef.current) {
+    //       carouselRef.current.scrollBy({ left: 300, behavior: 'smooth' });
+    //     }
+    // }
+
+    // const handleClickPrev = () => {
+    //     if (carouselRef.current) {
+    //       carouselRef.current.scrollBy({ left: -300, behavior: 'smooth' });
+    //     }
+    // }
 
   return (
     <div className='w-full flex flex-col items-center'>
         <div className='w-full flex relative '>
-            <div ref={carouselRef} className='carousel w-full lg:pl-25 md:pl-18 pl-10 lg:pr-25 md:pr-18 pr-10 overflow-x-scroll flex justify-start'>
-                <motion.div style={{opacity:opacity2}} whileHover={{scale:0.9}} onClick={()=> handleClickPrev()} className='absolute z-2 left-6 lg:p-3 p-2 rounded-[15px] bg-white top-[50%] translate-y-[-50%] cursor-pointer'><ChevronLeft className='text-black w-[20px] h-[20px]'/></motion.div>
+            <div ref={carouselRef} className='carousel w-full px-15 pr-10 overflow-x-scroll flex justify-start'>
                 <div ref={carouselChildRef} className={twMerge('w-auto h-auto flex-1 flex', bodyClassName)}>{children}</div>
-                <motion.div style={{opacity}} whileHover={{scale:0.9}} onClick={()=> handleClickNext()} className='absolute z-2 right-6 lg:p-3 p-2 rounded-[15px] bg-white top-[50%] translate-y-[-50%] cursor-pointer'><ChevronRight className='text-black w-[20px] h-[20px]'/></motion.div>
             </div>
         </div>
-        <div className='bg-[#BDBDBD] sm:w-[40vw] w-[60vw] h-[3px] rounded-full lg:mt-12 mt-12'>
+        <div className='bg-[#BDBDBD] sm:w-[60vw] w-[60vw] h-[3px] rounded-full mt-14 mb-10'>
             <div ref={rangeRef} className='bg-[#383838] h-full rounded-full' style={{ width: 'var(--thumb-size, 10%)' }}></div>
         </div>
     </div>

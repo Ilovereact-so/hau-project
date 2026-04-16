@@ -14,7 +14,20 @@ const isPublicRoute = createRouteMatcher([
 
 export default clerkMiddleware(async (auth, req) => {
   const { userId, sessionClaims } = await auth();
+  
+  const guestId = req.cookies.get('guest_id')?.value
+  const merged = req.cookies.get('cart_merged')?.value
 
+  // ustaw flagę w cookie — merge obsłuży layout serwerowy
+  if (userId && guestId && !merged) {
+    const res = NextResponse.next()
+    res.cookies.set('needs_cart_merge', '1', {
+      httpOnly: true,
+      maxAge:   60,  // krótki TTL — tylko na czas renderowania layoutu
+      sameSite: 'lax',
+    })
+    return res
+  }
   // 🔹 Zezwól na publiczne ścieżki
   if (isPublicRoute(req)) return NextResponse.next();
 

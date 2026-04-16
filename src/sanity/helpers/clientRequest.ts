@@ -153,6 +153,64 @@ export const searchProductsByName = async (name: string, controller: AbortContro
     }
 }
 
+export const getProductForWishList = async (ids: string[]) => {
+    if (ids.length === 0) return []
+    const QUERY = `*[_type == "product" && _id in $ids]{
+    ...,
+    category->{
+    _id,
+    title,
+    slug
+    },
+    type->{
+    _id,
+    title,
+    slug
+    },
+    productOptions[]->{
+      _id,
+      key,
+      label,
+      type,
+      UX_type
+    },
+    filterValues[]->{
+      filter,
+      _id,
+      value,
+      slug
+    },
+    variants[]{
+      _key,
+      price,
+      sku,
+      stock,
+      optionValues[]{
+        _key,
+        label,
+        "name":name->{
+          _id,
+          key,
+          label,
+          type,
+          UX_type
+        },
+        "value":value->{
+          _id,
+          value,
+          slug
+        }
+      }
+    }
+  }`
+   try {
+        const data = await client.fetch<GetSlugProduct[]>(QUERY, {ids: ids});
+        return data
+    } catch (error) {
+        console.error("Error fetching products by name:", error);
+        return [];
+    }
+}
 export const getCarouselProduct = async(params : string) =>{
   const QUERY = `*[_type == "product" && defined(category) &&
     category->slug.current == $slug]{
