@@ -11,6 +11,7 @@ import { urlFor } from '@/sanity/lib/image'
 import { useAuth } from '@clerk/nextjs'
 import { ChevronDown } from 'lucide-react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { Button } from '@/components/ui/button'
@@ -18,9 +19,8 @@ import { Separator } from '@/components/ui/separator'
 import useStore from 'store'
 
 export default function CartPage() {
-  const [isClient, setIsClient]   = useState(false)
-  const [loading, setLoading]     = useState(false)
-  const { isSignedIn }            = useAuth()
+  const [isClient, setIsClient] = useState(false)
+  const { isSignedIn }          = useAuth()
 
   // selektywne subskrypcje — każdy selektor re-renderuje tylko gdy jego kawałek się zmieni
   const cartItems      = useStore(s => s.cartItems)
@@ -164,12 +164,8 @@ export default function CartPage() {
                     />
                   </div>
 
-                  <Button
-                    onClick={() => setLoading(true)}
-                    disabled={loading}
-                    className="w-auto cursor-pointer rounded-full font-bold tracking-wide bg-fancy-black text-white text-[16px] py-6 px-8"
-                  >
-                    {loading ? 'Przetwarzanie...' : 'Przejdź do kasy'}
+                  <Button asChild className="w-auto cursor-pointer rounded-full font-bold tracking-wide bg-fancy-black text-white text-[16px] py-6 px-8">
+                    <Link href="/checkout">Przejdź do kasy</Link>
                   </Button>
 
                   <p className="text-black text-[16px] mt-4 mb-2">Akceptujemy</p>

@@ -14,7 +14,7 @@ type Store = {
   cartItems:        CartItem[]
   onItemAdded:      ((item: CartItem) => void) | null
   setOnItemAdded:   (cb: ((item: CartItem) => void) | null) => void
-  addItem:          (product: GetSlugProduct, variant: string) => void
+  addItem:          (product: GetSlugProduct, variant: string, status?: boolean) => void
   removeItem:       (productId: string, variant: string) => void
   deleteItem:       (productId: string, variant: string) => void
   resetCart:        () => void
@@ -99,7 +99,7 @@ const useStore = create<Store>()(
       onItemAdded: null,
       setOnItemAdded: cb => set({ onItemAdded: cb }),
 
-      addItem: (product, variant) =>
+      addItem: (product, variant, status = true) =>
         set(state => {
           const existing = state.cartItems.find(
             i => i.product._id === product._id && i.variant === variant
@@ -111,8 +111,7 @@ const useStore = create<Store>()(
                   : i
               )
             : [...state.cartItems, { product, variant, quantity: 1 }]
-
-          get().onItemAdded?.(
+          status && get().onItemAdded?.(
             next.find(i => i.product._id === product._id && i.variant === variant)!
           )
           scheduleCartSync(next)

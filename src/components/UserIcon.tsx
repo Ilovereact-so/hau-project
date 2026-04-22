@@ -25,7 +25,7 @@ const UserIcon = ({ avatarUrl, mode }: { avatarUrl: string, mode:number }) => {
     }
 
     return (
-    <div onMouseOver={()=>setMouseOver(true)} onMouseOut={() => setMouseOver(false)} className={`px-1.5 py-2 ease-in-out duration-300  ${
+    <div onMouseEnter={()=>setMouseOver(true)} onMouseLeave={() => setMouseOver(false)} className={`px-1.5 py-2 ease-in-out duration-300  ${
         mode === 1 ? "relative":""
     }`}>
         <motion.div initial={{height:0}} variants={variants} animate={isMouseOver ? "borderOpen" : "borderClosed"} className={`w-full absolute top-0 left-0 z-[-1] overflow-hidden`}>
@@ -37,11 +37,12 @@ const UserIcon = ({ avatarUrl, mode }: { avatarUrl: string, mode:number }) => {
             <div className='absolute top-0 right-0 w-full h-full sh-rounded-product-card rounded-br-[30px]'></div>
         </motion.div>
         
-        <motion.div initial={{height:0}} variants={variants} animate={isMouseOver ? "ListOpen" : "ListClosed"} className=' w-auto min-w-[100px] absolute right-0 top-[calc(100%+10px)] overflow-hidden flex flex-col justify-start'>
+        <motion.div initial={{height:0}} variants={variants} animate={isMouseOver ? "ListOpen" : "ListClosed"} className=' w-auto min-w-[100px] absolute right-0 top-[calc(100%+10px)] overflow-hidden flex flex-col justify-start z-4'>
             <div className='bg-fancy-black rounded-b-[24px] rounded-tl-[24px] w-full min-h-[120px] flex flex-col justify-between px-3 py-2'>
                 <div className='text-white text-[clamp(14px,1.3vw,15px)] flex flex-col px-2 py-1 text-nowrap mt-1 space-y-1'>
                     <h1>Moje konto</h1>
                     <Link href="/wishlist" ><h1>Polubione</h1></Link>
+                    
                 </div>
                 <SignOutButton>
                     <div className='font-bold px-5 py-2 text-white bg-black rounded-full text-[14px] text-nowrap'>Wyloguj się</div>

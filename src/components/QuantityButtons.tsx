@@ -50,7 +50,7 @@ const QuantityButtons = ({ product, variant, className, borderStyle }: Props) =>
       <div
         className="w-9 h-9 flex justify-center items-center cursor-pointer text-black hover:bg-[#D7D7D7] rounded-full"
         onClick={() => {
-          addItem(product, variant);
+          addItem(product, variant, false);
           toast.success("Quantity increased successfully!");
         }}
       >

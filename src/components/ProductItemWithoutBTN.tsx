@@ -12,7 +12,7 @@ const ProductItemWithoutBTN = ({product}:{product: GetSlugProduct & { defaultVar
     <div className='relative w-max flex flex-col justify-between h-fit'>
       {product?.images && 
         <Link href={`/product/${product?.slug?.current}?variant=${product?.variants?.[0]?._key}`} className='' >
-          <Image src={urlFor(product?.images[0]).url()} alt={String(product?.title)} width={290} height={290} className='max-2.5xl:w-[calc((100vw-156px)/3))] w-[calc((100vw-156px)/4))] 4xl:w-[calc((1900px-156px)/4))] min-2.5xl:h-[calc((100vw-156px)/3))] h-[calc((100vw-156px)/4))] 4xl:h-[calc((1900px-156px)/4))] brightness-90'/>
+          <Image src={urlFor(product?.images[0]).url()} alt={String(product?.title)} width={290} height={290} className='max-2.5xl:w-[calc((100vw-156px)/3))] w-[calc((100vw-156px)/4))] 4xl:w-[calc((1900px-156px)/4))] max-2.5xl:h-[calc((100vw-156px)/3))] h-[calc((100vw-156px)/4))] 4xl:h-[calc((1900px-156px)/4))] brightness-90'/>
         </Link>
       }
       <WishlistButton productId={product._id} product={product} className='absolute top-4 left-4'/>
