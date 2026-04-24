@@ -1,47 +1,130 @@
 import 'server-only'
 import { redis } from '@/lib/redis'
 
-const BASE_URL      = 'https://api.furgonetka.pl'
+const IS_PROD = process.env.NODE_ENV === 'production'
+
+// sandbox: wszystko na api.sandbox.furgonetka.pl
+// prod:    wszystko na api.furgonetka.pl
+const BASE_URL = IS_PROD
+  ? 'https://api.furgonetka.pl'
+  : 'https://api.sandbox.furgonetka.pl'
+
 const CLIENT_ID     = process.env.FURGONETKA_CLIENT_ID!
 const CLIENT_SECRET = process.env.FURGONETKA_CLIENT_SECRET!
-const ACCOUNT_ID    = process.env.FURGONETKA_ACCOUNT_ID!
+const REDIRECT_URI  = process.env.FURGONETKA_REDIRECT_URI!
 
-const TOKEN_REDIS_KEY = 'furgonetka:access_token'
+const REDIS_ACCESS_TOKEN  = 'furgonetka:access_token'
+const REDIS_REFRESH_TOKEN = 'furgonetka:refresh_token'
 
-// ─── auth ─────────────────────────────────────────────────────────────────────
+// ─── OAuth URLs ───────────────────────────────────────────────────────────────
 
-async function getAccessToken(): Promise<string> {
-  const cached = await redis.get(TOKEN_REDIS_KEY)
-  if (cached) return cached as string
+export function getAuthorizeUrl(): string {
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id:     CLIENT_ID,
+    redirect_uri:  REDIRECT_URI,
+    scope:         'api',
+  })
+  return `${BASE_URL}/oauth/authorize?${params}`
+}
 
+// ─── token exchange (one-time setup) ─────────────────────────────────────────
+
+function basicAuthHeader(): string {
+  return 'Basic ' + Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64')
+}
+
+export async function exchangeCodeForTokens(code: string): Promise<{
+  access_token:  string
+  refresh_token: string
+  expires_in:    number
+}> {
   const res = await fetch(`${BASE_URL}/oauth/token`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: {
+      'Content-Type':  'application/x-www-form-urlencoded',
+      'Authorization': basicAuthHeader(),
+    },
     body: new URLSearchParams({
-      grant_type:    'client_credentials',
-      client_id:     CLIENT_ID,
-      client_secret: CLIENT_SECRET,
-      scope:         'api',
+      grant_type:   'authorization_code',
+      redirect_uri: REDIRECT_URI,
+      code,
     }),
   })
 
   if (!res.ok) {
-    throw new Error(`Furgonetka auth failed: ${res.status} ${await res.text()}`)
+    throw new Error(`Furgonetka token exchange failed: ${res.status} ${await res.text()}`)
   }
 
-  const data: { access_token: string; expires_in: number } = await res.json()
-  // cache with 60s safety margin
-  await redis.setEx(TOKEN_REDIS_KEY, data.expires_in - 60, data.access_token)
+  return res.json()
+}
+
+// ─── access token (via refresh token) ────────────────────────────────────────
+
+async function getRefreshToken(): Promise<string> {
+  // prefer Redis (set after OAuth dance), fallback to env
+  const fromRedis = await redis.get(REDIS_REFRESH_TOKEN)
+  if (fromRedis) return fromRedis as string
+
+  const fromEnv = process.env.FURGONETKA_REFRESH_TOKEN
+  if (fromEnv) return fromEnv
+
+  throw new Error(
+    'Furgonetka refresh token not found. Run /api/furgonetka/connect to authorize.',
+  )
+}
+
+async function refreshAccessToken(): Promise<string> {
+  const refreshToken = await getRefreshToken()
+
+  const res = await fetch(`${BASE_URL}/oauth/token`, {
+    method: 'POST',
+    headers: {
+      'Content-Type':  'application/x-www-form-urlencoded',
+      'Authorization': basicAuthHeader(),
+    },
+    body: new URLSearchParams({
+      grant_type:    'refresh_token',
+      refresh_token: refreshToken,
+    }),
+  })
+
+  if (!res.ok) {
+    throw new Error(`Furgonetka token refresh failed: ${res.status} ${await res.text()}`)
+  }
+
+  const data: { access_token: string; refresh_token?: string; expires_in: number } =
+    await res.json()
+
+  // cache new access token
+  await redis.setEx(REDIS_ACCESS_TOKEN, data.expires_in - 60, data.access_token)
+
+  // if provider rotates refresh token, persist the new one
+  if (data.refresh_token) {
+    await redis.set(REDIS_REFRESH_TOKEN, data.refresh_token)
+  }
+
   return data.access_token
 }
+
+async function getAccessToken(): Promise<string> {
+  const cached = await redis.get(REDIS_ACCESS_TOKEN)
+  if (cached) return cached as string
+  return refreshAccessToken()
+}
+
+// ─── base fetch ───────────────────────────────────────────────────────────────
 
 async function furgonetkaFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = await getAccessToken()
 
+  const isWrite = init.method === 'POST' || init.method === 'PUT' || init.method === 'PATCH'
+
   const res = await fetch(`${BASE_URL}${path}`, {
     ...init,
     headers: {
-      'Content-Type': 'application/json',
+      ...(isWrite ? { 'Content-Type': 'application/json' } : {}),
+      'Accept':      'application/vnd.furgonetka.v1+json',
       Authorization: `Bearer ${token}`,
       ...init.headers,
     },
@@ -75,10 +158,11 @@ export interface FurgonetkaAddress {
 }
 
 export interface FurgonetkaService {
-  code:        string
-  name:        string
-  carrier:     string
-  priceCents:  number // grosz
+  id:          number
+  code:        string  // e.g. "dpd", "inpost", "dhl"
+  name:        string  // e.g. "DPD", "InPost"
+  pricelistId: number
+  priceCents:  number | null  // null until fetched from pricelist endpoint
 }
 
 export interface FurgonetkaShipmentResult {
@@ -97,14 +181,15 @@ export async function getAvailableServices(): Promise<FurgonetkaService[]> {
   if (cached) return JSON.parse(cached as string)
 
   const data = await furgonetkaFetch<{
-    services: Array<{ code: string; name: string; carrier: string; price: number }>
-  }>('/v1/services')
+    services: Array<{ id: number; service: string; name: string; pricelist_id: number }>
+  }>('/account/services')
 
   const services: FurgonetkaService[] = data.services.map(s => ({
-    code:       s.code,
-    name:       s.name,
-    carrier:    s.carrier,
-    priceCents: Math.round(s.price * 100),
+    id:          s.id,
+    code:        s.service,
+    name:        s.name,
+    pricelistId: s.pricelist_id,
+    priceCents:  null,
   }))
 
   await redis.setEx(SERVICES_REDIS_KEY, 60 * 60, JSON.stringify(services))
@@ -115,7 +200,9 @@ export async function getServicePrice(serviceCode: string): Promise<number> {
   const services = await getAvailableServices()
   const service  = services.find(s => s.code === serviceCode)
   if (!service) throw new Error(`Unknown Furgonetka service: ${serviceCode}`)
-  return service.priceCents
+  // priceCents is null until a pricing endpoint is integrated —
+  // caller must validate before use
+  return service.priceCents ?? 0
 }
 
 // ─── shipment ─────────────────────────────────────────────────────────────────
@@ -124,21 +211,20 @@ export interface CreateShipmentParams {
   service:     string
   parcel:      FurgonetkaParcel
   recipient:   FurgonetkaAddress
-  reference:   string // our order ID
+  reference:   string
   description: string
 }
 
 export async function createShipment(params: CreateShipmentParams): Promise<FurgonetkaShipmentResult> {
   const result = await furgonetkaFetch<{
-    id: string
+    id:              string
     tracking_number: string | null
-    carrier: string
-    status:  string
-  }>('/v1/packages', {
+    carrier:         string
+    status:          string
+  }>('/packages', {
     method: 'POST',
     body: JSON.stringify({
-      account_id: ACCOUNT_ID,
-      service:    params.service,
+      service: params.service,
       parcels: [{
         weight: params.parcel.weightKg,
         width:  params.parcel.widthCm,
@@ -169,17 +255,17 @@ export async function createShipment(params: CreateShipmentParams): Promise<Furg
 }
 
 export async function getShipmentLabel(furgonetkaId: string): Promise<string> {
-  const result = await furgonetkaFetch<{ url: string }>(`/v1/packages/${furgonetkaId}/waybills`)
+  const result = await furgonetkaFetch<{ url: string }>(`/packages/${furgonetkaId}/waybills`)
   return result.url
 }
 
 export async function getShipment(furgonetkaId: string): Promise<FurgonetkaShipmentResult> {
   const result = await furgonetkaFetch<{
-    id: string
+    id:              string
     tracking_number: string | null
-    carrier: string
-    status:  string
-  }>(`/v1/packages/${furgonetkaId}`)
+    carrier:         string
+    status:          string
+  }>(`/packages/${furgonetkaId}`)
 
   return {
     id:             result.id,

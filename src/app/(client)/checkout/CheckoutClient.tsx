@@ -326,8 +326,8 @@ export default function CheckoutClient({ shippingServices }: Props) {
                       selected={shippingMethod === service.code}
                       onClick={() => setShipping(service.code)}
                       title={service.name}
-                      desc={service.carrier}
-                      badge={`${(service.priceCents / 100).toFixed(2)} zł`}
+                      desc={service.code.toUpperCase()}
+                      badge={service.priceCents != null ? `${(service.priceCents / 100).toFixed(2)} zł` : undefined}
                     />
                   ))}
                 </div>
