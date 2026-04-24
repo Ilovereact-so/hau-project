@@ -1,7 +1,9 @@
 import { auth } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
-import { getAvailableServices } from '@/lib/furgonetka'
+import { getActiveDeliveryServices } from '@/actions/deliveryServices'
+import { getSavedAddress } from '@/actions/address'
 import CheckoutClient from './CheckoutClient'
+import { getShippingMethods } from '@/sanity/helpers'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,12 +11,10 @@ export default async function CheckoutPage() {
   const { userId } = await auth()
   if (!userId) redirect('/sign-in?redirect_url=/checkout')
 
-  let services: Awaited<ReturnType<typeof getAvailableServices>> = []
-  try {
-    services = await getAvailableServices()
-  } catch {
-    // render with empty services — client shows error state
-  }
+  const [services, savedAddress] = await Promise.all([
+    getShippingMethods(),
+    getSavedAddress(),
+  ])
 
-  return <CheckoutClient shippingServices={services} />
+  return <CheckoutClient services={services} savedAddress={savedAddress} />
 }

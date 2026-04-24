@@ -9,8 +9,9 @@ import { eq } from 'drizzle-orm'
 import { redis } from '@/lib/redis'
 import { registerTransaction } from '@/lib/przelewy24'
 import { createPaymentUrl } from '@/lib/autopay'
-import { getServicePrice } from '@/lib/furgonetka'
 import { client } from '@/sanity/lib/client'
+import { getDeliveryServiceByCode } from '@/actions/deliveryServices'
+import { upsertSavedAddress } from '@/actions/address'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL!
 
@@ -27,11 +28,16 @@ export interface CheckoutAddress {
   country:    'PL'
 }
 
+export interface CheckoutPickupPoint {
+  code:    string  // point.code from Furgonetka widget
+  name:    string  // point.name from Furgonetka widget
+  carrier: string  // point.type from Furgonetka widget
+}
+
 export interface CheckoutItem {
   productId:    string
   variantId:    string
   qty:          number
-  // client-supplied for display, server re-validates price from Sanity
   name:         string
   variantLabel: string
   imageUrl:     string
@@ -41,7 +47,9 @@ export interface CheckoutInput {
   items:          CheckoutItem[]
   address:        CheckoutAddress
   paymentMethod:  'przelewy24' | 'autopay' | 'cod'
-  shippingMethod: string // Furgonetka service code
+  shippingMethod: string         // delivery_services.serviceCode
+  deliveryType:   'kurier' | 'paczkomat'
+  pickupPoint?:   CheckoutPickupPoint
   discountCode?:  string
   notes?:         string
 }
@@ -82,6 +90,10 @@ function validateAddress(a: CheckoutAddress): string | null {
   if (!a.lastName?.trim())  return 'Nazwisko jest wymagane'
   if (!a.email?.includes('@')) return 'Nieprawidłowy email'
   if (!a.phone?.trim())     return 'Numer telefonu jest wymagany'
+  return null
+}
+
+function validateCourierAddress(a: CheckoutAddress): string | null {
   if (!a.street?.trim())    return 'Ulica jest wymagana'
   if (!a.city?.trim())      return 'Miasto jest wymagane'
   if (!/^\d{2}-\d{3}$/.test(a.postalCode)) return 'Nieprawidłowy kod pocztowy (XX-XXX)'
@@ -97,6 +109,15 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
 
   const addressError = validateAddress(input.address)
   if (addressError) return { ok: false, error: addressError }
+
+  if (input.deliveryType === 'kurier') {
+    const courierError = validateCourierAddress(input.address)
+    if (courierError) return { ok: false, error: courierError }
+  }
+
+  if (input.deliveryType === 'paczkomat' && !input.pickupPoint?.code) {
+    return { ok: false, error: 'Wybierz punkt odbioru' }
+  }
 
   // ── resolve user ──────────────────────────────────────────────────────────
   const { userId } = await auth()
@@ -116,13 +137,12 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
     }
   }
 
-  // ── validate shipping price from Furgonetka ───────────────────────────────
-  let shippingCents: number
-  try {
-    shippingCents = await getServicePrice(input.shippingMethod)
-  } catch {
+  // ── validate shipping price from MySQL ────────────────────────────────────
+  const deliveryService = await getDeliveryServiceByCode(input.shippingMethod)
+  if (!deliveryService) {
     return { ok: false, error: 'Wybrany sposób dostawy jest niedostępny' }
   }
+  const shippingCents = deliveryService.priceCents
 
   // ── calculate totals ──────────────────────────────────────────────────────
   let subtotalCents = 0
@@ -134,7 +154,6 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
     return { ...item, priceCents, name: product.title }
   })
 
-  // discount placeholder — extend here with real coupon logic
   const discountCents = 0
   const totalCents    = subtotalCents + shippingCents - discountCents
 
@@ -142,7 +161,7 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
 
   // ── persist to DB ─────────────────────────────────────────────────────────
   const orderId   = crypto.randomUUID()
-  const sessionId = orderId // P24 uses sessionId = our orderId
+  const sessionId = orderId
 
   await db.transaction(async tx => {
     await tx.insert(orders).values({
@@ -175,16 +194,18 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
     )
 
     await tx.insert(shippingAddresses).values({
-      id:         crypto.randomUUID(),
+      id:              crypto.randomUUID(),
       orderId,
-      firstName:  input.address.firstName,
-      lastName:   input.address.lastName,
-      email:      input.address.email,
-      phone:      input.address.phone,
-      street:     input.address.street,
-      city:       input.address.city,
-      postalCode: input.address.postalCode,
-      country:    input.address.country,
+      firstName:       input.address.firstName,
+      lastName:        input.address.lastName,
+      email:           input.address.email,
+      phone:           input.address.phone,
+      street:          input.deliveryType === 'kurier' ? input.address.street : null,
+      city:            input.deliveryType === 'kurier' ? input.address.city   : null,
+      postalCode:      input.deliveryType === 'kurier' ? input.address.postalCode : null,
+      country:         input.address.country,
+      pickupPointCode: input.pickupPoint?.code ?? null,
+      pickupPointName: input.pickupPoint?.name ?? null,
     })
 
     if (input.paymentMethod !== 'cod') {
@@ -198,6 +219,20 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
       })
     }
   })
+
+  // ── save address for logged-in user ───────────────────────────────────────
+  if (userId && input.deliveryType === 'kurier') {
+    await upsertSavedAddress({
+      firstName:  input.address.firstName,
+      lastName:   input.address.lastName,
+      email:      input.address.email,
+      phone:      input.address.phone,
+      street:     input.address.street,
+      city:       input.address.city,
+      postalCode: input.address.postalCode,
+      country:    'PL',
+    })
+  }
 
   // ── clear cart ────────────────────────────────────────────────────────────
   await Promise.all([
@@ -235,14 +270,6 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
     return { ok: true, redirectUrl }
   }
 
-  // cod — no external redirect
   await db.update(orders).set({ status: 'processing' }).where(eq(orders.id, orderId))
   return { ok: true, redirectUrl: `${APP_URL}/orders/${orderId}?payment=cod` }
-}
-
-// ─── shipping services ────────────────────────────────────────────────────────
-
-export async function getShippingServices() {
-  const { getAvailableServices } = await import('@/lib/furgonetka')
-  return getAvailableServices()
 }

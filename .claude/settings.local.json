@@ -1,7 +1,20 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(dir /s \"f:\\\\CU\\\\Projects\\\\Hau_dynamic\\\\hau-project\\\\src\")",
+      "WebFetch(domain:furgonetka.pl)",
+      "Bash(npx drizzle-kit *)",
+      "Bash(npm run *)",
+      "Bash(node -e \"require\\('./node_modules/sanity/package.json'\\)\")",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(p.dependencies.sanity, p.devDependencies?.sanity\\)\")",
+      "Bash(npm install *)",
+      "Bash(node -e \"const p=require\\('./node_modules/sanity/package.json'\\); console.log\\('OK:', p.name, p.version\\)\")",
+      "Bash(npm cache *)",
+      "Bash(grep \"^sanity$\")",
+      "Bash(node -e \"const p=require\\('f:/CU/Projects/Hau_dynamic/hau-project/node_modules/sanity/package.json'\\); console.log\\('OK:', p.version\\)\")",
+      "PowerShell($result = New-ItemProperty -Path \"HKLM:\\\\SYSTEM\\\\CurrentControlSet\\\\Control\\\\FileSystem\" -Name LongPathsEnabled -Value 1 -PropertyType DWORD -Force -ErrorAction SilentlyContinue 2>&1; if \\($?\\) { \"Long paths enabled\" } else { \"Need admin: $result\" })",
+      "Bash(node -e \"const p=require\\('f:/CU/Projects/Hau_dynamic/hau-project/node_modules/sanity/package.json'\\); console.log\\('sanity OK:', p.version\\)\")"
     ]
   }
 }

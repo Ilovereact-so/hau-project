@@ -1,6 +1,6 @@
 import {
   mysqlTable, varchar, int,
-  timestamp, primaryKey, mysqlEnum, text,
+  timestamp, primaryKey, mysqlEnum, text, boolean,
 } from 'drizzle-orm/mysql-core'
 
 // ─── cart ─────────────────────────────────────────────────────────────────────
@@ -73,16 +73,20 @@ export const orderItems = mysqlTable('order_items', {
 // ─── shipping addresses ───────────────────────────────────────────────────────
 
 export const shippingAddresses = mysqlTable('shipping_addresses', {
-  id:         varchar('id', { length: 36 }).primaryKey(),
-  orderId:    varchar('order_id', { length: 36 }).notNull(),
-  firstName:  varchar('first_name', { length: 128 }).notNull(),
-  lastName:   varchar('last_name', { length: 128 }).notNull(),
-  email:      varchar('email', { length: 256 }).notNull(),
-  phone:      varchar('phone', { length: 32 }).notNull(),
-  street:     varchar('street', { length: 256 }).notNull(),
-  city:       varchar('city', { length: 128 }).notNull(),
-  postalCode: varchar('postal_code', { length: 16 }).notNull(),
-  country:    varchar('country', { length: 2 }).notNull().default('PL'),
+  id:               varchar('id', { length: 36 }).primaryKey(),
+  orderId:          varchar('order_id', { length: 36 }).notNull(),
+  firstName:        varchar('first_name', { length: 128 }).notNull(),
+  lastName:         varchar('last_name', { length: 128 }).notNull(),
+  email:            varchar('email', { length: 256 }).notNull(),
+  phone:            varchar('phone', { length: 32 }).notNull(),
+  // null for paczkomat orders (pickup point replaces street address)
+  street:           varchar('street', { length: 256 }),
+  city:             varchar('city', { length: 128 }),
+  postalCode:       varchar('postal_code', { length: 16 }),
+  country:          varchar('country', { length: 2 }).notNull().default('PL'),
+  // filled only for paczkomat deliveries
+  pickupPointCode:  varchar('pickup_point_code', { length: 128 }),
+  pickupPointName:  varchar('pickup_point_name', { length: 256 }),
 })
 
 // ─── payment transactions ─────────────────────────────────────────────────────
@@ -128,4 +132,43 @@ export const shipments = mysqlTable('shipments', {
   parcelWeightG:  int('parcel_weight_g').notNull(),
   createdAt:      timestamp('created_at').defaultNow(),
   updatedAt:      timestamp('updated_at').defaultNow().onUpdateNow(),
+})
+
+// ─── delivery services (synced from Furgonetka, prices set manually) ──────────
+
+export const DELIVERY_TYPES = ['kurier', 'paczkomat'] as const
+export type DeliveryType = typeof DELIVERY_TYPES[number]
+
+export const deliveryServices = mysqlTable('delivery_services', {
+  id:                  varchar('id', { length: 36 }).primaryKey(),
+  // matches Furgonetka's `service` field — used when creating shipments
+  serviceCode:         varchar('service_code', { length: 64 }).notNull().unique(),
+  // widget courierServices param (e.g. "inpost" for both kurier and paczkomat)
+  mapServiceCode:      varchar('map_service_code', { length: 64 }),
+  name:                varchar('name', { length: 128 }).notNull(),
+  deliveryType:        mysqlEnum('delivery_type', DELIVERY_TYPES).notNull().default('kurier'),
+  priceCents:          int('price_cents').notNull().default(0),
+  estimatedDays:       varchar('estimated_days', { length: 64 }),
+  isActive:            boolean('is_active').notNull().default(false),
+  sortOrder:           int('sort_order').notNull().default(99),
+  // numeric ID from Furgonetka /account/services — kept for reference
+  furgonetkaServiceId: int('furgonetka_service_id'),
+  syncedAt:            timestamp('synced_at'),
+  updatedAt:           timestamp('updated_at').defaultNow().onUpdateNow(),
+})
+
+// ─── saved addresses (one per logged-in user, pre-fills checkout) ─────────────
+
+export const savedAddresses = mysqlTable('saved_addresses', {
+  id:         varchar('id', { length: 36 }).primaryKey(),
+  userId:     varchar('user_id', { length: 128 }).notNull().unique(),
+  firstName:  varchar('first_name', { length: 128 }).notNull(),
+  lastName:   varchar('last_name', { length: 128 }).notNull(),
+  email:      varchar('email', { length: 256 }).notNull(),
+  phone:      varchar('phone', { length: 32 }).notNull(),
+  street:     varchar('street', { length: 256 }).notNull(),
+  city:       varchar('city', { length: 128 }).notNull(),
+  postalCode: varchar('postal_code', { length: 16 }).notNull(),
+  country:    varchar('country', { length: 2 }).notNull().default('PL'),
+  updatedAt:  timestamp('updated_at').defaultNow().onUpdateNow(),
 })

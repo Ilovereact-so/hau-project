@@ -15,7 +15,7 @@ const ServerUser = async({style = {}, mode}: {style?: React.CSSProperties, mode:
     <div style={style} className={mode === 1 ? "flex justify-center items-center max-md:mr-6":"flex justify-end items-start max-sm:pr-8" }>
       <div className={mode ===1 ? "flex justify-center items-center w-max" : "flex lg:mt-0 mt-6 relative justify-between items-center rounded-full lg:px-3 px-2 py-1 bg-fancy-black h-fit lg:min-w-[80px] min-w-[70px] w-fit"}>
           <div className=' w-auto'>
-              {!user ? <SignInButton><User className={`lg:w-[25px] w-[20px] lg:h-[25px] h-[20px] stroke-[1.4px] px-1.5 py-2 ${
+              {!user ? <SignInButton><User className={`lg:min-w-[25px] min-w-[20px] lg:min-h-[25px] min-h-[20px] stroke-[1.4px] mx-1.5 my-2 ${
               mode === 1 ? "text-black":"text-white"
             }`}/></SignInButton> 
             : 

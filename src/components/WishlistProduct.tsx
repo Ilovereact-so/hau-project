@@ -18,12 +18,12 @@ const WishlistProduct = memo(function WishlistProduct({ product }: Props) {
   const variantsProperties = product.variants?.[0]
 
   return (
-    <div className="flex flex-col w-full relative h-[519px]">
+    <div className="flex flex-col w-full relative">
       {product?.images && (
         <Image
           src={urlFor(product.images[0]).url()}
           alt="Product Image"
-          className="min-w-[290px] w-[calc((100vw-156px)/3)] h-auto min-h-[290px] brightness-90"
+          className="max-2.5xl:w-[calc((100vw-156px)/3))] w-[calc((100vw-156px)/4))] 4xl:w-[calc((1900px-156px)/4))] max-2.5xl:h-[calc((100vw-156px)/3))] h-[calc((100vw-156px)/4))] 4xl:h-[calc((1900px-156px)/4))] brightness-90"
           width={290}
           height={290}
         />

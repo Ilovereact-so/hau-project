@@ -99,9 +99,9 @@ export async function adminCreateShipment(input: CreateShipmentInput) {
     lastName:   address.lastName,
     email:      address.email,
     phone:      address.phone,
-    street:     address.street,
-    city:       address.city,
-    postalCode: address.postalCode,
+    street:     address.street ?? '',
+    city:       address.city ?? '',
+    postalCode: address.postalCode ?? '',
     country:    'PL',
   }
 

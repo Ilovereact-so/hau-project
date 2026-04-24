@@ -1,5 +1,6 @@
 {
   "name": "hau-project",
+  "type": "module",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -7,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typegen": "npx sanity@4.20.3 schema extract && npx sanity@4.20.3 typegen generate"
+    "typegen": "npx sanity@4.22.0 schema extract && npx sanity@4.22.0 typegen generate"
   },
   "dependencies": {
     "@base-ui/react": "^1.0.0",
@@ -32,7 +33,7 @@
     "react-dom": "19.1.0",
     "react-hot-toast": "^2.6.0",
     "redis": "^5.11.0",
-    "sanity": "^4.20.3",
+    "sanity": "^4.22.0",
     "server-only": "^0.0.1",
     "styled-components": "^6.1.19",
     "svix": "^1.81.0",

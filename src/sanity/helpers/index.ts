@@ -1,6 +1,21 @@
 import { defineQuery } from "next-sanity";
 import { sanityFetch } from "../lib/live";
 
+
+export const getShippingMethods = async () => {
+  const METHODS_QUERY = defineQuery(`*[_type=="shipping_methods"] | order(name asc)`);
+  try {
+    const shipping_methods = await sanityFetch({
+      query: METHODS_QUERY,
+    });
+    console.log(shipping_methods.data)
+    return shipping_methods.data || [];
+  } catch (error) {
+    console.log("Error fetching Shipping methods:", error);
+    return [];
+  }
+};
+
 export const getAllProducts = async () => {
   const PRODUCTS_QUERY = defineQuery(`*[_type=="product"] | order(name asc)`);
   try {
