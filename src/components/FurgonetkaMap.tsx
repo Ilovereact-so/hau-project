@@ -8,13 +8,22 @@ export interface FurgonetkaPoint {
   carrier: string
 }
 
+export interface FurgonetkaLocationPrefill {
+  street?:   string
+  city?:     string
+  postcode?: string
+}
+
 declare global {
   interface Window {
     Furgonetka?: {
       Map: new (config: {
         apiKey:              string
         courierServices?:    string[]
-        callback:            (params: { point: { code: string; name: string; type: string } }) => void
+        street?:             string
+        city?:               string
+        postcode?:           string
+        callback:            (params: { point: { code: string; name: string; type: string; service?: string } }) => void
         closeModalCallback?: () => void
         env?:                'sandbox' | 'production'
       }) => { show: () => void }
@@ -40,6 +49,7 @@ export default function FurgonetkaMap() {
 /** Open the Furgonetka locker map modal imperatively */
 export function openFurgonetkaMap(opts: {
   courierServices?: string[]
+  location?:        FurgonetkaLocationPrefill
   onSelect:         (point: FurgonetkaPoint) => void
   onClose?:         () => void
 }) {
@@ -58,8 +68,11 @@ export function openFurgonetkaMap(opts: {
     new window.Furgonetka.Map({
       apiKey: MAP_API_KEY,
       ...(opts.courierServices?.length ? { courierServices: opts.courierServices } : {}),
+      ...(opts.location?.street   ? { street:   opts.location.street }   : {}),
+      ...(opts.location?.city     ? { city:     opts.location.city }     : {}),
+      ...(opts.location?.postcode ? { postcode: opts.location.postcode } : {}),
       callback: ({ point }) => {
-        opts.onSelect({ code: point.code, name: point.name, carrier: point.type })
+        opts.onSelect({ code: point.code, name: point.name, carrier: point.service ?? point.type })
       },
       closeModalCallback: opts.onClose,
       env: 'sandbox',

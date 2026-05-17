@@ -15,6 +15,7 @@ export default function ClientLayout({
       navbar={<NavbarContainer mode={1} />}
       carousel={<ProductCarusel2 title="Dopasuj do swojego pupila" />}
       footer={<Footer />}
+      footerCheckout={<Footer className="max-w-[1500px]"/>}
     >
       {children}
     </ClientLayoutShell>

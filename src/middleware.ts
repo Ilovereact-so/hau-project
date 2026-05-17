@@ -13,6 +13,7 @@ const isPublicRoute = createRouteMatcher([
   '/studio(.*)',
   '/api/sanity/(.*)',
   '/api/webhooks/(.*)',
+  '/api/furgonetka/(.*)',
   // product browsing is public
   '/(products)/(.*)',
   '/subcategory/(.*)',

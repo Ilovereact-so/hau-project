@@ -17,7 +17,7 @@ export default function Breadcrumb({ step }: { step: Step }) {
               <hr className='w-[40px] h-[1px] bg-black mx-4'
               />)}
           <div className='flex justify-center items-center flex-col space-y-2'>
-            <div className={`w-[27px] h-[27px] rounded-full flex justify-center items-center text-[16px] bg-[#D9D9D9] ${
+            <div className={`w-[28px] h-[28px] rounded-full flex justify-center items-center text-[16px] bg-[#D9D9D9] ${
               active ? 'bg-[#E4E4E4] text-black' : 'bg-[#D9D9D9] text-[#BBBBBB]'
             }`}>{i+1}</div>
               <span

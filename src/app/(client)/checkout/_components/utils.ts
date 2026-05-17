@@ -6,5 +6,5 @@ export function buildVariantLabel(product: any, variantKey: string): string {
   if (!variant?.optionValues?.length) return ''
   return variant.optionValues
     .map((ov: any) => `${ov.name?.label ?? ''}: ${ov.value?.value ?? ''}`)
-    .join(', ')
+    .join(' | ')
 }

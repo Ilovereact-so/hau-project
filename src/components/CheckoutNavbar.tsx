@@ -2,13 +2,14 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
+import { Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { STEPS, type Step } from '@/app/(client)/checkout/_components/utils'
 
 export default function CheckoutNavbar({ step, userSlot }: { step: Step; userSlot: React.ReactNode }) {
 
   return (
-    <header className="w-full z-10">
+    <header className="w-full z-10 max-w-[1500px] mx-auto">
       <div className="mx-auto px-4 sm:px-15 h-[90px] flex items-center justify-between gap-4">
 
         {/* Logo */}
@@ -32,12 +33,12 @@ export default function CheckoutNavbar({ step, userSlot }: { step: Step; userSlo
                 )}
                 <div className="flex flex-col items-center gap-1">
                   <div className={cn(
-                    'w-[27px] h-[27px] rounded-full flex items-center justify-center text-[16px] font-medium transition-colors',
-                    active  ? 'bg-black text-white' : '',
-                    done    ? 'bg-black text-white' : '',
-                    pending ? 'bg-[#E4E4E4] text-[#AAAAAA]' : '',
+                    'w-[28px] h-[28px] rounded-full flex items-center justify-center text-[16px] font-medium transition-colors',
+                    active  ? 'bg-[#E4E4E4] text-black' : '',
+                    done    ? 'bg-[#E4E4E4] text-white' : '',
+                    pending ? 'bg-[#D9D9D9] text-[#B7B7B7] opacity-50' : '',
                   )}>
-                    {i + 1}
+                    {done ? <Check size={14} strokeWidth={2.5} /> : i + 1}
                   </div>
                   <span className={cn(
                     'text-[11px] sm:text-[16px] transition-colors',

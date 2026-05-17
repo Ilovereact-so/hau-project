@@ -1,11 +1,12 @@
 import { Heart, ShoppingBag } from 'lucide-react'
 import React from 'react'
 import Container from './Container'
+import { cn } from '@/lib/utils'
 
-const Footer = () => {
+const Footer = ({className}:{className?:string}) => {
   return (
     <div className='w-full bg-fancy-black '>
-        <Container id='footer' className='sm:px-10 px-7 py-8 w-full'>
+        <Container id='footer' className={cn("sm:px-10 px-7 py-8 w-full",className)}>
         <div style={{gridArea:"short-info"}} className='space-y-2 flex flex-col max-1md:flex-row max-sm:flex-col 1md:space-x-0 space-x-8 max-sm:mb-5'>
             <h1 className='text-main font-medium text-[clamp(16px,1.3vw,20px)]'>Sprawdz najnowsze oferty</h1>
             <h1 className='text-white font-medium text-[clamp(16px,1.3vw,20px)]'>Przejdź do newslettera</h1>

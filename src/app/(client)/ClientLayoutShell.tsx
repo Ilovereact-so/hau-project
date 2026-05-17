@@ -8,9 +8,10 @@ interface Props {
   navbar:    React.ReactNode
   carousel:  React.ReactNode
   footer:    React.ReactNode
+  footerCheckout: React.ReactNode
 }
 
-export default function ClientLayoutShell({ children, topBar, navbar, carousel, footer }: Props) {
+export default function ClientLayoutShell({ children, topBar, navbar, carousel, footer, footerCheckout }: Props) {
   const isCheckout = usePathname() === '/checkout'
 
   return (
@@ -19,7 +20,7 @@ export default function ClientLayoutShell({ children, topBar, navbar, carousel, 
       {!isCheckout && navbar}
       {children}
       {!isCheckout && carousel}
-      { footer}
+      { isCheckout ? footerCheckout : footer}
     </>
   )
 }
