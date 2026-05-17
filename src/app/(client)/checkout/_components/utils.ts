@@ -1,4 +1,4 @@
-export const STEPS = ['Adres', 'Płatność', 'Finalizacja zamówienia'] as const
+export const STEPS = ['Adres', 'Płatność', 'Finalizacja'] as const
 export type Step = 0 | 1 | 2
 
 export function buildVariantLabel(product: any, variantKey: string): string {

@@ -1,23 +1,11 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
-import Script from 'next/script'
+import { useEffect } from 'react'
 
 export interface FurgonetkaPoint {
   code:    string
   name:    string
   carrier: string
-}
-
-interface Props {
-  /** Furgonetka map widget API key */
-  apiKey: string
-  /** Limit shown carriers to one service, e.g. ['inpost'] */
-  courierServices?: string[]
-  /** Called once the user picks a point */
-  onSelect: (point: FurgonetkaPoint) => void
-  /** Called when the modal closes without selection */
-  onClose?: () => void
 }
 
 declare global {
@@ -36,41 +24,47 @@ declare global {
 
 const MAP_API_KEY = process.env.NEXT_PUBLIC_FURGONETKA_MAP_API_KEY!
 
-export default function FurgonetkaMap({ apiKey, courierServices, onSelect, onClose }: Props) {
-  // keep stable refs so the script callback always sees the latest props
-  const onSelectRef = useRef(onSelect)
-  const onCloseRef  = useRef(onClose)
+export default function FurgonetkaMap() {
+  useEffect(() => {
+    if (document.getElementById('furgonetka-map-script')) return
+    const script = document.createElement('script')
+    script.src   = 'https://furgonetka.pl/js/dist/map/map.js'
+    script.async = true
+    script.id    = 'furgonetka-map-script'
+    document.head.appendChild(script)
+  }, [])
 
-  useEffect(() => { onSelectRef.current = onSelect }, [onSelect])
-  useEffect(() => { onCloseRef.current  = onClose  }, [onClose])
-
-  return (
-    <Script
-      src="https://furgonetka.pl/js/dist/map/map.js"
-      strategy="lazyOnload"
-      id="furgonetka-map-script"
-    />
-  )
+  return null
 }
 
-/** Call this imperatively to open the map modal */
+/** Open the Furgonetka locker map modal imperatively */
 export function openFurgonetkaMap(opts: {
   courierServices?: string[]
   onSelect:         (point: FurgonetkaPoint) => void
   onClose?:         () => void
 }) {
-  if (typeof window === 'undefined' || !window.Furgonetka) {
-    console.warn('Furgonetka map script not yet loaded')
-    return
+  if (typeof window === 'undefined') return
+
+  function tryOpen(attempts = 0) {
+    if (!window.Furgonetka) {
+      if (attempts >= 25) {
+        console.error('Furgonetka: mapa niedostępna — skrypt nie załadował się')
+        return
+      }
+      setTimeout(() => tryOpen(attempts + 1), 300)
+      return
+    }
+
+    new window.Furgonetka.Map({
+      apiKey: MAP_API_KEY,
+      ...(opts.courierServices?.length ? { courierServices: opts.courierServices } : {}),
+      callback: ({ point }) => {
+        opts.onSelect({ code: point.code, name: point.name, carrier: point.type })
+      },
+      closeModalCallback: opts.onClose,
+      env: 'sandbox',
+    }).show()
   }
 
-  new window.Furgonetka.Map({
-    apiKey:  MAP_API_KEY,
-    ...(opts.courierServices ? { courierServices: opts.courierServices } : {}),
-    callback: ({ point }) => {
-      opts.onSelect({ code: point.code, name: point.name, carrier: point.type })
-    },
-    closeModalCallback: opts.onClose,
-    env: process.env.NODE_ENV === 'production' ? 'production' : 'sandbox',
-  }).show()
+  tryOpen()
 }

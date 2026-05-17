@@ -10,7 +10,6 @@ import { redis } from '@/lib/redis'
 import { registerTransaction } from '@/lib/przelewy24'
 import { createPaymentUrl } from '@/lib/autopay'
 import { client } from '@/sanity/lib/client'
-import { getDeliveryServiceByCode } from '@/actions/deliveryServices'
 import { upsertSavedAddress } from '@/actions/address'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL!
@@ -23,6 +22,7 @@ export interface CheckoutAddress {
   email:      string
   phone:      string
   street:     string
+  apartment_number?: string
   city:       string
   postalCode: string
   country:    'PL'
@@ -47,8 +47,8 @@ export interface CheckoutInput {
   items:          CheckoutItem[]
   address:        CheckoutAddress
   paymentMethod:  'przelewy24' | 'autopay' | 'cod'
-  shippingMethod: string         // delivery_services.serviceCode
-  deliveryType:   'kurier' | 'paczkomat'
+  shippingMethod: string         // furgonetka_service_id from Sanity
+  deliveryType:   'kurier' | 'automat'
   pickupPoint?:   CheckoutPickupPoint
   discountCode?:  string
   notes?:         string
@@ -58,7 +58,7 @@ export type CheckoutResult =
   | { ok: true;  redirectUrl: string }
   | { ok: false; error: string }
 
-// ─── Sanity price fetch ───────────────────────────────────────────────────────
+// ─── Sanity fetches ───────────────────────────────────────────────────────────
 
 interface SanityProduct {
   _id:      string
@@ -73,6 +73,15 @@ async function fetchSanityPrices(productIds: string[]): Promise<Map<string, Sani
     { ids: productIds },
   )
   return new Map(data.map(p => [p._id, p]))
+}
+
+async function fetchShippingPriceCents(furgonetkaServiceId: string): Promise<number | null> {
+  const result = await client.fetch<{ internal_price: number } | null>(
+    `*[_type == "shipping_methods" && furgonetka_service_id == $id && active == true][0]{ internal_price }`,
+    { id: furgonetkaServiceId },
+  )
+  if (!result) return null
+  return Math.round((result.internal_price ?? 0) * 100)
 }
 
 function resolveProductPrice(product: SanityProduct, variantId: string): number {
@@ -115,7 +124,7 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
     if (courierError) return { ok: false, error: courierError }
   }
 
-  if (input.deliveryType === 'paczkomat' && !input.pickupPoint?.code) {
+  if (input.deliveryType === 'automat' && !input.pickupPoint?.code) {
     return { ok: false, error: 'Wybierz punkt odbioru' }
   }
 
@@ -137,12 +146,11 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
     }
   }
 
-  // ── validate shipping price from MySQL ────────────────────────────────────
-  const deliveryService = await getDeliveryServiceByCode(input.shippingMethod)
-  if (!deliveryService) {
+  // ── validate shipping price from Sanity ──────────────────────────────────
+  const shippingCents = await fetchShippingPriceCents(input.shippingMethod)
+  if (shippingCents === null) {
     return { ok: false, error: 'Wybrany sposób dostawy jest niedostępny' }
   }
-  const shippingCents = deliveryService.priceCents
 
   // ── calculate totals ──────────────────────────────────────────────────────
   let subtotalCents = 0
@@ -200,9 +208,10 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
       lastName:        input.address.lastName,
       email:           input.address.email,
       phone:           input.address.phone,
-      street:          input.deliveryType === 'kurier' ? input.address.street : null,
-      city:            input.deliveryType === 'kurier' ? input.address.city   : null,
-      postalCode:      input.deliveryType === 'kurier' ? input.address.postalCode : null,
+      street:           input.deliveryType === 'kurier' ? input.address.street            : null,
+      city:             input.deliveryType === 'kurier' ? input.address.city              : null,
+      apartment_number: input.deliveryType === 'kurier' ? input.address.apartment_number  : null,
+      postalCode:       input.deliveryType === 'kurier' ? input.address.postalCode        : null,
       country:         input.address.country,
       pickupPointCode: input.pickupPoint?.code ?? null,
       pickupPointName: input.pickupPoint?.name ?? null,
@@ -229,6 +238,7 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
       phone:      input.address.phone,
       street:     input.address.street,
       city:       input.address.city,
+      apartment_number: input.address.apartment_number,
       postalCode: input.address.postalCode,
       country:    'PL',
     })

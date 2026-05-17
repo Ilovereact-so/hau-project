@@ -10,7 +10,7 @@ const PAYMENT_LABELS: Record<string, string> = {
 
 interface Props {
   address:       CheckoutAddress
-  deliveryType:  'kurier' | 'paczkomat'
+  deliveryType:  'kurier' | 'automat'
   serviceName:   string
   paymentMethod: string
   pickupPoint?:  CheckoutPickupPoint
@@ -27,7 +27,7 @@ export default function Step3SummaryCards({
           <p>{address.firstName} {address.lastName}</p>
           <p>{address.email}</p>
           <p>{address.phone}</p>
-          {deliveryType === 'kurier' ? (
+          {deliveryType === 'kurier' && address.street ? (
             <p>{address.street}, {address.postalCode} {address.city}</p>
           ) : (
             <p className="font-medium">{pickupPoint?.name} ({pickupPoint?.code})</p>

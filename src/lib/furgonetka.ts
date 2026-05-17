@@ -115,7 +115,7 @@ async function getAccessToken(): Promise<string> {
 
 // ─── base fetch ───────────────────────────────────────────────────────────────
 
-async function furgonetkaFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function furgonetkaFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = await getAccessToken()
 
   const isWrite = init.method === 'POST' || init.method === 'PUT' || init.method === 'PATCH'

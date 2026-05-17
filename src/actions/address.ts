@@ -11,6 +11,7 @@ export interface SavedAddress {
   email:      string
   phone:      string
   street:     string
+  apartment_number?:string
   city:       string
   postalCode: string
   country:    'PL'
@@ -35,6 +36,7 @@ export async function getSavedAddress(): Promise<SavedAddress | null> {
     email:      r.email,
     phone:      r.phone,
     street:     r.street,
+    apartment_number: r.apartment_number || undefined,
     city:       r.city,
     postalCode: r.postalCode,
     country:    'PL',
@@ -61,6 +63,7 @@ export async function upsertSavedAddress(address: SavedAddress): Promise<void> {
         phone:      address.phone,
         street:     address.street,
         city:       address.city,
+        apartment_number: address.apartment_number || undefined,
         postalCode: address.postalCode,
       })
       .where(eq(savedAddresses.userId, userId))
@@ -74,6 +77,7 @@ export async function upsertSavedAddress(address: SavedAddress): Promise<void> {
       phone:      address.phone,
       street:     address.street,
       city:       address.city,
+      apartment_number: address.apartment_number || undefined,
       postalCode: address.postalCode,
       country:    'PL',
     })

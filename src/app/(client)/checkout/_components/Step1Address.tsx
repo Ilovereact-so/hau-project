@@ -1,16 +1,20 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Truck, MapPin, ChevronRight, Check } from 'lucide-react'
+import { Truck, MapPin, ChevronRight, Check, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { openFurgonetkaMap } from '@/components/FurgonetkaMap'
 import toast from 'react-hot-toast'
-import type { DeliveryService } from '@/actions/deliveryServices'
+import type { Shipping_methods } from 'sanity.types'
 import type { CheckoutAddress, CheckoutPickupPoint } from '@/actions/checkout'
 import type { SavedAddress } from '@/actions/address'
 import Field from './Field'
+import Container from '@/components/Container'
+import { SHIPPING_ASSETS } from 'shippingConfig'
+import PriceFormatter from '@/components/PriceFormatter'
+import FurgonetkaTest from '@/components/FurgonetkaTest'
 
 // ─── delivery type card ───────────────────────────────────────────────────────
 
@@ -24,18 +28,15 @@ function DeliveryTypeCard({
       type="button"
       onClick={onClick}
       className={cn(
-        'flex flex-col items-center justify-center gap-2.5 py-5 px-6 rounded-2xl border-2 transition-all duration-200 flex-1',
-        selected ? 'border-fancy-black bg-white' : 'border-[#E8E8E8] bg-white hover:border-[#BBBBBB]',
+        'flex items-center justify-center cursor-pointer relative rounded-full h-[55px] transition-all duration-200 flex-1',
+        selected ? 'border-black border-2' : 'border-black hover:border-[#BBBBBB] border-1',
       )}
     >
-      <div className={cn(
-        'w-12 h-12 rounded-full flex items-center justify-center transition-colors',
-        selected ? 'bg-fancy-black' : 'bg-[#F4F4F4]',
-      )}>
-        <Icon size={22} className={selected ? 'text-white' : 'text-[#6C6C6C]'} />
+      <div className={`absolute left-6 top-[50%] translate-y-[-50%]`}>
+        <Icon size={22} className={`text-black`} />
       </div>
       <span className={cn(
-        'text-[14px] font-semibold transition-colors',
+        'text-[16px] font-medium transition-colors',
         selected ? 'text-fancy-black' : 'text-[#6C6C6C]',
       )}>
         {label}
@@ -49,31 +50,25 @@ function DeliveryTypeCard({
 function ServiceCard({
   service, selected, onClick,
 }: {
-  service: DeliveryService; selected: boolean; onClick: () => void
+  service: Shipping_methods; selected: boolean; onClick: () => void
 }) {
+  const shippingAsset = SHIPPING_ASSETS[service.slug?.current as keyof typeof SHIPPING_ASSETS]
+
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        'w-full text-left border-2 rounded-xl p-4 transition-all duration-200 flex items-center gap-4',
-        selected ? 'border-fancy-black bg-fancy-black/[0.03]' : 'border-[#E8E8E8] hover:border-[#BBBBBB]',
+        'flex items-center w-full justify-between px-4 cursor-pointer relative rounded-full h-[55px] transition-all duration-200 flex-1',
+        selected ? 'border-black border-2' : 'border-black hover:border-[#BBBBBB] border-1',
       )}
     >
-      <div className={cn(
-        'w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center',
-        selected ? 'border-fancy-black' : 'border-[#BBBBBB]',
-      )}>
-        {selected && <div className="w-2.5 h-2.5 rounded-full bg-fancy-black" />}
+      <div className="flex items-center flex-nowrap space-x-2">
+        <img src={shippingAsset?.logo.src} alt={service.name} className="w-[50px]" />
+        {shippingAsset?.displayName ?? <p className="text-[16px] text-fancy-black">{service.name}</p>}
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-[15px] font-semibold text-fancy-black">{service.name}</p>
-        {service.estimatedDays && (
-          <p className="text-[12px] text-[#6C6C6C] mt-0.5">{service.estimatedDays}</p>
-        )}
-      </div>
-      <span className="text-[14px] font-semibold text-fancy-black whitespace-nowrap">
-        {(service.priceCents / 100).toFixed(2)} zł
+      <span className="text-[16px] text-fancy-black whitespace-nowrap mr-3">
+        <PriceFormatter className='font-normal text-black' amount={service.internal_price ?? 0} />
       </span>
     </button>
   )
@@ -88,33 +83,47 @@ const EMPTY_ADDRESS: CheckoutAddress = {
 
 export interface Step1Result {
   address:      CheckoutAddress
-  deliveryType: 'kurier' | 'paczkomat'
-  serviceCode:  string
+  deliveryType: 'kurier' | 'automat'
+  serviceCode:  string   // furgonetka_service_id from Sanity
   pickupPoint?: CheckoutPickupPoint
 }
 
 interface Props {
-  services:     DeliveryService[]
+  services:     Shipping_methods[]
   savedAddress: SavedAddress | null
   onContinue:   (data: Step1Result) => void
 }
 
 export default function Step1Address({ services, savedAddress, onContinue }: Props) {
-  const [address, setAddress]           = useState<CheckoutAddress>(savedAddress ?? EMPTY_ADDRESS)
-  const [deliveryType, setDeliveryType] = useState<'kurier' | 'paczkomat'>('kurier')
-  const [serviceCode, setServiceCode]   = useState('')
-  const [pickupPoint, setPickupPoint]   = useState<CheckoutPickupPoint | null>(null)
-  const [errors, setErrors]             = useState<Partial<Record<keyof CheckoutAddress, string>>>({})
+  const [address, setAddress]                 = useState<CheckoutAddress>(savedAddress ?? EMPTY_ADDRESS)
+  const [deliveryType, setDeliveryType]       = useState<'kurier' | 'automat'>('kurier')
+  const [serviceCode, setServiceCode]         = useState('')
+  const [additionalField, setAdditionalField] = useState(false)
+  const [pickupPoint, setPickupPoint]         = useState<CheckoutPickupPoint | null>(null)
+  const [errors, setErrors]                   = useState<Partial<Record<keyof CheckoutAddress, string>>>({})
 
-  const kurierServices    = services.filter(s => s.deliveryType === 'kurier')
-  const paczkomatServices = services.filter(s => s.deliveryType === 'paczkomat')
+  const activeServices    = services.filter(s => s.active !== false)
+  const kurierServices    = activeServices.filter(s => s.type === 'kurier')
+  const paczkomatServices = activeServices.filter(s => s.type === 'automat')
   const visibleServices   = deliveryType === 'kurier' ? kurierServices : paczkomatServices
-  const selectedService   = visibleServices.find(s => s.serviceCode === serviceCode) ?? null
+  const selectedService   = visibleServices.find(s => s.furgonetka_service_id === serviceCode) ?? null
 
-  function switchType(t: 'kurier' | 'paczkomat') {
+  function switchType(t: 'kurier' | 'automat') {
     setDeliveryType(t)
     setServiceCode('')
     setPickupPoint(null)
+  }
+
+
+  function selectPaczkomat(s: Shipping_methods) {
+    if (!s.furgonetka_service_id) return
+    setServiceCode(s.furgonetka_service_id)
+    setPickupPoint(null)
+    // Re-open map filtered to this provider only
+    openFurgonetkaMap({
+      courierServices: [s.furgonetka_service_id],
+      onSelect: point => setPickupPoint(point),
+    })
   }
 
   function setField<K extends keyof CheckoutAddress>(key: K, val: CheckoutAddress[K]) {
@@ -124,39 +133,47 @@ export default function Step1Address({ services, savedAddress, onContinue }: Pro
 
   function validate(): boolean {
     const e: Partial<Record<keyof CheckoutAddress, string>> = {}
-    if (!address.firstName.trim())         e.firstName = 'Wymagane'
-    if (!address.lastName.trim())          e.lastName  = 'Wymagane'
-    if (!address.email.includes('@'))      e.email     = 'Nieprawidłowy email'
-    if (!address.phone.trim())             e.phone     = 'Wymagane'
+    if (!address.firstName.trim())                          e.firstName  = 'Wymagane'
+    if (!address.lastName.trim())                           e.lastName   = 'Wymagane'
+    if (!address.email.includes('@'))                       e.email      = 'Nieprawidłowy email'
+    if (!address.phone.trim())                              e.phone      = 'Wymagane'
     if (deliveryType === 'kurier') {
-      if (!address.street.trim())          e.street     = 'Wymagane'
-      if (!address.city.trim())            e.city       = 'Wymagane'
-      if (!/^\d{2}-\d{3}$/.test(address.postalCode)) e.postalCode = 'Format: XX-XXX'
+      if (!address.street.trim())                           e.street     = 'Wymagane'
+      if (!address.city.trim())                             e.city       = 'Wymagane'
+      if (!/^\d{2}-\d{3}$/.test(address.postalCode))       e.postalCode = 'Format: XX-XXX'
     }
     setErrors(e)
     return Object.keys(e).length === 0
   }
 
   function handleContinue() {
-    if (!validate())                                    { toast.error('Uzupełnij wymagane pola');    return }
-    if (!serviceCode)                                   { toast.error('Wybierz metodę dostawy');      return }
-    if (deliveryType === 'paczkomat' && !pickupPoint)   { toast.error('Wybierz punkt odbioru');       return }
+    if (!validate())                                       { toast.error('Uzupełnij wymagane pola');  return }
+    if (!serviceCode)                                      { toast.error('Wybierz metodę dostawy');    return }
+    if (deliveryType === 'automat' && !pickupPoint)        { toast.error('Wybierz punkt odbioru');     return }
     onContinue({ address, deliveryType, serviceCode, pickupPoint: pickupPoint ?? undefined })
   }
 
-  function handleOpenMap() {
-    if (!selectedService?.mapServiceCode) return
+  function handleReopenMap() {
+    const code = selectedService?.furgonetka_service_id
+    if (!code) return
     openFurgonetkaMap({
-      courierServices: [selectedService.mapServiceCode],
+      courierServices: [code],
       onSelect: point => setPickupPoint(point),
     })
   }
 
   return (
-    <div className="grid lg:grid-cols-3 gap-6">
-      {/* left: address form */}
-      <div className="lg:col-span-2 space-y-5">
-        <div className="bg-white rounded-2xl border border-[#E8E8E8] p-6 space-y-4">
+    <div className='flex space-x-15'>
+    <div className="flex flex-col w-[60%]">
+      <h2 className="text-[20px] font-medium text-black my-4">Wybierz metodę dostawy:</h2>
+
+      <div className="flex gap-4 my-2">
+        <DeliveryTypeCard icon={Truck}  label="Wysyłka" selected={deliveryType === 'kurier'}  onClick={() => switchType('kurier')} />
+        <DeliveryTypeCard icon={MapPin} label="Odbiór"  selected={deliveryType === 'automat'} onClick={() => switchType('automat')} />
+      </div>
+
+      <div className="space-y-5 mt-5">
+        <div className="space-y-4">
           <Field label="E-mail" type="email" placeholder="jankowalski@gmail.com"
             value={address.email} onChange={e => setField('email', e.target.value)} error={errors.email} />
 
@@ -188,36 +205,55 @@ export default function Step1Address({ services, savedAddress, onContinue }: Pro
           <Field label="Telefon" type="tel" placeholder="848037241"
             value={address.phone} onChange={e => setField('phone', e.target.value)} error={errors.phone} />
 
-          <p className="text-[12px] text-[#BBBBBB]">* nazwa firmy / mieszkanie / apartament / lokal</p>
+          <AnimatePresence mode="wait">
+            {!additionalField ? (
+              <div onClick={() => setAdditionalField(true)} className="text-[16px] cursor-pointer flex items-center text-black">
+                <Plus size={18} className="text-black mr-2" />
+                <p>mieszkanie / apartament / lokal</p>
+              </div>
+            ) : (
+              <motion.div key="addr2" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
+                <Field label="mieszkanie / apartament / lokal" placeholder="13"
+                  value={address.apartment_number || ''} onChange={e => setField('apartment_number', e.target.value)} error={errors.apartment_number} />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
+    </div>
 
-      {/* right: delivery method */}
-      <div className="lg:col-span-1 space-y-4">
-        <div className="bg-white rounded-2xl border border-[#E8E8E8] p-6 space-y-5">
-          <h2 className="text-[15px] font-semibold text-fancy-black">Wybierz metodę dostawy:</h2>
-
-          <div className="flex gap-3">
-            <DeliveryTypeCard icon={Truck} label="Wysyłka" selected={deliveryType === 'kurier'} onClick={() => switchType('kurier')} />
-            <DeliveryTypeCard icon={MapPin} label="Odbiór" selected={deliveryType === 'paczkomat'} onClick={() => switchType('paczkomat')} />
-          </div>
-
+    {/* delivery method */}
+      <div className="flex flex-col w-[40%] justify-between items-end">
+        <div className='flex flex-col w-full'>
+        <h2 className="text-[20px] font-medium text-black my-4">Oferowane formy dostawy:</h2>
+          
           <AnimatePresence mode="wait">
             <motion.div key={deliveryType} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15 }} className="space-y-3">
+              exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15 }} className="space-y-3 mt-6">
               {visibleServices.length === 0 ? (
-                <p className="text-[13px] text-[#6C6C6C]">Brak dostępnych metod dostawy.</p>
+                <p className="text-[16px] text-[#6C6C6C]">Brak dostępnych metod dostawy.</p>
               ) : (
                 visibleServices.map(s => (
-                  <ServiceCard key={s.serviceCode} service={s} selected={serviceCode === s.serviceCode}
-                    onClick={() => { setServiceCode(s.serviceCode); setPickupPoint(null) }} />
+                  <ServiceCard
+                    key={s._id}
+                    service={s}
+                    selected={serviceCode === s.furgonetka_service_id}
+                    onClick={() => {
+                      if (deliveryType === 'automat') {
+                        selectPaczkomat(s)
+                      } else {
+                        setServiceCode(s.furgonetka_service_id ?? '')
+                      }
+                    }}
+                  />
                 ))
               )}
             </motion.div>
           </AnimatePresence>
 
+          {/* pickup point display — automat only */}
           <AnimatePresence>
-            {deliveryType === 'paczkomat' && serviceCode && (
+            {deliveryType === 'automat' && serviceCode && (
               <motion.div key="pickup" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
                 {pickupPoint ? (
@@ -229,13 +265,13 @@ export default function Step1Address({ services, savedAddress, onContinue }: Pro
                       <p className="text-[14px] font-semibold text-fancy-black">{pickupPoint.name}</p>
                       <p className="text-[12px] text-[#6C6C6C]">{pickupPoint.code}</p>
                     </div>
-                    <button type="button" onClick={handleOpenMap}
+                    <button type="button" onClick={handleReopenMap}
                       className="text-[12px] text-fancy-black underline underline-offset-2 whitespace-nowrap">
                       Zmień
                     </button>
                   </div>
                 ) : (
-                  <Button type="button" onClick={handleOpenMap} variant="outline"
+                  <Button type="button" onClick={handleReopenMap} variant="outline"
                     className="w-full rounded-xl border-2 border-fancy-black bg-white text-fancy-black font-semibold text-[14px] py-3 hover:bg-fancy-black/5 transition-colors">
                     <MapPin size={15} className="mr-2" />
                     Wybierz punkt odbioru
@@ -247,7 +283,7 @@ export default function Step1Address({ services, savedAddress, onContinue }: Pro
         </div>
 
         <Button type="button" onClick={handleContinue}
-          className="w-full rounded-full font-bold bg-fancy-black text-white text-[15px] py-6 hover:bg-fancy-black/90 transition-colors">
+          className="w-fit rounded-full font-bold bg-fancy-black text-white text-[15px] py-6 px-6 hover:bg-fancy-black/90 transition-colors">
           Zapisz i kontynuj
           <ChevronRight size={16} className="ml-2" />
         </Button>

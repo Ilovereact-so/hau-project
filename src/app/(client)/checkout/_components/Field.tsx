@@ -10,14 +10,14 @@ export interface FieldProps extends React.InputHTMLAttributes<HTMLInputElement> 
 export default function Field({ label, error, className, ...props }: FieldProps) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-[13px] font-medium text-[#3D3D3D]">{label}</span>
+      <span className="text-[16px] font-poppins font-medium text-[#3D3D3D]">{label}</span>
       <input
         {...props}
         className={cn(
-          'w-full border rounded-lg px-4 py-3 text-[15px] font-poppins bg-white',
+          'w-full border border-black text-black rounded-full px-4 py-3 text-[16px] font-poppins',
           'placeholder:text-[#BBBBBB] transition-colors',
-          'focus:outline-none focus:border-fancy-black',
-          error ? 'border-red-400' : 'border-[#D5D5D5]',
+          'focus:outline-none',
+          error ? 'border-red-400' : 'border-black',
           className,
         )}
       />

@@ -14,7 +14,9 @@
       "Bash(grep \"^sanity$\")",
       "Bash(node -e \"const p=require\\('f:/CU/Projects/Hau_dynamic/hau-project/node_modules/sanity/package.json'\\); console.log\\('OK:', p.version\\)\")",
       "PowerShell($result = New-ItemProperty -Path \"HKLM:\\\\SYSTEM\\\\CurrentControlSet\\\\Control\\\\FileSystem\" -Name LongPathsEnabled -Value 1 -PropertyType DWORD -Force -ErrorAction SilentlyContinue 2>&1; if \\($?\\) { \"Long paths enabled\" } else { \"Need admin: $result\" })",
-      "Bash(node -e \"const p=require\\('f:/CU/Projects/Hau_dynamic/hau-project/node_modules/sanity/package.json'\\); console.log\\('sanity OK:', p.version\\)\")"
+      "Bash(node -e \"const p=require\\('f:/CU/Projects/Hau_dynamic/hau-project/node_modules/sanity/package.json'\\); console.log\\('sanity OK:', p.version\\)\")",
+      "Bash(cat)",
+      "Read(//tmp/**)"
     ]
   }
 }

@@ -12,11 +12,11 @@ import { urlFor } from '@/sanity/lib/image'
 import { checkout } from '@/actions/checkout'
 import useStore from 'store'
 import toast from 'react-hot-toast'
-import type { DeliveryService } from '@/actions/deliveryServices'
 import type { CheckoutAddress, CheckoutPickupPoint } from '@/actions/checkout'
 import type { SavedAddress } from '@/actions/address'
+import type { Shipping_methods } from 'sanity.types'
 
-import Breadcrumb from './_components/Breadcrumb'
+import CheckoutNavbar from '@/components/CheckoutNavbar'
 import OrderSummary from './_components/OrderSummary'
 import Step1Address, { type Step1Result } from './_components/Step1Address'
 import Step2PaymentForm, { type PaymentMethod } from './_components/Step2PaymentForm'
@@ -24,17 +24,18 @@ import Step3SummaryCards from './_components/Step3SummaryCards'
 import { buildVariantLabel, type Step } from './_components/utils'
 
 interface Props {
-  services:     DeliveryService[]
+  services:     Shipping_methods[]
   savedAddress: SavedAddress | null
+  userSlot:     React.ReactNode
 }
 
-export default function CheckoutClient({ services, savedAddress }: Props) {
+export default function CheckoutClient({ services, savedAddress, userSlot }: Props) {
   const [isClient, setIsClient]      = useState(false)
   const [step, setStep]              = useState<Step>(0)
   const [isPending, startTransition] = useTransition()
 
   const [address, setAddress]           = useState<CheckoutAddress | null>(null)
-  const [deliveryType, setDeliveryType] = useState<'kurier' | 'paczkomat'>('kurier')
+  const [deliveryType, setDeliveryType] = useState<'kurier' | 'automat'>('kurier')
   const [serviceCode, setServiceCode]   = useState('')
   const [pickupPoint, setPickupPoint]   = useState<CheckoutPickupPoint | undefined>()
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('przelewy24')
@@ -47,8 +48,8 @@ export default function CheckoutClient({ services, savedAddress }: Props) {
   if (!isClient) return <Loading />
   if (!cartItems.length) return <EmptyCart />
 
-  const selectedService = services.find(s => s.serviceCode === serviceCode) ?? null
-  const shippingCents   = selectedService?.priceCents ?? 0
+  const selectedService = services.find(s => s.furgonetka_service_id === serviceCode) ?? null
+  const shippingCents   = Math.round((selectedService?.internal_price ?? 0) * 100)
 
   function handleStep1Continue(data: Step1Result) {
     setAddress(data.address)
@@ -90,11 +91,10 @@ export default function CheckoutClient({ services, savedAddress }: Props) {
   }
 
   return (
-    <Container className="px-4 sm:px-8 lg:px-15 my-10 font-poppins">
-      {/* loads Furgonetka map script once for the whole checkout page */}
-      <FurgonetkaMap apiKey={process.env.NEXT_PUBLIC_FURGONETKA_MAP_API_KEY!} onSelect={() => {}} />
-
-      <Breadcrumb step={step} />
+    <>
+      <CheckoutNavbar step={step} userSlot={userSlot} />
+      <FurgonetkaMap />
+      <Container className="px-4 sm:px-8 lg:px-15 mb-10 font-poppins">
 
       <AnimatePresence mode="wait">
 
@@ -169,6 +169,7 @@ export default function CheckoutClient({ services, savedAddress }: Props) {
         )}
 
       </AnimatePresence>
-    </Container>
+      </Container>
+    </>
   )
 }

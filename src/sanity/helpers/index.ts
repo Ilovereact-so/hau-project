@@ -1,8 +1,9 @@
 import { defineQuery } from "next-sanity";
 import { sanityFetch } from "../lib/live";
+import { METHODS_QUERYResult } from "sanity.types";
 
 
-export const getShippingMethods = async () => {
+export const getShippingMethods = async (): Promise<METHODS_QUERYResult> => {
   const METHODS_QUERY = defineQuery(`*[_type=="shipping_methods"] | order(name asc)`);
   try {
     const shipping_methods = await sanityFetch({

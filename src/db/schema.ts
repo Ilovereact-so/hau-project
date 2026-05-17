@@ -82,6 +82,7 @@ export const shippingAddresses = mysqlTable('shipping_addresses', {
   // null for paczkomat orders (pickup point replaces street address)
   street:           varchar('street', { length: 256 }),
   city:             varchar('city', { length: 128 }),
+  apartment_number: varchar('apartment_number', { length: 64 }),
   postalCode:       varchar('postal_code', { length: 16 }),
   country:          varchar('country', { length: 2 }).notNull().default('PL'),
   // filled only for paczkomat deliveries
@@ -167,6 +168,7 @@ export const savedAddresses = mysqlTable('saved_addresses', {
   email:      varchar('email', { length: 256 }).notNull(),
   phone:      varchar('phone', { length: 32 }).notNull(),
   street:     varchar('street', { length: 256 }).notNull(),
+  apartment_number: varchar('apartment_number', { length: 64 }),
   city:       varchar('city', { length: 128 }).notNull(),
   postalCode: varchar('postal_code', { length: 16 }).notNull(),
   country:    varchar('country', { length: 2 }).notNull().default('PL'),
