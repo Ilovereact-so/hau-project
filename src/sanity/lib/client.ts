@@ -6,6 +6,11 @@ export const client = createClient({
   projectId,
   dataset,
   apiVersion,
-  useCdn: false, // Set to false if statically generating pages, using ISR or tag-based revalidation
+  // CDN (apicdn.sanity.io) jest włączony — dataset jest publiczny (pobrania
+  // client-side działają bez tokena), a perspektywa 'published' nie ujawnia
+  // draftów, więc CDN jest tu w pełni bezpieczny i globalnie szybszy niż
+  // odpytywanie origin *.api.sanity.io. Podgląd draftów i tak idzie przez
+  // serverowy sanityFetch (lib/live.ts), który sam schodzi z CDN gdy trzeba.
+  useCdn: true,
   perspective: 'published',
 })

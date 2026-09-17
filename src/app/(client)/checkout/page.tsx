@@ -20,7 +20,7 @@ export default async function CheckoutPage() {
     <CheckoutClient
       services={services}
       savedAddress={savedAddress}
-      userSlot={<ServerUser mode={1} />}
+      userSlot={<ServerUser mode={1} cart={true} />}
     />
   )
 }

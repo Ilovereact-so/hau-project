@@ -1,6 +1,5 @@
 'use client'
 
-import { ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { STEPS, type Step } from './utils'
 

@@ -5,6 +5,7 @@ import { useSignUp } from "@clerk/nextjs";
 import { Undo2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { consumePostAuthRedirect } from "@/lib/authRedirect";
 
 export default function VerifyEmail() {
   const { isLoaded, signUp, setActive } = useSignUp();
@@ -17,6 +18,15 @@ export default function VerifyEmail() {
   const endTimeRef = useRef<number | null>(null);
   const frameRef = useRef<number | null>(null);
 
+  // cleanup przy odmontowaniu — hook musi być wywołany przed warunkowym
+  // `return` (Rules of Hooks), inaczej po załadowaniu Clerka React rzuca błąd
+  // o zmienionej liczbie hooków.
+  useEffect(() => {
+    return () => {
+      if (frameRef.current) cancelAnimationFrame(frameRef.current);
+    };
+  }, []);
+
   if (!isLoaded) return null;
 
   const handleVerify = async (code: string) => {
@@ -27,7 +37,9 @@ export default function VerifyEmail() {
 
       if (result.status === "complete") {
         await setActive({ session: result.createdSessionId });
-        router.push("/"); // 👈 redirect po udanym logowaniu
+        // powrót tam, skąd user zaczął rejestrację (zapisane w SignUpForm)
+        router.push(consumePostAuthRedirect("/"));
+        router.refresh();
       }
     } catch (err: any) {
       setError(err.errors?.[0]?.message || "Niepoprawny kod");
@@ -79,13 +91,6 @@ export default function VerifyEmail() {
       console.error("Resend error:", err);
     }
   };
-
-   // cleanup przy odmontowaniu
-  useEffect(() => {
-    return () => {
-      if (frameRef.current) cancelAnimationFrame(frameRef.current);
-    };
-  }, []);
 
   return (
 

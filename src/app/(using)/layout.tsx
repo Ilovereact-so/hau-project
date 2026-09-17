@@ -1,4 +1,3 @@
-import "../globals.css";
 import NavbarContainer from "@/components/NavbarContainer";
 
 

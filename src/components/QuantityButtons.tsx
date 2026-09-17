@@ -1,8 +1,7 @@
 import React from "react";
 import toast from "react-hot-toast";
-import { GetSlugProduct, Product } from "../../sanity.types";
+import { GetSlugProduct } from "../../sanity.types";
 import { twMerge } from "tailwind-merge";
-import { Button } from "./ui/button";
 import { Minus, Plus, Trash2 } from "lucide-react";
 import useCartStore from "../../store";
 
@@ -16,14 +15,13 @@ interface Props {
 const QuantityButtons = ({ product, variant, className, borderStyle }: Props) => {
   const { addItem, removeItem, getItemCount } = useCartStore();
   const itemCount = getItemCount(product?._id, variant);
-  const isOutOfStock = product?.stock === 0;
 
   const handleRemoveProduct = () => {
     removeItem(product?._id, variant);
     if (itemCount > 1) {
-      toast.success("Quantity Decreased successfully!");
+      toast.success("Zmniejszono ilość");
     } else {
-      toast.success(`${product?.title?.substring(0, 12)} removed successfully!`);
+      toast.success(`Usunięto z koszyka: ${product?.title ?? "produkt"}`);
     }
   };
   return (
@@ -51,7 +49,7 @@ const QuantityButtons = ({ product, variant, className, borderStyle }: Props) =>
         className="w-9 h-9 flex justify-center items-center cursor-pointer text-black hover:bg-[#D7D7D7] rounded-full"
         onClick={() => {
           addItem(product, variant, false);
-          toast.success("Quantity increased successfully!");
+          toast.success("Zwiększono ilość");
         }}
       >
         <Plus className="w-4 h-4 text-black"/>

@@ -1,20 +1,21 @@
-import React, { useEffect, useRef } from 'react'
+import React from 'react'
 
-const NavHamburger = ({onClick, className, isOpen, mode}: {onClick: () => void, className: string, isOpen:boolean, mode: number}) => {
-  const refMenu = useRef<HTMLInputElement>(null)
+const NavHamburger = ({onClick, className, isOpen, mode: _mode}: {onClick: () => void, className: string, isOpen:boolean, mode: number}) => {
   
-  useEffect(()=>{
-    if(!isOpen && refMenu.current?.checked == true){
-      refMenu.current.checked = false
-    }
-  },[isOpen, refMenu])
+  const bar = `absolute left-1/2 top-[13px] h-[2px] w-6 -translate-x-1/2 rounded-full transition-all duration-200 ease-in-out bg-[#d9d9d9]`
+
   return (
-    <label id='Navlabel' htmlFor="check" className={className}>
-      <input type="checkbox" id="check" ref={refMenu} onClick={onClick}/> 
-      <span className={`${isOpen ? "bg-black":mode === 0 ? "bg-white" : "bg-black"}`}></span>
-      <span className={`${isOpen ? "bg-black":mode === 0 ? "bg-white" : "bg-black"}`}></span>
-      <span className={`${isOpen ? "bg-black":mode === 0 ? "bg-white" : "bg-black"}`}></span>
-    </label>
+    <button
+      type="button"
+      aria-label={isOpen ? 'Zamknij menu' : 'Otwórz menu'}
+      aria-expanded={isOpen}
+      onClick={onClick}
+      className={`relative h-7 w-7 shrink-0 cursor-pointer ${className}`}
+    >
+      <span className={`${bar} ${isOpen ? 'translate-y-[0px] rotate-45' : '-translate-y-[7px] rotate-0'}`} />
+      <span className={`${bar} ${isOpen ? 'scale-x-0 opacity-0' : 'scale-x-100 opacity-100'}`} />
+      <span className={`${bar} ${isOpen ? 'translate-y-[0px] -rotate-45' : 'translate-y-[7px] rotate-0'}`} />
+    </button>
   )
 }
 

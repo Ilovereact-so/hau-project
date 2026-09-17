@@ -2,134 +2,124 @@
 'use server'
 
 import { auth } from '@clerk/nextjs/server'
-import { redis } from '@/lib/redis'
-import { db } from '@/lib/db'
-import { cartItems, wishlistItems } from '@/db/schema'
-import { eq, and } from 'drizzle-orm'
-import { sql } from 'drizzle-orm'
-import { cookies } from 'next/headers'
+import type { GetSlugProduct } from 'sanity.types'
+import { fetchProductsByIds } from '@/sanity/helpers/clientRequest'
+import {
+  clearGuestCookie, deleteCart, getOrCreateGuestId, readCart, readGuestId,
+  readWishlist, writeCart, writeWishlist,
+} from '@/lib/cartServer'
+import {
+  mergeCartLines, mergeWishlistIds, reconcileWithCatalog, sanitizeCartLines,
+  sanitizeWishlistIds, type CartLine,
+} from '@/lib/cartMerge'
 
-type CartSyncItem = {
-  productId: string
-  variantId: string
-  qty:       number
-}
+/**
+ * Właściciel, dla którego klient przygotował payload: `'guest'` albo userId.
+ * Serwer ignoruje zapis, gdy sesja w międzyczasie się zmieniła (np. debounce
+ * odpalony już po wylogowaniu) — bez tego koszyk konta mógł wylądować
+ * w koszyku gościa i odwrotnie.
+ */
+export type CartOwnerHint = 'guest' | (string & {})
 
-async function getOwnerId() {
+export async function syncCart(items: CartLine[], expectedOwner: CartOwnerHint): Promise<void> {
+  const lines = sanitizeCartLines(items)
   const { userId } = await auth()
-  if (userId) return userId
 
-  const cookieStore = await cookies()
-  const existing = cookieStore.get('guest_id')?.value
-  if (existing) return existing
-
-  const guestId = `guest_${crypto.randomUUID()}`
-  cookieStore.set('guest_id', guestId, {
-    httpOnly: true,
-    secure:   process.env.NODE_ENV === 'production',
-    maxAge:   60 * 60 * 24 * 30,
-    sameSite: 'lax',
-  })
-  return guestId
-}
-
-export async function syncCart(items: CartSyncItem[]): Promise<void> {
-  const ownerId = await getOwnerId()
-
-  if (!items.length) {
-    await Promise.all([
-      redis.del(`cart:${ownerId}`),
-      db.delete(cartItems).where(eq(cartItems.ownerId, ownerId)),
-    ])
+  if (expectedOwner === 'guest') {
+    if (userId) return
+    await writeCart(await getOrCreateGuestId(), lines)
     return
   }
 
-  await redis.setEx(`cart:${ownerId}`, 60 * 60 * 24 * 30, JSON.stringify(items))
-
-  // upsert — sql`VALUES(qty)` to prawidłowa Drizzle składnia dla MySQL
-  await db
-    .insert(cartItems)
-    .values(items.map(i => ({
-      id:        crypto.randomUUID(),
-      ownerId,
-      productId: i.productId,
-      variantId: i.variantId,
-      qty:       i.qty,
-    })))
-    .onDuplicateKeyUpdate({
-      set: { qty: sql`VALUES(qty)` },
-    })
+  if (!userId || userId !== expectedOwner) return
+  await writeCart(userId, lines)
 }
 
-export async function syncWishlist(productIds: string[]): Promise<void> {
+export async function syncWishlist(productIds: string[], expectedUserId: string): Promise<void> {
   const { userId } = await auth()
-  if (!userId) return
+  if (!userId || userId !== expectedUserId) return
+  await writeWishlist(userId, sanitizeWishlistIds(productIds))
+}
 
-  const key = `wishlist:${userId}`
+export type HydratedCartLine = CartLine & { product: GetSlugProduct }
 
-  if (!productIds.length) {
-    await Promise.all([
-      redis.del(key),
-      db.delete(wishlistItems).where(eq(wishlistItems.userId, userId)),
+export type HydrateResult =
+  | {
+      ok:       true
+      userId:   string
+      cart:     HydratedCartLine[]
+      wishlist: { ids: string[]; products: GetSlugProduct[] }
+    }
+  | { ok: false; error: 'unauthenticated' | 'failed' }
+
+const sameCart = (a: CartLine[], b: CartLine[]) =>
+  a.length === b.length &&
+  a.every((l, i) => l.productId === b[i].productId && l.variantId === b[i].variantId && l.qty === b[i].qty)
+
+const sameIds = (a: string[], b: string[]) =>
+  a.length === b.length && a.every(id => b.includes(id))
+
+/**
+ * Wywoływane po zalogowaniu i przy każdym starcie aplikacji dla zalogowanego.
+ * Scala koszyk i wishlistę gościa z kontem, zapisuje wynik, sprząta dane gościa
+ * i zwraca stan gotowy do wstawienia w store — razem ze świeżymi danymi
+ * produktów z Sanity (ceny, dostępność).
+ *
+ * Zwraca wynik zamiast rzucać — Next maskuje treść wyjątków na produkcji.
+ */
+export async function hydrateUserSession(input: {
+  guestCart:     CartLine[]
+  guestWishlist: string[]
+}): Promise<HydrateResult> {
+  const { userId } = await auth()
+  if (!userId) return { ok: false, error: 'unauthenticated' }
+
+  try {
+    const guestId = await readGuestId()
+
+    const [userCart, serverGuestCart, userWishlist] = await Promise.all([
+      readCart(userId),
+      guestId ? readCart(guestId) : Promise.resolve<CartLine[]>([]),
+      readWishlist(userId),
     ])
-    return
+
+    // Kopia z localStorage jest najświeższa (kopia serwerowa gościa jest
+    // debounce'owana). Gdy localStorage jest pusty, a ciasteczko gościa
+    // przetrwało — korzystamy z kopii serwerowej.
+    const clientGuestCart = sanitizeCartLines(input.guestCart)
+    const guestCart       = clientGuestCart.length ? clientGuestCart : serverGuestCart
+
+    const mergedCart     = mergeCartLines(userCart, guestCart)
+    const mergedWishlist = mergeWishlistIds(userWishlist, sanitizeWishlistIds(input.guestWishlist))
+
+    const ids      = [...new Set([...mergedCart.map(l => l.productId), ...mergedWishlist])]
+    // Rzuca przy awarii Sanity → trafiamy do catch i NIE nadpisujemy danych
+    // konta okrojoną listą.
+    const products = await fetchProductsByIds(ids)
+
+    const cart        = reconcileWithCatalog(mergedCart, products)
+    const productById = new Map(products.map(p => [p._id, p]))
+    const wishlistIds = mergedWishlist.filter(id => productById.has(id))
+    const cartLines   = cart.map(({ productId, variantId, qty }) => ({ productId, variantId, qty }))
+
+    await Promise.all([
+      sameCart(cartLines, userCart)       ? null : writeCart(userId, cartLines),
+      sameIds(wishlistIds, userWishlist)  ? null : writeWishlist(userId, wishlistIds),
+    ])
+
+    if (guestId) {
+      await deleteCart(guestId)
+      await clearGuestCookie()
+    }
+
+    return {
+      ok: true,
+      userId,
+      cart,
+      wishlist: { ids: wishlistIds, products: wishlistIds.map(id => productById.get(id)!) },
+    }
+  } catch (err) {
+    console.error('[hydrateUserSession] failed', err)
+    return { ok: false, error: 'failed' }
   }
-
-  // Redis — zastąp cały set
-  await redis.del(key)
-  await redis.sAdd(key, productIds)
-  await redis.expire(key, 60 * 60 * 24 * 30)
-
-  // MySQL — usuń stare, wstaw nowe
-  await db.delete(wishlistItems).where(eq(wishlistItems.userId, userId))
-  await db.insert(wishlistItems).values(
-    productIds.map(productId => ({ userId, productId }))
-  )
-}
-
-export async function fetchServerCart(): Promise<CartSyncItem[]> {
-  const ownerId = await getOwnerId()
-  const raw = await redis.get(`cart:${ownerId}`)
-  return raw ? JSON.parse(raw) : []
-}
-
-export async function fetchServerWishlist(): Promise<string[]> {
-  const { userId } = await auth()
-  if (!userId) return []
-  return redis.sMembers(`wishlist:${userId}`)
-}
-
-export async function mergeGuestCart(): Promise<void> {
-  const { userId } = await auth()
-  if (!userId) return
-
-  const cookieStore = await cookies()
-  const guestId = cookieStore.get('guest_id')?.value
-  if (!guestId) return
-
-  const [guestRaw, userRaw] = await Promise.all([
-    redis.get(`cart:${guestId}`),
-    redis.get(`cart:${userId}`),
-  ])
-
-  const guestItems: CartSyncItem[] = guestRaw ? JSON.parse(guestRaw) : []
-  const userItems:  CartSyncItem[] = userRaw  ? JSON.parse(userRaw)  : []
-
-  if (!guestItems.length) return
-
-  const merged = [...userItems]
-  for (const g of guestItems) {
-    const conflict = merged.find(
-      i => i.productId === g.productId && i.variantId === g.variantId
-    )
-    if (!conflict) merged.push(g)
-  }
-
-  await Promise.all([
-    redis.setEx(`cart:${userId}`, 60 * 60 * 24 * 30, JSON.stringify(merged)),
-    redis.del(`cart:${guestId}`),
-    db.delete(cartItems).where(eq(cartItems.ownerId, guestId)),
-  ])
-
-  cookieStore.delete('guest_id')
 }

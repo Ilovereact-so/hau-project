@@ -73,7 +73,7 @@ async function deleteDevDocuments() {
             transaction = transaction.delete(id);
         });
 
-        const result = await transaction.commit();
+        await transaction.commit();
         
         console.log("\n--- SUKCES ---");
         console.log(`Usunięto ${documentIds.length} dokumentów.`);

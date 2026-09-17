@@ -17,33 +17,75 @@ const isPublicRoute = createRouteMatcher([
   // product browsing is public
   '/(products)/(.*)',
   '/subcategory/(.*)',
+  // wyniki wyszukiwania — publiczne tak samo jak przeglądanie subkategorii.
+  // (Bez tego i tak przechodziło, bo trasa nie łapie się na isProtectedRoute
+  // ani isAdminRoute i spada do końcowego next() — ale lepiej mieć to wprost.)
+  '/search',
+  // Strony kolekcji (baner na stronie głównej prowadzi właśnie tu).
+  '/kolekcje',
+  '/kolekcje/(.*)',
+  // Centrum pomocy (regulamin, polityka prywatności, dostawa...) — dokumenty
+  // muszą być dostępne bez logowania, m.in. dlatego że linkuje do nich
+  // checkout i wymagają tego przepisy konsumenckie.
+  '/help',
+  '/help/(.*)',
+  // Koszyk działa bez logowania (logowanie wymagane dopiero w /checkout),
+  // a wishlista gościa żyje w profilu — to jedyna zakładka profilu dostępna
+  // bez konta.
+  '/cart',
+  '/wishlist',
+  '/profile',
+  '/profile/wishlist(.*)',
+  '/api/cart(.*)',
+  '/api/wishlist(.*)',
+  // Opinie o produktach: odczyt jest publiczny, a zapis idzie przez akcje
+  // serwerowe, które same sprawdzają zalogowanie (actions/reviews.ts).
+  '/api/reviews(.*)',
+  // Najniższa cena z 30 dni dla kafelków — odczyt publiczny.
+  '/api/prices(.*)',
+  // Zadania okresowe — autoryzacja sekretem (CRON_SECRET) w samej trasie.
+  '/api/cron/(.*)',
 ])
 
-const isAdminRoute = createRouteMatcher(['/admin(.*)'])
+// `/upload` to dawny uploader CSV z grupy (admin) — dziś tylko przekierowuje
+// do /admin/import, ale nie może być dostępny bez roli admina.
+const isAdminRoute = createRouteMatcher(['/admin(.*)', '/upload(.*)'])
+
+// Sekcje konta w /profile (dane, zamówienia, płatności) wymagają logowania.
+// /profile/wishlist jest publiczne (patrz wyżej) — publiczne trasy są
+// sprawdzane wcześniej, więc tu wystarczy ogólny wzorzec.
+const isProtectedRoute = createRouteMatcher(['/profile(.*)'])
+
+// Prosta detekcja mobile po User-Agent — używana wyłącznie jako podpowiedź dla
+// pierwszego SSR render (żeby navbar od razu wyrenderował właściwy wariant
+// mobile/desktop i nie "przeskakiwał" po hydracji). Realna detekcja przez
+// matchMedia w przeglądarce nadal działa jak dotąd i nadpisuje tę podpowiedź,
+// więc błędna klasyfikacja UA nie psuje niczego — najwyżej jedna dodatkowa
+// animowana zmiana layoutu zamiast żadnej.
+const MOBILE_UA_RE = /Android|iPhone|iPod|iPad|Mobile|Windows Phone/i
 
 export default clerkMiddleware(async (auth, req) => {
   const { userId, sessionClaims } = await auth()
 
-  // trigger guest-cart merge on first authenticated request
-  const guestId = req.cookies.get('guest_id')?.value
-  const merged  = req.cookies.get('cart_merged')?.value
-  if (userId && guestId && !merged) {
-    const res = NextResponse.next()
-    res.cookies.set('needs_cart_merge', '1', {
-      httpOnly: true,
-      maxAge:   60,
-      sameSite: 'lax',
-    })
-    return res
-  }
+  const isMobileUA = MOBILE_UA_RE.test(req.headers.get('user-agent') ?? '')
+  const requestHeaders = new Headers(req.headers)
+  requestHeaders.set('x-is-mobile', isMobileUA ? '1' : '0')
+  const next = () => NextResponse.next({ request: { headers: requestHeaders } })
 
-  if (isPublicRoute(req)) return NextResponse.next()
+  // Scalanie koszyka gościa z kontem robi klient (StoreHydration →
+  // hydrateUserSession) — middleware nic tu nie ustawia. Wcześniejszy blok
+  // `needs_cart_merge` robił `return` przed sprawdzeniem roli admina.
 
-  // unauthenticated → sign-in with redirect back
-  if (!userId) {
-    const signInUrl = new URL('/sign-in', req.url)
-    signInUrl.searchParams.set('redirect_url', req.url)
-    return NextResponse.redirect(signInUrl)
+  if (isPublicRoute(req)) return next()
+
+  // Gość na zablokowanej sekcji profilu → profil (wishlista) z otwartym
+  // modalem logowania; po zalogowaniu wraca na żądaną stronę.
+  // Pozostałe chronione trasy (checkout, orders) mają własny auth()+redirect.
+  if (!userId && isProtectedRoute(req)) {
+    const url = new URL('/profile/wishlist', req.url)
+    url.searchParams.set('login', '1')
+    url.searchParams.set('redirect_url', req.nextUrl.pathname + req.nextUrl.search)
+    return NextResponse.redirect(url)
   }
 
   // admin routes — require admin role
@@ -54,7 +96,7 @@ export default clerkMiddleware(async (auth, req) => {
     }
   }
 
-  return NextResponse.next()
+  return next()
 })
 
 export const config = {

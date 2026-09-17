@@ -31,13 +31,14 @@ export const WishlistButton = memo(function WishlistButton({
     <button
       onClick={handleClick}
       aria-label={isWishlisted ? 'Usuń z polubionych' : 'Dodaj do polubionych'}
-      className={cn('w-[22px] h-[22px] transition-transform active:scale-125', className)}
+      className={cn('md:w-[22px] md:h-[22px] w-[20px] h-[20px] transition-transform active:scale-125', className)}
     >
       <Image
         src={isWishlisted ? '/heart.svg' : '/heart_border.svg'}
         width={22}
         height={22}
         alt="Heart icon"
+        className="md:w-[22px] md:h-[22px] w-[20px] h-[20px]"
       />
     </button>
   )

@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useClerk } from "@clerk/nextjs";
+import { consumePostAuthRedirect } from "@/lib/authRedirect";
 
 export default function SSOCallback() {
   const { handleRedirectCallback } = useClerk();
@@ -16,7 +17,8 @@ export default function SSOCallback() {
         // Clerk oczekuje obiektu { ...searchParams }
 
         await handleRedirectCallback(params); 
-        router.push("/"); // po udanym logowaniu
+        // cel zapisany przed przekierowaniem do dostawcy OAuth
+        router.push(consumePostAuthRedirect("/"));
       } catch (err) {
         console.error("Błąd w SSO callback:", err);
         router.push("/sign-in"); // fallback

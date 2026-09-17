@@ -1,4 +1,10 @@
 // app/sign-in/layout.tsx
+import type { Metadata } from "next"
+
+// Logowanie, rejestracja i reset hasła nie mają wartości w wyszukiwarce.
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+}
 
 export default function SignInLayout({
   children,

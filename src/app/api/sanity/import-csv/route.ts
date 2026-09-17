@@ -14,25 +14,49 @@ import {
   normalizeSlugForImages,
   matchZipImagesToSlug,
   parseFilterValues,
+  parseCollectionNames,
 } from "@/sanity/helpers/productImportHelpers";
+import { buildCollectionRefs, ensureCollectionsByName } from "@/lib/admin/collections";
+
+// audyt hurtowych importów (panela admina): zapisuj statystyki do import_jobs
+import { db } from "@/lib/db";
+import { importJobs } from "@/db/schema";
+import { adminDenied } from "@/lib/admin/guard";
+import { invalidateCatalogCache } from "@/lib/admin/catalog";
+import { auth } from "@clerk/nextjs/server";
+import { recordPriceChanges } from "@/lib/priceHistory";
 
 // =========================
 //      POST HANDLER
 // =========================
 
+export const runtime = "nodejs";
+export const maxDuration = 300;
+
 export async function POST(req: Request) {
+  // Trasa zapisuje do Sanity tokenem z uprawnieniami zapisu — wyłącznie dla admina.
+  // (Middleware przepuszcza /api/sanity/* bez logowania, więc kontrola musi być tutaj.)
+  const denied = await adminDenied();
+  if (denied) {
+    return NextResponse.json({ error: denied.error }, { status: denied.status });
+  }
+  const { userId } = await auth();
+
   try {
     const form = await req.formData();
 
     const csvText = form.get("csvText") as string;
-    const zipFile = form.get("zip") as File | null;
+    const zipEntry = form.get("zip");
+    const zipFile = zipEntry instanceof File && zipEntry.size > 0 ? zipEntry : null;
+    const csvName = String(form.get("csvName") ?? "").slice(0, 200);
+
+    // tryb walidacji bez zapisu (panela admina: sucha próba przed właściwym importem)
+    const dryRun = form.get("dryRun") === "1" || form.get("mode") === "dry-run";
 
     if (!csvText) {
       return NextResponse.json({ error: "Missing csvText" }, { status: 400 });
     }
-    if (!zipFile) {
-      return NextResponse.json({ error: "Missing zip file" }, { status: 400 });
-    }
+    // ZIP ze zdjęciami jest OPCJONALNY — bez niego importujemy same dane.
 
     // --- PARSE CSV ---
     const parsed = Papa.parse<Record<string, string | undefined>>(csvText, {
@@ -48,6 +72,8 @@ export async function POST(req: Request) {
     }
     
     const logs: string[] = [];
+    // Produkty zapisane w tym imporcie — do rejestru cen po zakończeniu.
+    const importedIds = new Set<string>();
     let savedId: string | null = null;
 
     // =========================
@@ -96,6 +122,19 @@ export async function POST(req: Request) {
 
 
 
+        // 2c. KOLEKCJE (opcjonalnie) — brakujące powstają jako SZKIC kolekcji.
+        // Pusta komórka nie zmienia kolekcji produktu; przy aktualizacji
+        // kolekcje z CSV są DOKŁADANE do już przypisanych (nic nie znika).
+        const collectionNames = parseCollectionNames(row);
+        let collectionIds: string[] = [];
+        if (collectionNames.length) {
+          const { ids, created } = await ensureCollectionsByName(collectionNames, { dryRun });
+          collectionIds = ids;
+          if (created.length) {
+            logs.push(`${dryRun ? "[dry-run] Utworzono by" : "Utworzono"} szkic kolekcji: ${created.join(", ")}`);
+          }
+        }
+
         //------------------------------------
         // 3. IMAGES FROM ZIP (IF PRESENT)
         //------------------------------------
@@ -120,7 +159,8 @@ export async function POST(req: Request) {
         const slugForImages = normalizeSlugForImages(row, partial);
         
         logs.push(`Slug for images: ${slugForImages}`);
-        if (slugForImages) {
+        // w trybie dry-run NIE wysyłamy plików do Sanity (tylko raport, co by się stało)
+        if (slugForImages && !dryRun) {
           const matched = matchZipImagesToSlug(zipImages, slugForImages);
           logs.push(`Matched ${matched.length} images for slug "${slugForImages}"`);
           const baseLabel =
@@ -140,6 +180,9 @@ export async function POST(req: Request) {
             logs.push(`- Uploaded image: ${file.filename}, asset ID: ${asset._id}`);
             imageIndex++;
           }
+        } else if (slugForImages) {
+          const matched = matchZipImagesToSlug(zipImages, slugForImages);
+          logs.push(`[dry-run] Matched ${matched.length} images (nie wgrano)`);
         }
         logs.push(`Total images uploaded for product ${i + 1}: ${imageAssets.length}`);
 
@@ -290,10 +333,18 @@ export async function POST(req: Request) {
         //------------------------------------
         //const docId = partial.sku ? `product.${partial.sku}` : undefined;
         const existingProduct = await sanityClient.fetch(
-                `*[_type=="product" && sku==$sku][0]{_id, title}`,
+                `*[_type=="product" && sku==$sku][0]{_id, title, "collectionIds": collections[]._ref}`,
                 { sku: partial.sku }
             );
-        if (existingProduct) {
+        if (collectionIds.length) {
+          const current: string[] = Array.isArray(existingProduct?.collectionIds)
+            ? existingProduct.collectionIds.filter((id: unknown): id is string => typeof id === "string")
+            : [];
+          partial.collections = buildCollectionRefs([...current, ...collectionIds]);
+        }
+        if (dryRun) {
+          logs.push(`[dry-run] ${i + 1}/${rows.length}: SKU ${partial.sku} → ${existingProduct ? 'UPDATE' : 'CREATE'} (bez zapisu)`);
+        } else if (existingProduct) {
           // ------------------------------------
           // OPCJA 1: AKTUALIZACJA (PATCH)
           // ------------------------------------
@@ -306,6 +357,7 @@ export async function POST(req: Request) {
               .commit();
               
 
+          importedIds.add(<string>savedId);
           logs.push(`Updated ${i + 1}/${rows.length}: ${savedId} (SKU: ${partial.sku}, Patched)`);
 
         }else {
@@ -315,6 +367,7 @@ export async function POST(req: Request) {
             const { options, ...payload } = partial;
             const saved = await sanityClient.create(payload);
             savedId = saved._id;
+            importedIds.add(saved._id);
 
             // Uwaga: Tutaj nie potrzebujemy dodatkowego patcha, ponieważ 
             // pole lastImportedAt już wymusza publiczny commit!
@@ -327,6 +380,32 @@ export async function POST(req: Request) {
       }
     }
 
+
+    // ── audyt: zapisz statystyki do import_jobs (panela admina) ────────────────
+    try {
+      const okRows    = logs.filter((l) => l.startsWith('Created') || l.startsWith('Updated') || l.startsWith('[dry-run]')).length
+      const failedRows = logs.filter((l) => l.startsWith('Failed') || l.startsWith('SUBCATEGORY NOT FOUND') || l.startsWith('FilterOption NOT FOUND') || l.startsWith('FilterValue NOT FOUND')).length
+      await db.insert(importJobs).values({
+        id:         crypto.randomUUID(),
+        type:       'products',
+        fileName:   [csvName || 'produkty.csv', zipFile?.name].filter(Boolean).join(' + ').slice(0, 256),
+        totalRows:  rows.length,
+        okRows,
+        failedRows,
+        status:     rows.length > 0 && okRows === 0 ? 'failed' : 'done',
+        logJson:    JSON.stringify(logs),
+        createdBy:  userId ?? 'admin',
+        createdAt:  new Date(),
+      })
+    } catch (e) {
+      console.error('import_jobs audit failed:', e)
+    }
+
+    if (!dryRun) {
+      await invalidateCatalogCache();
+      // Rejestr najniższej ceny z 30 dni — ceny z importu (nowe i zmienione).
+      if (importedIds.size) await recordPriceChanges([...importedIds], "import");
+    }
 
     return NextResponse.json({ logs });
   } catch (err: any) {

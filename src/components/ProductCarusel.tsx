@@ -1,47 +1,36 @@
 'use client'
-import { client } from '@/sanity/lib/client'
 import { ArrowRight } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
-import { GetSlugProduct, Product } from '../../sanity.types'
+import { GetSlugProduct } from '../../sanity.types'
 import ProductItem from './ProductItem'
 import Carousel from './Carousel'
 import { twMerge } from 'tailwind-merge'
 import { getCarouselProduct } from '@/sanity/helpers/clientRequest'
+import { ProductCardRowSkeleton } from './ui/Skeleton'
 
 type Props =  {
     title : string,
     subtitle : string,
-    className?: string  
+    className?: string
+    // Slug kategorii Sanity, którego produkty ma pokazać karuzela. Wcześniej
+    // był na sztywno wpisany "feeding" w useEffect poniżej — niezależnie od
+    // tego, jaki `title`/`subtitle` dostał komponent, zawsze renderowały się
+    // te same produkty. Domyślna wartość zostaje "feeding", żeby nie zmieniać
+    // zachowania istniejących wywołań bez zmiany propsów.
+    categorySlug?: string
 }
-const PRODUCTS_QUERY = `
-*[
-  _type == "product" &&
-  defined(category) &&
-  category->slug.current == $slug
-]
-[0...20]
-{
-  ...,
-  category->{
-    _id,
-    title,
-    slug
-  }
-}
-`
 
-const QUERY_PARAMS = { slug: 'feeding' }
-
-const ProductCarusel = ({title, subtitle, className}:Props) => {
+const ProductCarusel = ({title, subtitle, className, categorySlug = 'feeding'}:Props) => {
     const [products, setProducts] = useState<GetSlugProduct[]>([])
     const [loading, setLoading] = useState<boolean>(true)
 
     useEffect(() => {
-        getCarouselProduct("feeding").then((data) => {
+        setLoading(true)
+        getCarouselProduct(categorySlug).then((data) => {
             setProducts(data)
             setLoading(false)
         })
-    }, [])
+    }, [categorySlug])
 
     return (
     <div className={twMerge('w-full h-auto font-poppins lg:mt-12 mt-8', className)}>
@@ -58,7 +47,9 @@ const ProductCarusel = ({title, subtitle, className}:Props) => {
         <Carousel>
             <div className='flex 1xl:space-x-10 lg:space-x-7 space-x-5 w-auto h-auto'>
                 {
-                    loading ? <span>Products is loading...</span> :
+                    // Szkielety zamiast napisu "Products is loading..." (patrz
+                    // components/ui/Skeleton.tsx) — ten sam rząd szerokości co ProductItem.
+                    loading ? <ProductCardRowSkeleton count={4} /> :
                     products.map((item: GetSlugProduct)=>(
                         <ProductItem product={item} key={item?._id}/>
                     ))

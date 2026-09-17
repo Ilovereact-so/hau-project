@@ -25,11 +25,10 @@ export function useProductSearch(query: string) {
         setLoading(true)
 
         const data = await searchProductsByName(query, controller)
-        console.log("search results", data)
 
         const finaldata = data.map((d:ProductSearchResult) => ({
           ...d,
-          path: `${d.category.title} > ${d.type.title}`
+          path: `${d.category.title} / ${d.type.title}`
         }))
         setResults(finaldata)
       } catch (err: any) {

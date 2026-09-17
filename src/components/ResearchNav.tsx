@@ -1,5 +1,5 @@
 'use client'
-import React, { useState } from 'react'
+import React from 'react'
 import AutoResizeInput from './AutoResizeInput'
 
 const ResearchNav = ({isMobile, minWidth, mode, maxWidth, focusChanges, blurChanges, value, setValue}:{isMobile:boolean, minWidth:number, mode:number, maxWidth?:number, focusChanges?: VoidFunction, blurChanges?: VoidFunction, value?: string, setValue: (value: string) => void}) => {

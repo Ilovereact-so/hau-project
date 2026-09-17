@@ -1,39 +1,50 @@
+'use client'
+
 import React from 'react'
-import { GetSlugProduct, Product } from '../../sanity.types'
+import { GetSlugProduct } from '../../sanity.types'
 import Image from 'next/image'
 import { urlFor } from '@/sanity/lib/image'
-import { Heart } from 'lucide-react'
 import Link from 'next/link'
-import PriceFormatter from './PriceFormatter'
+import { DiscountBadge, OmnibusNote, PriceRow, useProductPrice } from './price/ProductPrice'
 import { WishlistButton } from './WishlistButton'
+import { ProductRatingBadge } from './reviews/ProductRatingBadge'
 
 const ProductItemWithoutBTN = ({product}:{product: GetSlugProduct & { defaultVariant?: string }}) => {
+  const priceState = useProductPrice(product)
   return (
     <div className='relative w-max flex flex-col justify-between h-fit'>
       {product?.images && 
         <Link href={`/product/${product?.slug?.current}?variant=${product?.variants?.[0]?._key}`} className='' >
-          <Image src={urlFor(product?.images[0]).url()} alt={String(product?.title)} width={290} height={290} className='max-2.5xl:w-[calc((100vw-156px)/3))] w-[calc((100vw-156px)/4))] 4xl:w-[calc((1900px-156px)/4))] max-2.5xl:h-[calc((100vw-156px)/3))] h-[calc((100vw-156px)/4))] 4xl:h-[calc((1900px-156px)/4))] brightness-90'/>
+          <Image src={urlFor(product?.images[0]).url()} alt={String(product?.title)} width={290} height={290} className='max-sm:w-[calc((100vw-66px)/2))] max-md:w-[calc((100vw-110px)/3))] max-lg:w-[calc((100vw-156px)/3))] max-1.5xl:w-[calc((100vw-156px)/4))] w-[calc((100vw-156px)/5))] 4xl:w-[calc((1900px-156px)/5))] max-sm:h-[calc((100vw-100px)/2))] max-md:h-[calc((100vw-110px)/3))] max-lg:h-[calc((100vw-156px)/3))] max-1.5xl:h-[calc((100vw-156px)/4))] h-[calc((100vw-156px)/5))] 4xl:h-[calc((1900px-156px)/5))] brightness-92'/>
         </Link>
       }
-      <WishlistButton productId={product._id} product={product} className='absolute top-4 left-4'/>
+      <WishlistButton productId={product._id} product={product} className='absolute top-4 right-4'/>
+      <DiscountBadge
+        state={priceState}
+        className='bg-[#e2f3f0] p-1 px-2 rounded-[10px] text-black absolute top-4 left-4 2xl:text-[16px] sm:text-[15px] text-[13px]'
+      />
       
-      
-      <div className='flex flex-col'>
-        <div className='text-black mt-4'>
-            <p className='text-[16px]'>{product.brand}</p>
-            <h1 className='text-[18px] font-semibold line-clamp-2'>{product.title}</h1>
+      <div className='flex flex-col max-sm:w-[calc((100vw-66px)/2))] max-md:w-[calc((100vw-110px)/3))] max-lg:w-[calc((100vw-156px)/3))] max-1.5xl:w-[calc((100vw-156px)/4))]s w-[calc((100vw-156px)/5))] 4xl:w-[calc((1900px-156px)/5))]'>
+        <div className='text-black mt-3'>
+            <p className='2xl:text-[16px] sm:text-[15px] text-[13px]'>{product.brand}</p>
+            <h1 className='2xl:text-[18px] sm::text-[16px] text-[14px] font-medium line-clamp-1 pr-1'>{product.title}</h1>
         </div>
-        <p className='mt-1 text-[#6C6C6C] text-[16px] line-clamp-2'>Najniższa cena z ostatnich 30dni:</p>
-        <p className='text-[#6C6C6C] text-[16px] line-clamp-2'><PriceFormatter amount={product?.price} className='font-normal'/></p>
+        <ProductRatingBadge
+          productId={product._id}
+          href={`/product/${product?.slug?.current}?variant=${product?.variants?.[0]?._key}#opinie`}
+          className='sm:my-3 my-1'
+        />
+        <OmnibusNote
+          state={priceState}
+          className='text-[#6C6C6C] sm:text-[14px] text-[12px] line-clamp-2'
+          labelClassName='mt-1'
+        />
         <div className='mt-2'>
-          {product?.compareAtPrice ? 
-          <div className='text-[16px] space-x-2 flex'>
-            <p className='text-black'><PriceFormatter amount={product?.price} className='font-medium'/></p>
-            <div className='text-[#6C6C6C] flex'><span className='line-through'><PriceFormatter amount={product?.compareAtPrice} className='font-normal'/></span><span>{(100 - ((parseFloat(String(product?.compareAtPrice)) / parseFloat(String(product?.price))) * 100)).toFixed(0)}%</span></div>
-          </div>
-          :
-          <p className='text-black'><PriceFormatter amount={product?.price} className='font-medium'/></p>
-        }
+          <PriceRow
+            state={priceState}
+            className='2xl:text-[16px] sm:text-[15px] text-[13px]'
+            priceClassName='2xl:text-[16px] sm:text-[15px] text-[13px]'
+          />
         </div>
           
       </div>

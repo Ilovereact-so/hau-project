@@ -1,4 +1,5 @@
-import React, { useRef, useEffect, useState, ReactNode } from "react";
+'use client'
+import React, { useRef, useEffect, ReactNode } from "react";
 import { motion, useAnimationControls } from "framer-motion";
 import {useMediaQuery} from "./useMediaQuery";
 

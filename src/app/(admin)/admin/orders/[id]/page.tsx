@@ -1,0 +1,256 @@
+import type { Metadata } from 'next'
+import Link from 'next/link'
+import { notFound } from 'next/navigation'
+import {
+  ArrowLeft, BadgeCheck, CreditCard, ExternalLink, MapPin, ShoppingBag, StickyNote, UserRound,
+} from 'lucide-react'
+import { getAdminOrderDetail } from '@/lib/admin/ordersQueries'
+import {
+  OrderStatusLabel, PaymentMethodLabel, PaymentProviderLabel, PaymentTxLabel, ShipmentStatusLabel,
+} from '@/lib/admin/labels'
+import {
+  Badge, ORDER_STATUS_TONES, PAYMENT_TX_TONES, SHIPMENT_TONES, toneFor,
+} from '@/components/admin/kit/Badge'
+import { Card, CardHeader, Field, Line } from '@/components/admin/kit/Card'
+import { DataTable, Td, Th, Tr } from '@/components/admin/kit/DataTable'
+import { formatCentsPrecise, formatDateTime, orderNumber } from '@/components/admin/kit/format'
+import { OrderActions } from '@/components/admin/orders/OrderActions'
+
+export const dynamic = 'force-dynamic'
+
+type Params = Promise<{ id: string }>
+
+export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+  const { id } = await params
+  return { title: `Zamówienie ${orderNumber(id)}` }
+}
+
+export default async function AdminOrderDetailPage({ params }: { params: Params }) {
+  const { id } = await params
+  const data = await getAdminOrderDetail(id)
+  if (!data) notFound()
+  const { order, items, address, payments, shipment, customerOrderCount } = data
+  const isGuest = !order.userId.startsWith('user_')
+  const units = items.reduce((sum, item) => sum + item.qty, 0)
+
+  return (
+    <div className="flex flex-col gap-4 animate-fade-in">
+      <Link href="/admin/orders" className="inline-flex w-fit items-center gap-1.5 text-xs font-medium text-text-2 hover:text-text">
+        <ArrowLeft size={14} strokeWidth={1.5} />
+        Wszystkie zamówienia
+      </Link>
+
+      <Card className="flex flex-col">
+        <CardHeader
+          icon={BadgeCheck}
+          title={`Zamówienie ${orderNumber(order.id)}`}
+          subtitle={
+            <>
+              Złożone {formatDateTime(order.createdAt)} · ostatnia zmiana {formatDateTime(order.updatedAt)} ·{' '}
+              <code className="font-mono text-[11px]">{order.id}</code>
+            </>
+          }
+          actions={
+            <>
+              <Badge tone={toneFor(ORDER_STATUS_TONES, order.status)}>{OrderStatusLabel[order.status] ?? order.status}</Badge>
+              <Badge tone={order.paymentMethod === 'cod' ? 'neutral' : toneFor(PAYMENT_TX_TONES, payments[0]?.status)}>
+                {order.paymentMethod === 'cod'
+                  ? 'Za pobraniem'
+                  : payments[0]
+                    ? `Płatność: ${PaymentTxLabel[payments[0].status] ?? payments[0].status}`
+                    : 'Brak transakcji'}
+              </Badge>
+              <Badge tone={shipment ? toneFor(SHIPMENT_TONES, shipment.status) : 'neutral'}>
+                {shipment ? ShipmentStatusLabel[shipment.status] ?? shipment.status : 'Nie nadano'}
+              </Badge>
+            </>
+          }
+        />
+        <div className="px-4 pt-3 pb-4">
+          <OrderActions
+            orderId={order.id}
+            status={order.status}
+            shipment={shipment}
+            shippingMethod={order.shippingMethod}
+            isPickupPoint={Boolean(address?.pickupPointCode)}
+          />
+        </div>
+      </Card>
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <Card className="flex min-w-0 flex-col">
+          <CardHeader icon={ShoppingBag} title="Pozycje zamówienia" subtitle={`${items.length} pozycji · ${units} szt.`} />
+          <div className="px-4 pt-3 pb-4">
+            <DataTable>
+              <thead>
+                <tr>
+                  <Th>Produkt</Th>
+                  <Th className="text-right">Ilość</Th>
+                  <Th className="text-right">Cena</Th>
+                  <Th className="text-right">Wartość</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <Tr key={item.id}>
+                    <Td>
+                      <span className="flex items-center gap-3">
+                        <span className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-xs border border-border bg-surface-muted">
+                          {item.imageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={item.imageUrl.includes('cdn.sanity.io') ? `${item.imageUrl.split('?')[0]}?w=96&h=96&fit=crop` : item.imageUrl}
+                              alt=""
+                              className="size-full object-cover"
+                            />
+                          ) : null}
+                        </span>
+                        <span className="min-w-0">
+                          {item.brand && <span className="block text-[11px] text-text-2">{item.brand}</span>}
+                          <span className="block font-medium text-text">{item.name}</span>
+                          {item.variantLabel && <span className="block text-[11px] text-text-2">{item.variantLabel}</span>}
+                        </span>
+                      </span>
+                    </Td>
+                    <Td className="text-right">{item.qty}</Td>
+                    <Td className="text-right whitespace-nowrap">{formatCentsPrecise(item.priceCents)}</Td>
+                    <Td className="text-right font-medium whitespace-nowrap">{formatCentsPrecise(item.priceCents * item.qty)}</Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </DataTable>
+
+            <dl className="mt-4 ml-auto flex max-w-sm flex-col gap-1.5 text-xs">
+              <Line label="Wartość produktów" value={formatCentsPrecise(order.subtotalCents)} />
+              <Line label={`Dostawa (${order.shippingMethod})`} value={formatCentsPrecise(order.shippingCents)} />
+              {order.discountCents > 0 && (
+                <Line
+                  label={`Rabat${order.discountCode ? ` (${order.discountCode})` : ''}`}
+                  value={`−${formatCentsPrecise(order.discountCents)}`}
+                  tone="success"
+                />
+              )}
+              <Line label="Razem" value={formatCentsPrecise(order.totalCents)} strong />
+              <Line
+                label="Zaksięgowano online"
+                value={formatCentsPrecise(
+                  payments.filter((payment) => payment.status === 'success').reduce((sum, payment) => sum + payment.amountCents, 0)
+                )}
+              />
+            </dl>
+          </div>
+        </Card>
+
+        <div className="flex flex-col gap-4">
+          <Card className="flex flex-col">
+            <CardHeader icon={UserRound} title="Klient" />
+            <div className="flex flex-col gap-3 px-4 pt-3 pb-4 text-xs">
+              <Field label="Kontakt">
+                {address ? `${address.firstName} ${address.lastName}` : '—'}
+                <br />
+                <a href={`mailto:${address?.email ?? order.guestEmail ?? ''}`} className="text-text-2 hover:text-text">
+                  {address?.email || order.guestEmail || 'brak e-maila'}
+                </a>
+                {address?.phone && (
+                  <>
+                    <br />
+                    <a href={`tel:${address.phone}`} className="text-text-2 hover:text-text">{address.phone}</a>
+                  </>
+                )}
+              </Field>
+              <Field label="Konto">
+                {isGuest ? 'Zakup jako gość' : 'Zalogowany klient'} ·{' '}
+                <Link href={`/admin/orders?q=${encodeURIComponent(order.userId)}`} className="text-text-2 underline-offset-2 hover:text-text hover:underline">
+                  {customerOrderCount} {customerOrderCount === 1 ? 'zamówienie' : 'zamówień'}
+                </Link>
+              </Field>
+            </div>
+          </Card>
+
+          <Card className="flex flex-col">
+            <CardHeader icon={MapPin} title="Dostawa" />
+            <div className="flex flex-col gap-3 px-4 pt-3 pb-4 text-xs">
+              <Field label={address?.pickupPointCode ? 'Punkt odbioru' : 'Adres dostawy'}>
+                {!address ? (
+                  '—'
+                ) : address.pickupPointCode ? (
+                  <>
+                    {address.pickupPointName || address.pickupPointCode}
+                    <br />
+                    <code className="font-mono text-[11px] text-text-2">{address.pickupPointCode}</code>
+                  </>
+                ) : (
+                  <>
+                    {address.street}
+                    {address.apartment_number ? ` / ${address.apartment_number}` : ''}
+                    <br />
+                    {[address.postalCode, address.city].filter(Boolean).join(' ')} · {address.country}
+                  </>
+                )}
+              </Field>
+              <Field label="Sposób dostawy">
+                <code className="font-mono text-[11px]">{order.shippingMethod}</code> · {formatCentsPrecise(order.shippingCents)}
+              </Field>
+              {shipment && (
+                <Field label="Przesyłka">
+                  {shipment.carrier} · {ShipmentStatusLabel[shipment.status] ?? shipment.status}
+                  {shipment.trackingNumber && (
+                    <>
+                      <br />
+                      <code className="font-mono text-[11px] text-text-2">{shipment.trackingNumber}</code>
+                    </>
+                  )}
+                  <br />
+                  <span className="text-text-2">utworzona {formatDateTime(shipment.createdAt)}</span>
+                </Field>
+              )}
+            </div>
+          </Card>
+
+          <Card className="flex flex-col">
+            <CardHeader icon={CreditCard} title="Płatność" />
+            <div className="flex flex-col gap-3 px-4 pt-3 pb-4 text-xs">
+              <Field label="Sposób zapłaty">{PaymentMethodLabel[order.paymentMethod] ?? order.paymentMethod}</Field>
+              <Field label="Transakcje">
+                {payments.length ? (
+                  <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                    {payments.map((payment) => (
+                      <li key={payment.id} className="rounded-xs border border-border bg-surface px-2.5 py-2">
+                        <span className="flex items-center justify-between gap-2">
+                          <b className="font-medium">{PaymentProviderLabel[payment.provider] ?? payment.provider}</b>
+                          <Badge tone={toneFor(PAYMENT_TX_TONES, payment.status)}>{PaymentTxLabel[payment.status] ?? payment.status}</Badge>
+                        </span>
+                        <span className="mt-1 block text-text-2">
+                          {formatCentsPrecise(payment.amountCents)} · {formatDateTime(payment.updatedAt ?? payment.createdAt)}
+                        </span>
+                        {payment.externalId && (
+                          <code className="mt-0.5 block truncate font-mono text-[10px] text-text-2" title={payment.externalId}>
+                            {payment.externalId}
+                          </code>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : order.paymentMethod === 'cod' ? (
+                  'Płatność przy odbiorze — brak transakcji online.'
+                ) : (
+                  'Brak zarejestrowanej transakcji.'
+                )}
+              </Field>
+              <Link href="/admin/payments" className="inline-flex items-center gap-1 text-[11px] font-medium text-text-2 hover:text-text">
+                Wszystkie płatności <ExternalLink size={11} strokeWidth={1.5} />
+              </Link>
+            </div>
+          </Card>
+
+          {order.notes && (
+            <Card className="flex flex-col">
+              <CardHeader icon={StickyNote} title="Uwagi klienta" />
+              <p className="m-0 px-4 pt-3 pb-4 text-xs whitespace-pre-line text-text">{order.notes}</p>
+            </Card>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

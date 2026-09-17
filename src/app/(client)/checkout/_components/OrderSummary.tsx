@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { Pencil, SquarePen } from 'lucide-react'
+import { SquarePen } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import PriceFormatter from '@/components/PriceFormatter'
 import { urlFor } from '@/sanity/lib/image'
@@ -10,8 +10,8 @@ import useStore from 'store'
 import { buildVariantLabel } from './utils'
 
 interface Props {
-  shippingCents: number
-  deliveryName:  string | null
+  shippingCents?: number
+  deliveryName?:  string | null
 }
 
 export default function OrderSummary({ shippingCents, deliveryName }: Props) {
@@ -19,28 +19,28 @@ export default function OrderSummary({ shippingCents, deliveryName }: Props) {
   const getTotalPrice = useStore(s => s.getTotalPrice)
   const subtotalPLN   = getTotalPrice()
   const subtotalCents = Math.round(subtotalPLN * 100)
-  const totalCents    = subtotalCents + shippingCents
+  const totalCents    = subtotalCents + (shippingCents || 0)
 
   return (
-    <div className="sticky top-6 overflow-hidden">
+    <div className="sticky top-6 overflow-hidden md:mt-10 sm:mt-8 mt-5 lg:min-w-[360px] min-w-[320px]">
       {/* header */}
-      <div className="pl-6 pr-2 py-4 flex items-center justify-between">
-        <h2 className="text-[20px] font-medium text-black">W twoim koszyku</h2>
+      <div className="md:pl-6 pl-2 pr-2 py-4 flex items-center justify-between">
+        <h2 className="text-[clamp(16px,1.4vw,20px)] font-medium text-black">W twoim koszyku</h2>
         <Link href="/cart" className="text-fancy-black hover:opacity-70 transition-opacity" aria-label="Edytuj koszyk">
-          <SquarePen size={22.5} className='text-black' />
+          <SquarePen size={22} className='text-black lg:w-6 lg:h-6 w-5 h-5' />
         </Link>
       </div>
 
       {/* subtotal + shipping */}
-      <div className="px-6 pb-2 space-y-2 text-[18px] mx-5 w-fit">
-        <div className="flex justify-between items-center text-black font-normal space-x-13">
+      <div className="md:pl-6 pl-2 pr-2 pb-2 space-y-1 text-[clamp(13px,1.4vw,16px)] w-full">
+        <div className="flex justify-between items-center text-black font-normal 2xl:space-x-13">
           <span>Wartość produktów</span>
-          <PriceFormatter amount={subtotalPLN} className="font-normal text-black text-[16px]" />
+          <PriceFormatter amount={subtotalPLN} className="font-normal text-black text-[clamp(14px,1.2vw,16px)]" />
         </div>
         <div className="flex justify-between text-black">
           <span>Dostawa</span>
-          {deliveryName ? (
-            <PriceFormatter amount={shippingCents / 100} className="font-normal text-black text-[16px]" />
+          {deliveryName && shippingCents ? (
+            <PriceFormatter amount={shippingCents / 100} className="font-normal text-black text-[clamp(14px,1.2vw,16px)]" />
           ) : (
             <span>~</span>
           )}
@@ -48,37 +48,37 @@ export default function OrderSummary({ shippingCents, deliveryName }: Props) {
       </div>
 
       {/* item list */}
-      <div className="px-6 py-3 space-y-4 mx-5">
+      <div className="md:pl-6 pl-2 py-3 space-y-4 ">
         {cartItems.map(({ product, variant, quantity }) => {
           const variantProps  = product.variants?.find((v: any) => v._key === variant)
           const price         = (variantProps?.price ?? product.price ?? 0) * quantity
           const variantLabel  = buildVariantLabel(product, variant)
 
           return (
-            <div key={product._id + variant} className="flex space-x-6 items-start">
+            <div key={product._id + variant} className="flex space-x-5 items-start">
               {product.images?.[0] && (
-                <div className="w-25 h-25">
+                <div className="min-w-25 min-h-25 h-[100px]">
                   <Image
                     src={urlFor(product.images[0]).width(112).url()}
                     alt={product.title ?? ''}
                     width={100}
                     height={100}
-                    className="w-full h-full object-cover brightness-90"
+                    className="w-[100px] h-[100px] object-cover brightness-93 rounded-[20px]"
                   />
                 </div>
               )}
               <div className="">
                 <PriceFormatter
                   amount={price}
-                  className="text-[18px] font-medium text-black block"
+                  className="text-[clamp(14px,1.3vw,16px)] font-normal text-black block"
                 />
-                <p className="text-[18px] font-normal text-black line-clamp-1 mt-0.5">
+                <p className="text-[clamp(15px,1.3vw,18px)] font-normal text-black line-clamp-1 mt-0.5">
                   {product.title}
                 </p>
                 {variantLabel && (
-                  <p className="text-[18px] text-[#6C6C6C] line-clamp-1">{variantLabel}</p>
+                  <p className="text-[clamp(14px,1.3vw,15px)] text-[#6C6C6C] line-clamp-1">{variantLabel}</p>
                 )}
-                <p className="text-[18px] text-[#6C6C6C]">Ilość {quantity}</p>
+                <p className="text-[clamp(14px,1.3vw,15px)] text-[#6C6C6C]">Ilość {quantity}</p>
               </div>
               
             </div>
@@ -89,10 +89,10 @@ export default function OrderSummary({ shippingCents, deliveryName }: Props) {
       <Separator />
 
       {/* total */}
-      <div className="px-6 py-5 mx-5 w-fit ">
-        <div className="flex justify-between font-bold text-[16px] text-fancy-black space-x-13">
-          <span>Do zapłaty <span className="font-normal text-[16px] text-[#6C6C6C]">w tym VAT</span></span>
-          <PriceFormatter amount={totalCents / 100} className="text-[17px] font-bold text-fancy-black" />
+      <div className="px-6 py-5 w-full ">
+        <div className="flex justify-between font-medium text-[clamp(15px,1.3vw,17px)] text-fancy-black 2xl:space-x-13">
+          <span>Do zapłaty <span className="font-normal text-[clamp(15px,1.3vw,17px)] text-[#6C6C6C]">w tym VAT</span></span>
+          <PriceFormatter amount={totalCents / 100} className="text-[16px] font-medium text-fancy-black" />
         </div>
       </div>
     </div>

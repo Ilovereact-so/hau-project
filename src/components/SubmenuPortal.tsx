@@ -10,7 +10,7 @@ interface SubmenuPortalProps {
   exit: () => void;
 }
 
-export default function SubmenuPortal({ anchorRef, open, children, scrollRef, exit }: SubmenuPortalProps) {
+export default function SubmenuPortal({ anchorRef, open, children, scrollRef: _scrollRef, exit: _exit }: SubmenuPortalProps) {
   const portalRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 

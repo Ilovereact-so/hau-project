@@ -13,6 +13,182 @@
  */
 
 // Source: schema.json
+export type VideoEmbed = {
+  _type: "videoEmbed";
+  provider?: "external" | "file";
+  url?: string;
+  file?: {
+    asset?: {
+      _ref: string;
+      _type: "reference";
+      _weak?: boolean;
+      [internalGroqTypeReferenceTo]?: "sanity.fileAsset";
+    };
+    media?: unknown;
+    _type: "file";
+  };
+  poster?: {
+    asset?: {
+      _ref: string;
+      _type: "reference";
+      _weak?: boolean;
+      [internalGroqTypeReferenceTo]?: "sanity.imageAsset";
+    };
+    media?: unknown;
+    hotspot?: SanityImageHotspot;
+    crop?: SanityImageCrop;
+    alt?: string;
+    _type: "image";
+  };
+  caption?: string;
+};
+
+export type Guide = {
+  _id: string;
+  _type: "guide";
+  _createdAt: string;
+  _updatedAt: string;
+  _rev: string;
+  title?: string;
+  slug?: Slug;
+  excerpt?: string;
+  category?: {
+    _ref: string;
+    _type: "reference";
+    _weak?: boolean;
+    [internalGroqTypeReferenceTo]?: "guideCategory";
+  };
+  coverImage?: {
+    asset?: {
+      _ref: string;
+      _type: "reference";
+      _weak?: boolean;
+      [internalGroqTypeReferenceTo]?: "sanity.imageAsset";
+    };
+    media?: unknown;
+    hotspot?: SanityImageHotspot;
+    crop?: SanityImageCrop;
+    alt?: string;
+    _type: "image";
+  };
+  heroVideo?: VideoEmbed;
+  body?: Array<{
+    children?: Array<{
+      marks?: Array<string>;
+      text?: string;
+      _type: "span";
+      _key: string;
+    }>;
+    style?: "normal" | "h1" | "h2" | "h3" | "h4" | "blockquote";
+    listItem?: "bullet" | "number";
+    markDefs?: Array<{
+      href?: string;
+      _type: "link";
+      _key: string;
+    }>;
+    level?: number;
+    _type: "block";
+    _key: string;
+  } | {
+    asset?: {
+      _ref: string;
+      _type: "reference";
+      _weak?: boolean;
+      [internalGroqTypeReferenceTo]?: "sanity.imageAsset";
+    };
+    media?: unknown;
+    hotspot?: SanityImageHotspot;
+    crop?: SanityImageCrop;
+    alt?: string;
+    _type: "image";
+    _key: string;
+  } | {
+    _key: string;
+  } & VideoEmbed>;
+  author?: string;
+  publishedAt?: string;
+  readingTime?: number;
+  featured?: boolean;
+};
+
+export type SanityImageCrop = {
+  _type: "sanity.imageCrop";
+  top?: number;
+  bottom?: number;
+  left?: number;
+  right?: number;
+};
+
+export type SanityImageHotspot = {
+  _type: "sanity.imageHotspot";
+  x?: number;
+  y?: number;
+  height?: number;
+  width?: number;
+};
+
+export type GuideCategory = {
+  _id: string;
+  _type: "guideCategory";
+  _createdAt: string;
+  _updatedAt: string;
+  _rev: string;
+  title?: string;
+  slug?: Slug;
+  description?: string;
+  order?: number;
+};
+
+export type Slug = {
+  _type: "slug";
+  current?: string;
+  source?: string;
+};
+
+export type HelpDocument = {
+  _id: string;
+  _type: "helpDocument";
+  _createdAt: string;
+  _updatedAt: string;
+  _rev: string;
+  title?: string;
+  slug?: Slug;
+  lead?: string;
+  order?: number;
+  updatedAt?: string;
+  body?: Array<{
+    children?: Array<{
+      marks?: Array<string>;
+      text?: string;
+      _type: "span";
+      _key: string;
+    }>;
+    style?: "normal" | "h1" | "h2" | "h3" | "h4" | "blockquote";
+    listItem?: "bullet" | "number";
+    markDefs?: Array<{
+      href?: string;
+      _type: "link";
+      _key: string;
+    }>;
+    level?: number;
+    _type: "block";
+    _key: string;
+  } | {
+    asset?: {
+      _ref: string;
+      _type: "reference";
+      _weak?: boolean;
+      [internalGroqTypeReferenceTo]?: "sanity.imageAsset";
+    };
+    media?: unknown;
+    hotspot?: SanityImageHotspot;
+    crop?: SanityImageCrop;
+    alt?: string;
+    _type: "image";
+    _key: string;
+  }>;
+};
+
 export type Shipping_methods = {
   _id: string;
   _type: "shipping_methods";
@@ -25,12 +201,6 @@ export type Shipping_methods = {
   furgonetka_service_id?: string;
   type?: "kurier" | "automat";
   active?: boolean;
-};
-
-export type Slug = {
-  _type: "slug";
-  current?: string;
-  source?: string;
 };
 
 export type BanerVariants = {
@@ -59,6 +229,13 @@ export type BanerVariants = {
     _type: "block";
     _key: string;
   }>;
+  collection?: {
+    _ref: string;
+    _type: "reference";
+    _weak?: boolean;
+    [internalGroqTypeReferenceTo]?: "collection";
+  };
+  ctaLabel?: string;
   imageWithAlt?: {
     asset?: {
       _ref: string;
@@ -74,20 +251,32 @@ export type BanerVariants = {
   };
 };
 
-export type SanityImageCrop = {
-  _type: "sanity.imageCrop";
-  top?: number;
-  bottom?: number;
-  left?: number;
-  right?: number;
-};
-
-export type SanityImageHotspot = {
-  _type: "sanity.imageHotspot";
-  x?: number;
-  y?: number;
-  height?: number;
-  width?: number;
+export type Collection = {
+  _id: string;
+  _type: "collection";
+  _createdAt: string;
+  _updatedAt: string;
+  _rev: string;
+  title?: string;
+  slug?: Slug;
+  description?: string;
+  imageWithAlt?: {
+    asset?: {
+      _ref: string;
+      _type: "reference";
+      _weak?: boolean;
+      [internalGroqTypeReferenceTo]?: "sanity.imageAsset";
+    };
+    media?: unknown;
+    hotspot?: SanityImageHotspot;
+    crop?: SanityImageCrop;
+    alt?: string;
+    _type: "image";
+  };
+  sort?: "newest" | "price-asc" | "price-desc" | "title";
+  productsManager?: string;
+  metaTitle?: string;
+  metaDescription?: string;
 };
 
 export type OptionList = {
@@ -178,6 +367,13 @@ export type Product = {
     _weak?: boolean;
     [internalGroqTypeReferenceTo]?: "subcategory";
   };
+  collections?: Array<{
+    _ref: string;
+    _type: "reference";
+    _weak?: boolean;
+    _key: string;
+    [internalGroqTypeReferenceTo]?: "collection";
+  }>;
   brand?: string;
   vendor?: string;
   tags?: Array<string>;
@@ -434,7 +630,7 @@ export type Geopoint = {
   alt?: number;
 };
 
-export type AllSanitySchemaTypes = Shipping_methods | Slug | BanerVariants | SanityImageCrop | SanityImageHotspot | OptionList | Product | FilterValue | Filter | Subcategory | Category | SanityImagePaletteSwatch | SanityImagePalette | SanityImageDimensions | SanityImageMetadata | SanityFileAsset | SanityAssetSourceData | SanityImageAsset | Geopoint;
+export type AllSanitySchemaTypes = VideoEmbed | Guide | SanityImageCrop | SanityImageHotspot | GuideCategory | Slug | HelpDocument | Shipping_methods | BanerVariants | Collection | OptionList | Product | FilterValue | Filter | Subcategory | Category | SanityImagePaletteSwatch | SanityImagePalette | SanityImageDimensions | SanityImageMetadata | SanityFileAsset | SanityAssetSourceData | SanityImageAsset | Geopoint;
 export declare const internalGroqTypeReferenceTo: unique symbol;
 // Source: ./src/sanity/helpers/index.ts
 // Variable: METHODS_QUERY
@@ -451,6 +647,59 @@ export type METHODS_QUERYResult = Array<{
   furgonetka_service_id?: string;
   type?: "automat" | "kurier";
   active?: boolean;
+}>;
+// Variable: BANERS_QUERY
+// Query: *[_type=="banerVariants"]{    ...,    "collectionLink": collection->{ title, "slug": slug.current }  }
+export type BANERS_QUERYResult = Array<{
+  _id: string;
+  _type: "banerVariants";
+  _createdAt: string;
+  _updatedAt: string;
+  _rev: string;
+  title?: string;
+  slug?: Slug;
+  description?: Array<{
+    children?: Array<{
+      marks?: Array<string>;
+      text?: string;
+      _type: "span";
+      _key: string;
+    }>;
+    style?: "blockquote" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "normal";
+    listItem?: "bullet" | "number";
+    markDefs?: Array<{
+      href?: string;
+      _type: "link";
+      _key: string;
+    }>;
+    level?: number;
+    _type: "block";
+    _key: string;
+  }>;
+  collection?: {
+    _ref: string;
+    _type: "reference";
+    _weak?: boolean;
+    [internalGroqTypeReferenceTo]?: "collection";
+  };
+  ctaLabel?: string;
+  imageWithAlt?: {
+    asset?: {
+      _ref: string;
+      _type: "reference";
+      _weak?: boolean;
+      [internalGroqTypeReferenceTo]?: "sanity.imageAsset";
+    };
+    media?: unknown;
+    hotspot?: SanityImageHotspot;
+    crop?: SanityImageCrop;
+    alt?: string;
+    _type: "image";
+  };
+  collectionLink: {
+    title: string | null;
+    slug: string | null;
+  } | null;
 }>;
 // Variable: PRODUCTS_QUERY
 // Query: *[_type=="product"] | order(name asc)
@@ -513,6 +762,13 @@ export type PRODUCTS_QUERYResult = Array<{
     _weak?: boolean;
     [internalGroqTypeReferenceTo]?: "subcategory";
   };
+  collections?: Array<{
+    _ref: string;
+    _type: "reference";
+    _weak?: boolean;
+    _key: string;
+    [internalGroqTypeReferenceTo]?: "collection";
+  }>;
   brand?: string;
   vendor?: string;
   tags?: Array<string>;
@@ -630,7 +886,7 @@ export type SUBCATEGORY_BY_ID_QUERYResult = {
   } | null;
 } | null;
 // Variable: PRODUCT_BY_ID_QUERY
-// Query: *[_type == "product" && slug.current == $slug]{  ...,  productOptions[]->{    _id,    key,    label,    type,    UX_type  },  filterValues[]->{    filter,    _id,    value,    slug  },  variants[]{    _key,    price,    sku,    stock,    optionValues[]{      _key,      label,      "name":name->{        _id,        key,        label,        type,        UX_type      },      "value":value->{        _id,        value,        slug      }    }  }}[0]
+// Query: *[_type == "product" && slug.current == $slug]{  ...,    category->{    _id,    title,    slug    },    type->{    _id,    title,    slug    },    productOptions[]->{      _id,      key,      label,      type,      UX_type    },    filterValues[]->{      filter,      _id,      value,      slug    },    variants[]{      _key,      price,      sku,      stock,      optionValues[]{        _key,        label,        "name":name->{          _id,          key,          label,          type,          UX_type        },        "value":value->{          _id,          value,          slug        }      }    }  }[0]
 export type PRODUCT_BY_ID_QUERYResult = {
   _id: string;
   _type: "product";
@@ -678,18 +934,23 @@ export type PRODUCT_BY_ID_QUERYResult = {
   compareAtPrice?: number;
   stock?: number;
   visibility?: "draft" | "published" | "storefront";
-  category?: {
+  category: {
+    _id: string;
+    title: string | null;
+    slug: Slug | null;
+  } | null;
+  type: {
+    _id: string;
+    title: string | null;
+    slug: Slug | null;
+  } | null;
+  collections?: Array<{
     _ref: string;
     _type: "reference";
     _weak?: boolean;
-    [internalGroqTypeReferenceTo]?: "category";
-  };
-  type?: {
-    _ref: string;
-    _type: "reference";
-    _weak?: boolean;
-    [internalGroqTypeReferenceTo]?: "subcategory";
-  };
+    _key: string;
+    [internalGroqTypeReferenceTo]?: "collection";
+  }>;
   brand?: string;
   vendor?: string;
   tags?: Array<string>;
@@ -771,7 +1032,7 @@ export type PRODUCT_BY_ID_QUERYResult = {
   chew_strength?: "heavy" | "light" | "medium";
 } | null;
 // Variable: PRODUCT_BY_SUBCATEGORY_QUERY
-// Query: *[_type == 'product' && references(*[_type == "subcategory" && slug.current == $subcategorySlug]._id)]{  ...,  productOptions[]->{    _id,    key,    label,    type,    UX_type  },  filterValues[]->{    filter,    _id,    value,    slug  },  variants[]{    _key,    price,    sku,    stock,    optionValues[]{      _key,      label,      "name":name->{        _id,        key,        label,        type,        UX_type      },      "value":value->{        _id,        value,        slug      }    }  }} | order(name asc)
+// Query: *[_type == 'product' && references(*[_type == "subcategory" && slug.current == $subcategorySlug]._id)]{  ...,    category->{    _id,    title,    slug    },    type->{    _id,    title,    slug    },    productOptions[]->{      _id,      key,      label,      type,      UX_type    },    filterValues[]->{      filter,      _id,      value,      slug    },    variants[]{      _key,      price,      sku,      stock,      optionValues[]{        _key,        label,        "name":name->{          _id,          key,          label,          type,          UX_type        },        "value":value->{          _id,          value,          slug        }      }    }  } | order(name asc)
 export type PRODUCT_BY_SUBCATEGORY_QUERYResult = Array<{
   _id: string;
   _type: "product";
@@ -819,18 +1080,23 @@ export type PRODUCT_BY_SUBCATEGORY_QUERYResult = Array<{
   compareAtPrice?: number;
   stock?: number;
   visibility?: "draft" | "published" | "storefront";
-  category?: {
+  category: {
+    _id: string;
+    title: string | null;
+    slug: Slug | null;
+  } | null;
+  type: {
+    _id: string;
+    title: string | null;
+    slug: Slug | null;
+  } | null;
+  collections?: Array<{
     _ref: string;
     _type: "reference";
     _weak?: boolean;
-    [internalGroqTypeReferenceTo]?: "category";
-  };
-  type?: {
-    _ref: string;
-    _type: "reference";
-    _weak?: boolean;
-    [internalGroqTypeReferenceTo]?: "subcategory";
-  };
+    _key: string;
+    [internalGroqTypeReferenceTo]?: "collection";
+  }>;
   brand?: string;
   vendor?: string;
   tags?: Array<string>;
@@ -911,6 +1177,212 @@ export type PRODUCT_BY_SUBCATEGORY_QUERYResult = Array<{
   sourceCSV?: string;
   chew_strength?: "heavy" | "light" | "medium";
 }>;
+// Variable: PRODUCT_SEARCH_QUERY
+// Query: *[      _type == "product" &&      (        lower(title) match lower($p0) || lower(title) match lower($c0) ||        lower(title) match lower($p1) || lower(title) match lower($c1) ||        lower(title) match lower($p2) || lower(title) match lower($c2)      )    ]{      ...,      category->{      _id,      title,      slug      },      type->{      _id,      title,      slug      },      productOptions[]->{        _id,        key,        label,        type,        UX_type      },      filterValues[]->{        filter,        _id,        value,        slug      },      variants[]{        _key,        price,        sku,        stock,        optionValues[]{          _key,          label,          "name":name->{            _id,            key,            label,            type,            UX_type          },          "value":value->{            _id,            value,            slug          }        }      }    }
+export type PRODUCT_SEARCH_QUERYResult = Array<{
+  _id: string;
+  _type: "product";
+  _createdAt: string;
+  _updatedAt: string;
+  _rev: string;
+  title?: string;
+  subtitle?: string;
+  intro?: string;
+  sku?: string;
+  slug?: Slug;
+  shortDescription?: string;
+  description?: Array<{
+    children?: Array<{
+      marks?: Array<string>;
+      text?: string;
+      _type: "span";
+      _key: string;
+    }>;
+    style?: "blockquote" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "normal";
+    listItem?: "bullet" | "number";
+    markDefs?: Array<{
+      href?: string;
+      _type: "link";
+      _key: string;
+    }>;
+    level?: number;
+    _type: "block";
+    _key: string;
+  } | {
+    asset?: {
+      _ref: string;
+      _type: "reference";
+      _weak?: boolean;
+      [internalGroqTypeReferenceTo]?: "sanity.imageAsset";
+    };
+    media?: unknown;
+    hotspot?: SanityImageHotspot;
+    crop?: SanityImageCrop;
+    _type: "image";
+    _key: string;
+  }>;
+  price?: number;
+  currency?: string;
+  compareAtPrice?: number;
+  stock?: number;
+  visibility?: "draft" | "published" | "storefront";
+  category: {
+    _id: string;
+    title: string | null;
+    slug: Slug | null;
+  } | null;
+  type: {
+    _id: string;
+    title: string | null;
+    slug: Slug | null;
+  } | null;
+  collections?: Array<{
+    _ref: string;
+    _type: "reference";
+    _weak?: boolean;
+    _key: string;
+    [internalGroqTypeReferenceTo]?: "collection";
+  }>;
+  brand?: string;
+  vendor?: string;
+  tags?: Array<string>;
+  images?: Array<{
+    asset?: {
+      _ref: string;
+      _type: "reference";
+      _weak?: boolean;
+      [internalGroqTypeReferenceTo]?: "sanity.imageAsset";
+    };
+    media?: unknown;
+    hotspot?: SanityImageHotspot;
+    crop?: SanityImageCrop;
+    alt?: string;
+    position?: number;
+    _type: "image";
+    _key: string;
+  }>;
+  dimensions?: {
+    width_cm?: number;
+    height_cm?: number;
+    depth_cm?: number;
+    unit?: string;
+  };
+  weight_g?: number;
+  shipping_weight_g?: number;
+  material?: string;
+  care?: string;
+  isMachineWashable?: boolean;
+  isWaterproof?: boolean;
+  isFeatured?: boolean;
+  isBestseller?: boolean;
+  filterValues: Array<{
+    filter: {
+      _ref: string;
+      _type: "reference";
+      _weak?: boolean;
+      [internalGroqTypeReferenceTo]?: "filter";
+    } | null;
+    _id: string;
+    value: string | null;
+    slug: Slug | null;
+  }> | null;
+  productOptions: Array<{
+    _id: string;
+    key: string | null;
+    label: string | null;
+    type: "boolean" | "enum" | "range" | null;
+    UX_type: "only-value-list" | "with-image-from-variant" | null;
+  }> | null;
+  variants: Array<{
+    _key: string;
+    price: number | null;
+    sku: string | null;
+    stock: number | null;
+    optionValues: Array<{
+      _key: string;
+      label: string | null;
+      name: {
+        _id: string;
+        key: string | null;
+        label: string | null;
+        type: "boolean" | "enum" | "range" | null;
+        UX_type: "only-value-list" | "with-image-from-variant" | null;
+      } | null;
+      value: {
+        _id: string;
+        value: string | null;
+        slug: Slug | null;
+      } | null;
+    }> | null;
+  }> | null;
+  indexedOptions?: Array<string>;
+  metaTitle?: string;
+  metaDescription?: string;
+  barcode?: string;
+  externalId?: string;
+  sourceCSV?: string;
+  chew_strength?: "heavy" | "light" | "medium";
+}>;
+// Variable: FILTERS_BY_ID_QUERY
+// Query: *[_type == "filter" && _id in $ids]{      _id,      key,      label,      type,      UX_type    }
+export type FILTERS_BY_ID_QUERYResult = Array<{
+  _id: string;
+  key: string | null;
+  label: string | null;
+  type: "boolean" | "enum" | "range" | null;
+  UX_type: "only-value-list" | "with-image-from-variant" | null;
+}>;
+// Variable: HELP_DOCUMENT_QUERY
+// Query: *[_type == "helpDocument" && slug.current == $slug][0]{      _id,      title,      "slug": slug.current,      lead,      body,      updatedAt,      order    }
+export type HELP_DOCUMENT_QUERYResult = {
+  _id: string;
+  title: string | null;
+  slug: string | null;
+  lead: string | null;
+  body: Array<{
+    children?: Array<{
+      marks?: Array<string>;
+      text?: string;
+      _type: "span";
+      _key: string;
+    }>;
+    style?: "blockquote" | "h1" | "h2" | "h3" | "h4" | "normal";
+    listItem?: "bullet" | "number";
+    markDefs?: Array<{
+      href?: string;
+      _type: "link";
+      _key: string;
+    }>;
+    level?: number;
+    _type: "block";
+    _key: string;
+  } | {
+    asset?: {
+      _ref: string;
+      _type: "reference";
+      _weak?: boolean;
+      [internalGroqTypeReferenceTo]?: "sanity.imageAsset";
+    };
+    media?: unknown;
+    hotspot?: SanityImageHotspot;
+    crop?: SanityImageCrop;
+    alt?: string;
+    _type: "image";
+    _key: string;
+  }> | null;
+  updatedAt: string | null;
+  order: number | null;
+} | null;
+// Variable: ALL_HELP_DOCUMENTS_QUERY
+// Query: *[_type == "helpDocument" && defined(slug.current)] | order(order asc, title asc){      _id,      title,      "slug": slug.current,      lead,      updatedAt,      order    }
+export type ALL_HELP_DOCUMENTS_QUERYResult = Array<{
+  _id: string;
+  title: string | null;
+  slug: string | null;
+  lead: string | null;
+  updatedAt: string | null;
+  order: number | null;
+}>;
 // Variable: SALE_QUERY
 // Query: *[_type == 'sale'] | order(name asc)
 export type SALE_QUERYResult = Array<never>;
@@ -923,11 +1395,27 @@ import "@sanity/client";
 declare module "@sanity/client" {
   interface SanityQueries {
     "*[_type==\"shipping_methods\"] | order(name asc)": METHODS_QUERYResult;
+    "*[_type==\"banerVariants\"]{\n    ...,\n    \"collectionLink\": collection->{ title, \"slug\": slug.current }\n  }": BANERS_QUERYResult;
     "*[_type==\"product\"] | order(name asc)": PRODUCTS_QUERYResult;
     "*[_type == \"subcategory\" && slug.current == $slug]{\n      _id,\n      title, \n      \"slug\": slug.current, \n      description,\n      availableFilters[]->{\n        _id,\n        key,\n        label,\n        type,\n        UX_type\n      }, \n      imageWithAlt, \n      \"category\": *[_type == \"category\" && _id == ^.parent._ref]{\n        _id,\n        title,\n        \"slug\": slug.current\n      }[0]\n    } | order(name asc) [0]": SUBCATEGORY_BY_ID_QUERYResult;
-    "*[_type == \"product\" && slug.current == $slug]{\n  ...,\n  productOptions[]->{\n    _id,\n    key,\n    label,\n    type,\n    UX_type\n  },\n  filterValues[]->{\n    filter,\n    _id,\n    value,\n    slug\n  },\n  variants[]{\n    _key,\n    price,\n    sku,\n    stock,\n    optionValues[]{\n      _key,\n      label,\n      \"name\":name->{\n        _id,\n        key,\n        label,\n        type,\n        UX_type\n      },\n      \"value\":value->{\n        _id,\n        value,\n        slug\n      }\n    }\n  }\n}[0]\n": PRODUCT_BY_ID_QUERYResult;
-    "*[_type == 'product' && references(*[_type == \"subcategory\" && slug.current == $subcategorySlug]._id)]{\n  ...,\n  productOptions[]->{\n    _id,\n    key,\n    label,\n    type,\n    UX_type\n  },\n  filterValues[]->{\n    filter,\n    _id,\n    value,\n    slug\n  },\n  variants[]{\n    _key,\n    price,\n    sku,\n    stock,\n    optionValues[]{\n      _key,\n      label,\n      \"name\":name->{\n        _id,\n        key,\n        label,\n        type,\n        UX_type\n      },\n      \"value\":value->{\n        _id,\n        value,\n        slug\n      }\n    }\n  }\n} | order(name asc)": PRODUCT_BY_SUBCATEGORY_QUERYResult;
+    "*[_type == \"product\" && slug.current == $slug]{\n  ...,\n    category->{\n    _id,\n    title,\n    slug\n    },\n    type->{\n    _id,\n    title,\n    slug\n    },\n    productOptions[]->{\n      _id,\n      key,\n      label,\n      type,\n      UX_type\n    },\n    filterValues[]->{\n      filter,\n      _id,\n      value,\n      slug\n    },\n    variants[]{\n      _key,\n      price,\n      sku,\n      stock,\n      optionValues[]{\n        _key,\n        label,\n        \"name\":name->{\n          _id,\n          key,\n          label,\n          type,\n          UX_type\n        },\n        \"value\":value->{\n          _id,\n          value,\n          slug\n        }\n      }\n    }\n  }[0]": PRODUCT_BY_ID_QUERYResult;
+    "*[_type == 'product' && references(*[_type == \"subcategory\" && slug.current == $subcategorySlug]._id)]{\n  ...,\n    category->{\n    _id,\n    title,\n    slug\n    },\n    type->{\n    _id,\n    title,\n    slug\n    },\n    productOptions[]->{\n      _id,\n      key,\n      label,\n      type,\n      UX_type\n    },\n    filterValues[]->{\n      filter,\n      _id,\n      value,\n      slug\n    },\n    variants[]{\n      _key,\n      price,\n      sku,\n      stock,\n      optionValues[]{\n        _key,\n        label,\n        \"name\":name->{\n          _id,\n          key,\n          label,\n          type,\n          UX_type\n        },\n        \"value\":value->{\n          _id,\n          value,\n          slug\n        }\n      }\n    }\n  } | order(name asc)": PRODUCT_BY_SUBCATEGORY_QUERYResult;
+    "*[\n      _type == \"product\" &&\n      (\n        lower(title) match lower($p0) || lower(title) match lower($c0) ||\n        lower(title) match lower($p1) || lower(title) match lower($c1) ||\n        lower(title) match lower($p2) || lower(title) match lower($c2)\n      )\n    ]{\n      ...,\n      category->{\n      _id,\n      title,\n      slug\n      },\n      type->{\n      _id,\n      title,\n      slug\n      },\n      productOptions[]->{\n        _id,\n        key,\n        label,\n        type,\n        UX_type\n      },\n      filterValues[]->{\n        filter,\n        _id,\n        value,\n        slug\n      },\n      variants[]{\n        _key,\n        price,\n        sku,\n        stock,\n        optionValues[]{\n          _key,\n          label,\n          \"name\":name->{\n            _id,\n            key,\n            label,\n            type,\n            UX_type\n          },\n          \"value\":value->{\n            _id,\n            value,\n            slug\n          }\n        }\n      }\n    }": PRODUCT_SEARCH_QUERYResult;
+    "*[_type == \"filter\" && _id in $ids]{\n      _id,\n      key,\n      label,\n      type,\n      UX_type\n    }": FILTERS_BY_ID_QUERYResult;
+    "*[_type == \"helpDocument\" && slug.current == $slug][0]{\n      _id,\n      title,\n      \"slug\": slug.current,\n      lead,\n      body,\n      updatedAt,\n      order\n    }": HELP_DOCUMENT_QUERYResult;
+    "*[_type == \"helpDocument\" && defined(slug.current)] | order(order asc, title asc){\n      _id,\n      title,\n      \"slug\": slug.current,\n      lead,\n      updatedAt,\n      order\n    }": ALL_HELP_DOCUMENTS_QUERYResult;
     "*[_type == 'sale'] | order(name asc)": SALE_QUERYResult;
     "*[_type == 'order' && clerkUserId == $userId] | order(orderData desc){\n    ...,products[]{\n      ...,product->\n    }\n  }": MY_ORDERS_QUERYResult;
   }
 }
+
+// ── Custom augmentations (not part of Sanity TypeGen output) ──────────────
+// Re-appended automatically after `npm run typegen` by
+// scripts/appendCustomTypes.mjs — see that file for why.
+//
+// GetSlugProduct — canonical shape returned by the "full product projection"
+// used by PRODUCT_BY_ID_QUERY, PRODUCT_BY_SUBCATEGORY_QUERY and
+// PRODUCT_SEARCH_QUERY (src/sanity/helpers/index.ts). All three queries share
+// an identical object projection, so this type aliases the single-item shape
+// and is used both for a single product and (as GetSlugProduct[]) for lists.
+export type GetSlugProduct = NonNullable<PRODUCT_BY_ID_QUERYResult>;

@@ -1,0 +1,119 @@
+/*
+ * Panel admina HAU — wartości tokenów design systemu.
+ *
+ * Paleta, promienie i cienie przeniesione 1:1 z panelu meblove
+ * (apps/admin/src/styles.css). Tailwind mapuje je na klasy przez
+ * `@theme inline` w src/app/globals.css (bg-surface, text-text-2,
+ * rounded-xs, shadow-1 …). Zmienne żyją TYLKO pod `.hau-admin`,
+ * więc sklep ich nie widzi.
+ *
+ * Tryb ciemny: klasa `dark` na tym samym elemencie (przełącznik
+ * w sidebarze, zapamiętywany w localStorage).
+ */
+
+.hau-admin {
+  color-scheme: light;
+
+  --adm-bg: #ffffff;
+  --adm-shell: #cbcac8;
+  --adm-shell2: #d8cfd0;
+  --adm-surface: #f2f2f2;
+  --adm-surface-muted: #f8f8f8;
+  --adm-border: #e7e9f1;
+  --adm-border-strong: #d9ddea;
+  --adm-text: #1f1f1f;
+  --adm-text-2: #474747;
+  --adm-muted: #d3d3d3;
+
+  --adm-primary: #ec3013;
+  --adm-primary-soft: #ff563c;
+  --adm-info: #3b82f6;
+  --adm-success: #22c55e;
+  --adm-danger: #ef4444;
+  --adm-accent: #ec3013;
+  --adm-purple: #8b5cf6;
+  --adm-pink: #ec4899;
+  --adm-track: #eef0f6;
+
+  --adm-shadow-1: 0 6px 18px rgba(17, 24, 39, 0.06);
+  --adm-shadow-2: 0 14px 40px rgba(17, 24, 39, 0.1);
+  --adm-shadow-window: 0 24px 60px rgba(17, 24, 39, 0.1);
+  --adm-shadow-pill: 0 1px 2px rgba(17, 24, 39, 0.05);
+
+  --adm-radius-xs: 8px;
+  --adm-radius-sm: 10px;
+  --adm-radius-md: 12px;
+  --adm-radius-lg: 14px;
+  --adm-radius-xl: 16px;
+  --adm-radius-window: 20px;
+
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --duration: 150ms;
+
+  font-family: var(--font-adm-sans), system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: var(--adm-text);
+  background: var(--adm-shell);
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 180ms var(--ease), color 180ms var(--ease);
+}
+
+.hau-admin.dark {
+  color-scheme: dark;
+
+  --adm-bg: #14181f;
+  --adm-shell: #0e1116;
+  --adm-shell2: #101318;
+  --adm-surface: #1a1f27;
+  --adm-surface-muted: #212733;
+  --adm-border: #2a313d;
+  --adm-border-strong: #3a4250;
+  --adm-text: #f3f4f6;
+  --adm-text-2: #9ba3b0;
+  --adm-muted: #6e7787;
+  --adm-primary-soft: #3a2a12;
+  --adm-track: #262d39;
+
+  --adm-shadow-1: 0 6px 18px rgba(0, 0, 0, 0.28);
+  --adm-shadow-2: 0 14px 40px rgba(0, 0, 0, 0.42);
+  --adm-shadow-window: 0 24px 60px rgba(0, 0, 0, 0.45);
+  --adm-shadow-pill: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.hau-admin .font-mono,
+.hau-admin code {
+  font-family: var(--font-adm-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.hau-admin button:not(:disabled) {
+  cursor: pointer;
+}
+
+/* Odwrotne zaokrąglenia przy krawędzi sidebara (jak w referencji). */
+.hau-admin .nav_shadow {
+  box-shadow: -8px -8px 0px 0px var(--adm-surface);
+}
+
+/* Subtelny scrollbar tylko w obrębie panelu. */
+.hau-admin ::-webkit-scrollbar { width: 4px; height: 4px; }
+.hau-admin ::-webkit-scrollbar-track { background: transparent; }
+.hau-admin ::-webkit-scrollbar-thumb { background: var(--adm-muted); border-radius: 9999px; }
+
+/* Reset natywnych selectów w pigułkach filtrów. */
+.hau-admin select.pill {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: none;
+}
+
+/* Natywne kontrolki (date, select) dziedziczą kolory motywu. */
+.hau-admin input,
+.hau-admin select,
+.hau-admin textarea {
+  color: inherit;
+}
+.hau-admin option {
+  background: var(--adm-bg);
+  color: var(--adm-text);
+}

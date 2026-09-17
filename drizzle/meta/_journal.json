@@ -1,54 +1,19 @@
 {
-  "version": "7",
+  "version": "1",
   "dialect": "mysql",
   "entries": [
     {
       "idx": 0,
       "version": "5",
-      "when": 1774786106995,
-      "tag": "0000_brainy_stellaris",
+      "when": 1789592585953,
+      "tag": "0000_parallel_living_tribunal",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "5",
-      "when": 1774966611962,
-      "tag": "0001_serious_salo",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "5",
-      "when": 1774966642722,
-      "tag": "0002_sour_infant_terrible",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "5",
-      "when": 1775167803230,
-      "tag": "0003_sleepy_ikaris",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "5",
-      "when": 1776611187721,
-      "tag": "0004_ancient_slipstream",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "5",
-      "when": 1777049022423,
-      "tag": "0005_tough_maximus",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "5",
-      "when": 1777117564673,
-      "tag": "0006_futuristic_gwen_stacy",
+      "when": 1789658509713,
+      "tag": "0001_product_price_history",
       "breakpoints": true
     }
   ]

@@ -39,7 +39,7 @@ export async function POST(req: Request) {
       await clerk.users.updateUser(userId, {
         publicMetadata: { role: "user" },
       });
-      console.log(`✅ Assigned 'user' role to ${userId}`);
+      console.info(`✅ Assigned 'user' role to ${userId}`);
     } catch (err) {
       console.error("❌ Failed to update user:", err);
       return new Response("Failed to update user role", { status: 500 });

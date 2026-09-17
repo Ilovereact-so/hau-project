@@ -11,6 +11,9 @@
 # production
 /build
 
+# build artifacts — regenerowane lokalnie, nie powinny trafiać do repo
+tsconfig.tsbuildinfo
+
 # misc
 .DS_Store
 
@@ -19,3 +22,10 @@ yarn-debug.log*
 yarn-error.log*
 postępy.json
 .gitignore
+
+# env — sekrety (DB, Clerk, webhooki) nigdy nie powinny trafić do repo
+.env
+.env*.local
+.env.development
+.env.production
+!.env.example

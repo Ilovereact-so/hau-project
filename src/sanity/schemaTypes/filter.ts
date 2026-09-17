@@ -1,5 +1,5 @@
 // filter.ts
-export default {
+const filter = {
   name: 'filter',
   type: 'document',
   fields: [
@@ -27,3 +27,5 @@ export default {
     },
   },
 };
+
+export default filter;

@@ -14,7 +14,6 @@ const AutoResizeInput: React.FC<AutoResizeInputProps> = ({
 }) => {
   const [width, setWidth] = useState(minWidth);
   const spanRef = useRef<HTMLHeadingElement>(null);
-  const maxWidthWindow = typeof window !== 'undefined' ? window.innerWidth: 0;
   useEffect(() => {
     if (spanRef.current) {
       const newWidth = Math.min(

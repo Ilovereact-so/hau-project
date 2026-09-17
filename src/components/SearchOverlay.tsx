@@ -10,6 +10,7 @@ export function SearchOverlay({ onClose }: Props) {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
+      exit={{opacity:0}}
       onClick={onClose}
       className="absolute top-0 inset-0 h-[100vh] w-full bg-gradient-to-b from-white/40 from-[90%] to-transparent z-2"
     />,

@@ -1,11 +1,7 @@
 'use client'
-import React, { useEffect, useState } from 'react'
-import { GetSlugProduct, Product, Slug } from '../../sanity.types';
-import { urlFor } from '@/sanity/lib/image';
-import Image from 'next/image';
-import { internalGroqTypeReferenceTo, SanityImageCrop, SanityImageHotspot } from "../../sanity.types";
+import React, { useState } from 'react'
+import { GetSlugProduct } from '../../sanity.types';
 import { useRouter, useSearchParams } from "next/navigation"
-import { Select } from '@base-ui/react/select';
 import SizeSelect from './SizeSelect';
 import { twMerge } from 'tailwind-merge';
 import OptionWidthImageFromVariant from './OptionWidthImageFromVariant';
@@ -44,7 +40,7 @@ const VariantManage = ({ product, selectedVariantKey, className }: Props) => {
     };
     const nextVariant = product?.variants?.find(variant =>
       variant.optionValues?.every(opt =>
-        nextSelectedOptions[opt.name?.key!] === opt.value?.slug?.current
+        nextSelectedOptions[opt.name?.key ?? ''] === opt.value?.slug?.current
       )
     )?._key;
     if(nextVariant){
@@ -79,14 +75,11 @@ type optionProps={
 }
 const OptionByVariant = ({option, product, setValue}:optionProps) => {
   const filterValues = product?.filterValues
-  const productOptions = product?.productOptions
-  const productValues = filterValues?.filter(fv => option?.name?._id === fv?.filter._ref)
+  const productValues = filterValues?.filter(fv => option?.name?._id === fv?.filter?._ref)
   const images = product.images; //tesotwy image bo w variantach nie dodałem :()
-  console.log("option?.name?.UX_type", option?.name?.UX_type)
 
   const handleChange = (value: string) => {
     if(value === option?.value?.slug?.current) return;
-    console.log("handleChange", value, option?.value?.slug?.current)
     setValue(value, option?.name?.key || "");
   }
 

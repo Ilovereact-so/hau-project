@@ -17,7 +17,22 @@
       "Bash(node -e \"const p=require\\('f:/CU/Projects/Hau_dynamic/hau-project/node_modules/sanity/package.json'\\); console.log\\('sanity OK:', p.version\\)\")",
       "Bash(cat)",
       "Read(//tmp/**)",
-      "Bash(git checkout *)"
+      "Bash(git checkout *)",
+      "Bash(Get-ChildItem -Path \"d:\\\\hau-project\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "PowerShell(Get-ChildItem -Path \"d:\\\\hau-project\" -File | Where-Object { $_.Extension -match '\\\\.\\(md|txt|pdf|doc\\)$' } | Select-Object -ExpandProperty FullName)",
+      "Bash(New-Item -ItemType Directory -Force \"d:\\\\hau-project\\\\src\\\\app\\\\api\\\\autopay\\\\gateways\")",
+      "Bash(Out-Null)",
+      "Bash(node -e ' *)",
+      "PowerShell(Get-Process node -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object {$_.LocalPort -in 3000,3001,3002,3306} | Select-Object LocalPort, OwningProcess)",
+      "PowerShell(Get-Process -Id 2176 -ErrorAction SilentlyContinue)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(node \"C:\\\\Users\\\\Hp\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--hau-project\\\\716725e6-a185-4e25-9f14-03d44ab06b13\\\\scratchpad\\\\run-migrate.js\")",
+      "Bash(node run-migrate-tmp.cjs)",
+      "Bash(node check-db-tmp.cjs)",
+      "Bash(node apply-brand-tmp.cjs)",
+      "Bash(npx eslint *)"
     ]
   }
 }

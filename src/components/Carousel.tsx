@@ -1,6 +1,6 @@
-import { useScroll, useSpring, useTransform, motion } from 'framer-motion';
+'use client'
+import { useScroll, useSpring } from 'framer-motion';
 import React, { useEffect } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 
 type Props = {
@@ -21,9 +21,6 @@ const Carousel = ({children, bodyClassName, rightBtn, leftBtn}:Props) => {
     
     
     const smoothProgress = useSpring(scrollXProgress, { stiffness: 100, damping: 20 });
-    const opacity = useTransform(smoothProgress, [0.7, 1], [1, 0]);
-    const opacity2 = useTransform(smoothProgress, [0, 0.3], [0, 1]);
-
     useEffect(() => {
         return smoothProgress.on("change", (latest) => {
         if(carouselRef.current && carouselChildRef.current){
@@ -66,13 +63,13 @@ const Carousel = ({children, bodyClassName, rightBtn, leftBtn}:Props) => {
     // }
 
   return (
-    <div className='w-full flex flex-col items-center'>
+    <div className='w-full flex flex-col items-center relative z-2'>
         <div className='w-full flex relative '>
-            <div ref={carouselRef} className='carousel w-full max-4xl:px-15 pr-10 overflow-x-scroll flex justify-start'>
+            <div ref={carouselRef} className='carousel w-full lg:px-15 sm:px-8 px-6 pr-10 overflow-x-scroll flex justify-start'>
                 <div ref={carouselChildRef} className={twMerge('w-auto h-auto flex-1 flex', bodyClassName)}>{children}</div>
             </div>
         </div>
-        <div className='bg-[#BDBDBD] sm:w-[60vw] w-[60vw] max-w-[1900px] h-[3px] rounded-full mt-14 mb-10'>
+        <div className='bg-[#BDBDBD] sm:w-[60vw] w-[60vw] max-w-[1900px] h-[3px] rounded-full sm:mt-14 mt-10 mb-10'>
             <div ref={rangeRef} className='bg-[#383838] h-full rounded-full' style={{ width: 'var(--thumb-size, 10%)' }}></div>
         </div>
     </div>

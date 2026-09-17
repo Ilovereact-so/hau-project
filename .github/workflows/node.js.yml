@@ -1,121 +1,162 @@
-# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
+# Build + wdrożenie na STAGING (e-hau-prod.wibbly.pl).
+#
+# Cztery rzeczy, na których stoi ten plik — nie zmieniaj ich bez powodu:
+#
+#  1. NIEUDANY BUILD NIE JEST WDRAŻANY. Poprzednia wersja miała `if: always()`
+#     przy każdym kroku, więc na serwer leciała także paczka z błędem.
+#  2. NA SERWER IDZIE KOMPLETNA PACZKA `standalone`. `output: 'standalone'`
+#     celowo NIE kopiuje `.next/static` ani `public` — trzeba to zrobić ręcznie,
+#     inaczej strona wstaje bez CSS, JS i obrazków.
+#  3. ZMIENNE `NEXT_PUBLIC_*` MUSZĄ BYĆ PRZY BUDOWANIU. Są wkompilowywane
+#     w paczkę przeglądarki — dopisanie ich później do `.env` na serwerze
+#     nic nie zmieni. Sekrety siedzą w GitHub → Settings → Environments →
+#     `staging`.
+#  4. NAGŁÓWKI (w tym CSP) TEŻ POWSTAJĄ PRZY BUDOWANIU — `next.config.ts`
+#     zapisuje je do manifestu. `CSP_MODE` na serwerze jest bez znaczenia.
+#
+# Reszta konfiguracji (baza, Redis, klucze płatności, SMTP) to zmienne
+# RUNTIME — te wpisujesz w `.env` obok `server.js` na serwerze i tego pliku
+# workflow nie dotyczy.
 
-name: Node.js CI
+name: Deploy staging
 
 on:
   push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
+    branches: ['staging']
+  # Ręczne uruchomienie: Actions → Deploy staging → Run workflow.
+  workflow_dispatch:
+
+# Dwa transfery FTP naraz rozjechałyby pliki na serwerze — kolejkujemy.
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
 
 jobs:
-  build:
-
+  deploy:
+    name: Build i wdrożenie
     runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 180
 
-    strategy:
-      matrix:
-        node-version: [20.x]
-        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
+    # `src/lib/redis.ts` łączy się z Redisem już przy imporcie modułu, a Next
+    # importuje wszystkie trasy na etapie „Collecting page data”. Bez Redisa
+    # build stanąłby na ECONNREFUSED. To jest Redis WYŁĄCZNIE na czas builda —
+    # produkcyjny adres siedzi w `.env` serwera.
+    services:
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
 
     steps:
-    - uses: actions/checkout@v4
+      - name: Pobranie kodu
+        uses: actions/checkout@v4
 
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-    - run: npm install
-    - run: CI=false npm run build --if-present
-      if: always()
+      - name: Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
 
-  
-    - name: FTP Deploy standalone (Next.js server)
-      if: always()
-  # You may pin to the exact commit or the version.
-  # uses: SamKirkland/FTP-Deploy-Action@a51268f67f6605236975928ae28b0f7e9971d50a
-      uses: SamKirkland/FTP-Deploy-Action@v4.3.6
-      with:
-        # ftp server
-        server: ${{ secrets.SERVER }}
-        # ftp username
-        username: ${{ secrets.USERNAME }}
-        # ftp password
-        password: ${{ secrets.PASSWORD }}
-        # Folder to upload from, must end with trailing slash /
-        local-dir: ./.next/standalone/
-        # Path to upload to on the server. Must end with trailing slash /
-        server-dir: /public_html/standalone/
-        # protocol to deploy with - ftp, ftps, or ftps-legacy
-        protocol: ftp
-        port: 21
-        security: loose
-        timeout: 180000
-        log-level: verbose
-        dangerous-clean-slate: false
-        # Path and name of the state file - this file is used to track which files have been deployed
-        exclude: |
-          **/cgi-bin*
-          **/node_modules/**
+      # `npm ci` zamiast `npm install`: instaluje dokładnie to, co jest
+      # w package-lock.json, więc build w CI = build lokalny.
+      - name: Instalacja zależności
+        run: npm ci
 
-    - name: Wait before next deploy
-      run: sleep 5
+      - name: Build
+        env:
+          NODE_ENV: production
+          NEXT_TELEMETRY_DISABLED: '1'
+          # Redis z serwisu powyżej — tylko po to, żeby import modułu przeszedł.
+          REDIS_URL: redis://127.0.0.1:6379
 
-    - name: FTP Deploy Deploy static assets
-      if: always()
-    # You may pin to the exact commit or the version.
-    # uses: SamKirkland/FTP-Deploy-Action@a51268f67f6605236975928ae28b0f7e9971d50a
-      uses: SamKirkland/FTP-Deploy-Action@v4.3.6
-      with:
-        # ftp server
-        server: ${{ secrets.SERVER }}
-        # ftp username
-        username: ${{ secrets.USERNAME }}
-        # ftp password
-        password: ${{ secrets.PASSWORD }}
-        # Folder to upload from, must end with trailing slash /
-        local-dir: ./.next/static/
-        # Path to upload to on the server. Must end with trailing slash /
-        server-dir: /public_html/_next/static/
-        # protocol to deploy with - ftp, ftps, or ftps-legacy
-        protocol: ftp
-        port: 21
-        security: loose
-        timeout: 180000
-        log-level: verbose
-        dangerous-clean-slate: false
-        # Path and name of the state file - this file is used to track which files have been deployed
-        exclude: |
-          **/cgi-bin*
+          # --- wkompilowywane w paczkę przeglądarki (MUSZĄ być tutaj) ---
+          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+          NEXT_PUBLIC_BASE_URL: ${{ secrets.NEXT_PUBLIC_BASE_URL }}
+          NEXT_PUBLIC_SANITY_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_SANITY_PROJECT_ID }}
+          NEXT_PUBLIC_SANITY_DATASET: ${{ secrets.NEXT_PUBLIC_SANITY_DATASET }}
+          NEXT_PUBLIC_SANITY_API_VERSION: ${{ secrets.NEXT_PUBLIC_SANITY_API_VERSION }}
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_CLERK_SIGN_IN_URL: ${{ secrets.NEXT_PUBLIC_CLERK_SIGN_IN_URL }}
+          NEXT_PUBLIC_CLERK_SIGN_UP_URL: ${{ secrets.NEXT_PUBLIC_CLERK_SIGN_UP_URL }}
+          NEXT_PUBLIC_CLERK_RESET_PASSWORD_URL: ${{ secrets.NEXT_PUBLIC_CLERK_RESET_PASSWORD_URL }}
+          NEXT_PUBLIC_CLERK_VERIFY_EMAIL_URL: ${{ secrets.NEXT_PUBLIC_CLERK_VERIFY_EMAIL_URL }}
+          NEXT_PUBLIC_FURGONETKA_MAP_API_KEY: ${{ secrets.NEXT_PUBLIC_FURGONETKA_MAP_API_KEY }}
+          NEXT_PUBLIC_GA_MEASUREMENT_ID: ${{ secrets.NEXT_PUBLIC_GA_MEASUREMENT_ID }}
+          NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION: ${{ secrets.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION }}
 
-    - name: Wait before next deploy
-      run: sleep 5
+          # --- czytane przy prerenderowaniu stron ---
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          SANITY_API_TOKEN: ${{ secrets.SANITY_API_TOKEN }}
 
-    - name: FTP Deploy public folder
-      if: always()
-    # You may pin to the exact commit or the version.
-    # uses: SamKirkland/FTP-Deploy-Action@a51268f67f6605236975928ae28b0f7e9971d50a
-      uses: SamKirkland/FTP-Deploy-Action@v4.3.6
-      with:
-        # ftp server
-        server: ${{ secrets.SERVER }}
-        # ftp username
-        username: ${{ secrets.USERNAME }}
-        # ftp password
-        password: ${{ secrets.PASSWORD }}
-        # Folder to upload from, must end with trailing slash /
-        local-dir: ./public/
-        # Path to upload to on the server. Must end with trailing slash /
-        server-dir: /public_html/public/
-        # protocol to deploy with - ftp, ftps, or ftps-legacy
-        protocol: ftp
-        port: 21
-        security: loose
-        timeout: 180000
-        log-level: verbose
-        dangerous-clean-slate: false
-        # Path and name of the state file - this file is used to track which files have been deployed
-        exclude: |
-          **/cgi-bin*
+          # --- decyzje zapadające przy budowaniu ---
+          # Nagłówki z next.config.ts trafiają do manifestu — na serwerze
+          # tej wartości już nie zmienisz. Na start `report-only`; po
+          # sprawdzeniu konsoli ustaw zmienną CSP_MODE=enforce w środowisku.
+          CSP_MODE: ${{ vars.CSP_MODE || 'report-only' }}
+          # Staging poza indeksem Google — kopia sklepu pod inną domeną
+          # konkurowałaby z produkcją o te same treści.
+          SITE_INDEXABLE: ${{ vars.SITE_INDEXABLE || 'false' }}
+        run: npm run build
+
+      # `output: 'standalone'` daje `server.js` i odchudzone `node_modules`,
+      # ale statyków i `public` nie kopiuje (udokumentowane zachowanie Next).
+      # `server.js` szuka ich WEWNĄTRZ swojego katalogu, stąd ten krok.
+      - name: Skompletowanie paczki standalone
+        run: |
+          set -euo pipefail
+          rm -rf .next/standalone/.next/static .next/standalone/public
+          cp -r .next/static .next/standalone/.next/
+          if [ -d public ]; then cp -r public .next/standalone/; fi
+          test -f .next/standalone/server.js
+          test -d .next/standalone/.next/static
+          echo "--- zawartość paczki ---"
+          ls -la .next/standalone
+          echo "--- rozmiar: ---"
+          du -sh .next/standalone
+          echo "--- liczba plików: ---"
+          find .next/standalone -type f | wc -l
+
+      # Konto FTP loguje się do /home/srv45036/domains/e-hau-prod.wibbly.pl,
+      # więc `/public_html/` to katalog aplikacji Node (ten z `server.js`).
+      #
+      # Akcja kasuje na serwerze tylko te pliki, które sama wcześniej wgrała
+      # (pilnuje tego plik stanu `.ftp-deploy-sync-state.json` w katalogu
+      # docelowym). Wgrany ręcznie `.env` jest więc bezpieczny — pod warunkiem,
+      # że `dangerous-clean-slate` zostaje `false`.
+      - name: Wdrożenie przez FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+        with:
+          server: ${{ secrets.SERVER }}
+          username: ${{ secrets.USERNAME }}
+          password: ${{ secrets.PASSWORD }}
+          protocol: ftp
+          port: 21
+          security: loose
+          local-dir: ./.next/standalone/
+          server-dir: /public_html/
+          timeout: 180000
+          # `verbose` przy kilkunastu tysiącach plików zapycha log Actions.
+          log-level: standard
+          # NIGDY `true` — skasowałoby `.env` i wszystko wgrane ręcznie.
+          dangerous-clean-slate: false
+          # Uwaga: podanie `exclude` NADPISUJE domyślną listę akcji, w której
+          # jest `**/node_modules/**`. To celowe — `standalone/node_modules`
+          # musi trafić na serwer, bez niego `server.js` nie wstanie.
+          # Pomijamy tylko to, czego Node przy uruchomieniu nie czyta:
+          # dokumentację, licencje, typy i mapy źródeł (mniej plików = krótszy
+          # transfer).
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/.env
+            **/.env.*
+            **/cgi-bin*
+            **/*.md
+            **/*.map
+            **/*.d.ts
+            **/LICENSE*

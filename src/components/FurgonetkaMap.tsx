@@ -8,12 +8,6 @@ export interface FurgonetkaPoint {
   carrier: string
 }
 
-export interface FurgonetkaLocationPrefill {
-  street?:   string
-  city?:     string
-  postcode?: string
-}
-
 declare global {
   interface Window {
     Furgonetka?: {
@@ -23,6 +17,8 @@ declare global {
         street?:             string
         city?:               string
         postcode?:           string
+        zoom?:               number
+        showServiceTypeFilter   ?: boolean
         callback:            (params: { point: { code: string; name: string; type: string; service?: string } }) => void
         closeModalCallback?: () => void
         env?:                'sandbox' | 'production'
@@ -49,7 +45,7 @@ export default function FurgonetkaMap() {
 /** Open the Furgonetka locker map modal imperatively */
 export function openFurgonetkaMap(opts: {
   courierServices?: string[]
-  location?:        FurgonetkaLocationPrefill
+  location?:        string | undefined
   onSelect:         (point: FurgonetkaPoint) => void
   onClose?:         () => void
 }) {
@@ -67,16 +63,23 @@ export function openFurgonetkaMap(opts: {
 
     new window.Furgonetka.Map({
       apiKey: MAP_API_KEY,
+      zoom:13,
+      showServiceTypeFilter : false,
       ...(opts.courierServices?.length ? { courierServices: opts.courierServices } : {}),
-      ...(opts.location?.street   ? { street:   opts.location.street }   : {}),
-      ...(opts.location?.city     ? { city:     opts.location.city }     : {}),
-      ...(opts.location?.postcode ? { postcode: opts.location.postcode } : {}),
+      ...(opts.location  ? { street:   opts.location }   : {}),
       callback: ({ point }) => {
         opts.onSelect({ code: point.code, name: point.name, carrier: point.service ?? point.type })
       },
       closeModalCallback: opts.onClose,
-      env: 'sandbox',
+      // Ta sama zasada co w `lib/furgonetka.ts`: na produkcji realne punkty,
+      // poza produkcją piaskownica. Zaszyty 'sandbox' pokazywał klientom
+      // testowe paczkomaty.
+      env: process.env.NODE_ENV === 'production' ? 'production' : 'sandbox',
     }).show()
+
+    // Nadpisanie stylów widżetu (zaokrąglone rogi) — do włączenia po dwóch
+    // cyklach rAF, gdy <style> widżetu jest już w DOM:
+    // requestAnimationFrame(() => requestAnimationFrame(injectOverride))
   }
 
   tryOpen()

@@ -1,1 +1,0 @@
-ALTER TABLE `wishlist_items` DROP COLUMN `variant_id`;

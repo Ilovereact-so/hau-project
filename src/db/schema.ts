@@ -1,6 +1,8 @@
+import { sql } from 'drizzle-orm'
 import {
-  mysqlTable, varchar, int,
+  mysqlTable, varchar, int, tinyint, bigint, datetime,
   timestamp, primaryKey, mysqlEnum, text, boolean,
+  index, uniqueIndex,
 } from 'drizzle-orm/mysql-core'
 
 // ─── cart ─────────────────────────────────────────────────────────────────────
@@ -66,6 +68,7 @@ export const orderItems = mysqlTable('order_items', {
   qty:          int('qty').notNull(),
   priceCents:   int('price_cents').notNull(),
   name:         varchar('name', { length: 256 }).notNull(),
+  brand:        varchar('brand', { length: 128 }).notNull().default(''),
   variantLabel: varchar('variant_label', { length: 256 }).notNull().default(''),
   imageUrl:     varchar('image_url', { length: 512 }).notNull().default(''),
 })
@@ -96,16 +99,33 @@ export const PAYMENT_TX_STATUSES = ['pending', 'success', 'failed', 'expired', '
 export type PaymentTxStatus = typeof PAYMENT_TX_STATUSES[number]
 
 export const paymentTransactions = mysqlTable('payment_transactions', {
-  id:          varchar('id', { length: 36 }).primaryKey(),
-  orderId:     varchar('order_id', { length: 36 }).notNull(),
-  provider:    mysqlEnum('provider', ['przelewy24', 'autopay']).notNull(),
-  externalId:  varchar('external_id', { length: 256 }),
-  sessionId:   varchar('session_id', { length: 256 }).notNull(),
-  status:      mysqlEnum('status', PAYMENT_TX_STATUSES).notNull().default('pending'),
-  amountCents: int('amount_cents').notNull(),
-  rawResponse: text('raw_response'),
-  createdAt:   timestamp('created_at').defaultNow(),
-  updatedAt:   timestamp('updated_at').defaultNow().onUpdateNow(),
+  id:               varchar('id', { length: 36 }).primaryKey(),
+  orderId:          varchar('order_id', { length: 36 }).notNull(),
+  provider:         mysqlEnum('provider', ['przelewy24', 'autopay']).notNull(),
+  externalId:       varchar('external_id', { length: 256 }),
+  sessionId:        varchar('session_id', { length: 256 }).notNull(),
+  status:           mysqlEnum('status', PAYMENT_TX_STATUSES).notNull().default('pending'),
+  amountCents:      int('amount_cents').notNull(),
+  saveCardConsent:  boolean('save_card_consent').notNull().default(false),
+  cardToken:        varchar('card_token', { length: 256 }),
+  rawResponse:      text('raw_response'),
+  createdAt:        timestamp('created_at').defaultNow(),
+  updatedAt:        timestamp('updated_at').defaultNow().onUpdateNow(),
+})
+
+// ─── saved cards ──────────────────────────────────────────────────────────────
+
+export const savedCards = mysqlTable('saved_cards', {
+  id:           varchar('id', { length: 36 }).primaryKey(),
+  userId:       varchar('user_id', { length: 128 }).notNull(),
+  provider:     mysqlEnum('provider', ['autopay']).notNull().default('autopay'),
+  token:        varchar('token', { length: 256 }).notNull(),
+  maskedNumber: varchar('masked_number', { length: 20 }),
+  expiryMonth:  int('expiry_month'),
+  expiryYear:   int('expiry_year'),
+  cardBrand:    varchar('card_brand', { length: 32 }),
+  isActive:     boolean('is_active').notNull().default(true),
+  createdAt:    timestamp('created_at').defaultNow(),
 })
 
 // ─── shipments ────────────────────────────────────────────────────────────────
@@ -158,6 +178,55 @@ export const deliveryServices = mysqlTable('delivery_services', {
   updatedAt:           timestamp('updated_at').defaultNow().onUpdateNow(),
 })
 
+// ─── newsletter subscribers ───────────────────────────────────────────────────
+
+export const newsletterSubscribers = mysqlTable('newsletter_subscribers', {
+  id:         varchar('id', { length: 36 }).primaryKey(),
+  email:      varchar('email', { length: 256 }).notNull().unique(),
+  // RODO: zapis zgody i data jej wyrażenia
+  consent:    boolean('consent').notNull().default(true),
+  consentAt:  timestamp('consent_at').defaultNow(),
+  // false po wypisaniu się (hard opt-out zachowuje historię zgody)
+  isActive:   boolean('is_active').notNull().default(true),
+  // token pod przyszły link wypisania (bez logowania)
+  unsubToken: varchar('unsub_token', { length: 64 }),
+  createdAt:  timestamp('created_at').defaultNow(),
+  updatedAt:  timestamp('updated_at').defaultNow().onUpdateNow(),
+})
+
+// ─── email templates (edytowalne z panelu admina) ────────────────────────────
+
+export const emailTemplates = mysqlTable('email_templates', {
+  // np. 'newsletter_welcome' — klucz identyfikujący szablon
+  key:       varchar('key', { length: 128 }).primaryKey(),
+  subject:   varchar('subject', { length: 256 }).notNull(),
+  // treść HTML maila (może zawierać placeholder {{email}})
+  html:      text('html').notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().onUpdateNow(),
+})
+
+// ─── import jobs (audyt hurtowych importów CSV z panelu admina) ───────────────
+
+export const IMPORT_TYPES = ['products', 'subcategories'] as const
+export type ImportType = typeof IMPORT_TYPES[number]
+
+export const IMPORT_JOB_STATUSES = ['running', 'done', 'failed'] as const
+export type ImportJobStatus = typeof IMPORT_JOB_STATUSES[number]
+
+export const importJobs = mysqlTable('import_jobs', {
+  id:         varchar('id', { length: 36 }).primaryKey(),
+  type:       mysqlEnum('type', IMPORT_TYPES).notNull(),
+  fileName:   varchar('file_name', { length: 256 }).notNull().default(''),
+  totalRows:  int('total_rows').notNull().default(0),
+  okRows:     int('ok_rows').notNull().default(0),
+  failedRows: int('failed_rows').notNull().default(0),
+  status:     mysqlEnum('status', IMPORT_JOB_STATUSES).notNull().default('running'),
+  // szczegółowy raport per wiersz: [{ row: 1, ok: true }, { row: 2, ok: false, error: '...' }]
+  logJson:    text('log_json'),
+  createdBy:  varchar('created_by', { length: 128 }),
+  createdAt:  timestamp('created_at').defaultNow(),
+})
+
 // ─── saved addresses (one per logged-in user, pre-fills checkout) ─────────────
 
 export const savedAddresses = mysqlTable('saved_addresses', {
@@ -174,3 +243,76 @@ export const savedAddresses = mysqlTable('saved_addresses', {
   country:    varchar('country', { length: 2 }).notNull().default('PL'),
   updatedAt:  timestamp('updated_at').defaultNow().onUpdateNow(),
 })
+
+// ─── product reviews (opinie o produktach) ────────────────────────────────────
+
+export const REVIEW_STATUSES = ['published', 'hidden'] as const
+export type ReviewStatus = typeof REVIEW_STATUSES[number]
+
+export const productReviews = mysqlTable('product_reviews', {
+  id:               varchar('id', { length: 36 }).primaryKey(),
+  // `_id` produktu z Sanity (opublikowany dokument, bez prefiksu `drafts.`)
+  productId:        varchar('product_id', { length: 128 }).notNull(),
+  userId:           varchar('user_id', { length: 128 }).notNull(),
+  // podpis zapisany w chwili dodania opinii ("Anna K.") — nie zdradza nazwiska
+  authorName:       varchar('author_name', { length: 64 }).notNull(),
+  rating:           tinyint('rating').notNull(),
+  title:            varchar('title', { length: 120 }),
+  body:             text('body').notNull(),
+  // true, gdy autor ma opłacone zamówienie z tym produktem (liczone przy zapisie)
+  verifiedPurchase: boolean('verified_purchase').notNull().default(false),
+  // opinie są publikowane od razu; admin może je ukryć (nie liczą się wtedy do średniej)
+  status:           mysqlEnum('status', REVIEW_STATUSES).notNull().default('published'),
+  adminReply:       text('admin_reply'),
+  adminReplyAt:     timestamp('admin_reply_at'),
+  createdAt:        timestamp('created_at').defaultNow(),
+  updatedAt:        timestamp('updated_at').defaultNow().onUpdateNow(),
+}, t => [
+  // jedna opinia na konto i produkt — ponowne wysłanie formularza ją edytuje
+  uniqueIndex('product_reviews_user_product').on(t.userId, t.productId),
+  index('product_reviews_product_status').on(t.productId, t.status, t.createdAt),
+])
+
+// ─── product price history (rejestr cen — najniższa cena z 30 dni) ────────────
+
+export const PRICE_CHANGE_SOURCES = [
+  'init',      // pierwsza rejestracja ceny (produkt nie miał jeszcze historii)
+  'admin',     // zapis z panelu admina
+  'import',    // import CSV
+  'webhook',   // zmiana w Sanity Studio zgłoszona webhookiem
+  'cron',      // okresowe uzgodnienie z Sanity
+  'observed',  // zmiana wykryta przy wyświetlaniu produktu
+] as const
+// Zniknięcie ceny ze sklepu (wycofany produkt, usunięty wariant) tylko
+// zamyka przedział — nie tworzy nowego wiersza.
+export type PriceChangeSource = typeof PRICE_CHANGE_SOURCES[number]
+
+/*
+ * Każdy wiersz = jedna cena obowiązująca w sklepie w przedziale
+ * [valid_from, valid_to). `valid_to IS NULL` → cena bieżąca.
+ * Historię prowadzi osobno każdy wariant (`variant_key`) oraz cena bazowa
+ * produktu (`variant_key = ''`). Wierszy się nie usuwa ani nie edytuje cen —
+ * to dowód, z czego wyliczono „najniższą cenę z 30 dni”.
+ */
+export const productPriceHistory = mysqlTable('product_price_history', {
+  id:          bigint('id', { mode: 'number', unsigned: true }).autoincrement().primaryKey(),
+  // `_id` opublikowanego produktu z Sanity
+  productId:   varchar('product_id', { length: 128 }).notNull(),
+  // `variants[]._key` albo '' dla ceny bazowej produktu
+  variantKey:  varchar('variant_key', { length: 64 }).notNull().default(''),
+  priceCents:  int('price_cents').notNull(),
+  // DATETIME w UTC (drizzle zapisuje i czyta daty jako UTC). Nie TIMESTAMP:
+  // przy explicit_defaults_for_timestamp=OFF (starsze MySQL/MariaDB na
+  // hostingu) pierwsza kolumna TIMESTAMP NOT NULL dostaje ON UPDATE
+  // CURRENT_TIMESTAMP i zamknięcie przedziału przestawiałoby jego początek.
+  validFrom:   datetime('valid_from', { mode: 'date', fsp: 3 }).notNull(),
+  validTo:     datetime('valid_to', { mode: 'date', fsp: 3 }),
+  source:      mysqlEnum('source', PRICE_CHANGE_SOURCES).notNull(),
+  // 1 dla przedziału otwartego, NULL dla zamkniętych — unikalny indeks
+  // gwarantuje, że współbieżne zapisy nie utworzą dwóch „bieżących” cen.
+  openMarker:  tinyint('open_marker').generatedAlwaysAs(sql`(if(\`valid_to\` is null, 1, null))`, { mode: 'stored' }),
+  createdAt:   datetime('created_at', { mode: 'date', fsp: 3 }).notNull().default(sql`(now(3))`),
+}, t => [
+  uniqueIndex('price_history_one_open').on(t.productId, t.variantKey, t.openMarker),
+  index('price_history_lookup').on(t.productId, t.variantKey, t.validFrom),
+])

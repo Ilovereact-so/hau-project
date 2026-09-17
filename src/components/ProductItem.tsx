@@ -1,13 +1,16 @@
+'use client'
+
 import React from 'react'
-import { GetSlugProduct, Product } from '../../sanity.types'
+import { GetSlugProduct } from '../../sanity.types'
 import Image from 'next/image'
 import { urlFor } from '@/sanity/lib/image'
 import { Heart } from 'lucide-react'
 import Link from 'next/link'
-import PriceFormatter from './PriceFormatter'
+import { OmnibusNote, PriceRow, useProductPrice } from './price/ProductPrice'
 
 
 const ProductItem = ({product}:{product: GetSlugProduct}) => {
+  const priceState = useProductPrice(product)
 
   return (
     <div className='relative 1xl:min-w-[290px] lg:min-w-[230px] min-w-[200px] 1xl:min-h-[290px] lg:min-h-[230px] min-h-[200px] flex flex-col justify-between w-fit'>
@@ -22,25 +25,19 @@ const ProductItem = ({product}:{product: GetSlugProduct}) => {
       </div>
       <div className='flex flex-col'>
       <h1 className='1xl:text-[16px] text-[15px] text-black font-bold mt-2 line-clamp-2 '>{product?.title}</h1>
-      <div className='flex justify-between text-black 1xl:text-[13px] text-[11px] mt-1'>
-        <h1>Najniższa cena z ostatnich 30dni:</h1>
-        <h1>52,00zł</h1>
+      <div className='text-black 1xl:text-[13px] text-[11px] mt-1'>
+        <OmnibusNote state={priceState} />
       </div>
       </div>
       <div className='flex justify-between mt-2'>
         <div className='text-white 1xl:text-[14px] lg:text-[12px] text-[11px] font-bold bg-black rounded-[14px] 1xl:px-6 px-4 1xl:py-[10px] py-2 flex items-center'>Dodaj do koszyka</div>
         <div className='flex flex-col justify-center'>
-          {product?.compareAtPrice ? 
-        (<div className='flex flex-col items-end'>
-          <h1 className='1xl:text-[16px] lg:text-[14px] text-[13px] text-[#DD1919] font-bold'><PriceFormatter amount={product?.price}/></h1>
-          <h1 className='text-black 1xl:text-[13px] lg:text-[11px] text-[10px]'><span className='mr-1 line-through'>{product?.compareAtPrice}zł</span>{ (100 - ((parseFloat(String(product?.compareAtPrice)) / parseFloat(String(product?.price))) * 100)).toFixed(0)}%</h1>
-        </div>
-        )
-        :
-        (
-          <h1 className='1xl:text-[18px] lg:text-[14px] text-[13px] text-black font-bold'><PriceFormatter amount={product?.price}/></h1>
-        ) 
-        }
+          <PriceRow
+            state={priceState}
+            className='flex-col items-end gap-0 1xl:text-[16px] lg:text-[14px] text-[13px]'
+            priceClassName='font-bold 1xl:text-[16px] lg:text-[14px] text-[13px]'
+            referenceClassName='text-black 1xl:text-[13px] lg:text-[11px] text-[10px]'
+          />
           </div>
       </div>
     </div>

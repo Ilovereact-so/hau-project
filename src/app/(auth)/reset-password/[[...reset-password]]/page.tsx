@@ -68,7 +68,7 @@ export default function ResetPassword() {
         setError('')
         router.push("/"); // 👈 redirect po udanym logowaniu
       }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
     } catch (err: any) {
       setError(err.errors?.[0]?.message || "Niepoprawny kod");
     }
@@ -87,7 +87,6 @@ export default function ResetPassword() {
       })
     } catch (err: any) {
       setError(err.errors?.[0]?.message || "Niepoprawny Email");
-      console.log(isEmail)
     }
   }
 

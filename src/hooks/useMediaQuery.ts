@@ -11,10 +11,10 @@ function getSnapshot(query: string) {
   return window.matchMedia(query).matches;
 }
 
-export function useMediaQuery(query: string) {
+export function useMediaQuery(query: string, serverFallback = false) {
   return useSyncExternalStore(
     cb => subscribe(query, cb),
     () => getSnapshot(query),
-    () => false // SSR fallback
+    () => serverFallback // SSR fallback — domyślnie false (desktop), jak dotąd
   );
 }

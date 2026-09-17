@@ -5,7 +5,7 @@
 
 import { TrolleyIcon } from "@sanity/icons";
 
-export default {
+const productType = {
   name: "product",
   title: "Product",
   type: "document",
@@ -22,9 +22,24 @@ export default {
     { name: "description", title: "Description", type: "array", of: [{ type: "block" },{ type: 'image', options: { hotspot: true } }] },
 
     // Pricing
-    { name: "price", title: "Price", type: "number" },
+    {
+      name: "price",
+      title: "Price",
+      type: "number",
+      description: "Cena sprzedaży brutto. Każda zmiana po publikacji trafia do historii cen — sklep sam wylicza najniższą cenę z 30 dni i obniżkę.",
+    },
     { name: "currency", title: "Currency", type: "string", initialValue: "PLN" },
-    { name: "compareAtPrice", title: "Compare at price", type: "number" },
+    // Wycofane: obniżkę i cenę sprzed obniżki (najniższą z 30 dni) sklep
+    // wylicza sam z rejestru cen (src/lib/priceHistory.ts). Pole zostaje, żeby
+    // nie gubić starych danych, ale jest tylko do odczytu i ukryte, gdy puste.
+    {
+      name: "compareAtPrice",
+      title: "Compare at price (nieużywane)",
+      type: "number",
+      readOnly: true,
+      hidden: ({ value }: { value?: number }) => value === undefined || value === null,
+      description: "Nieużywane. Obniżkę wpisz jako nową cenę — sklep sam pokaże najniższą cenę z 30 dni przed obniżką.",
+    },
 
     // Stock / visibility
     { name: "stock", title: "Stock", type: "number" },
@@ -40,6 +55,18 @@ export default {
     },
 
     { name: "type", title: "Subcategory", type: "reference", to: [{ type: "subcategory" }] },
+
+    // Kolekcje (opcjonalnie). Słabe referencje: przy dodawaniu produktu można
+    // wskazać kolekcję, której jeszcze nie ma — „Create new” w polu tworzy ją
+    // jako szkic, a produkt i tak się zapisze (patrz schemaTypes/collection.ts).
+    {
+      name: "collections",
+      title: "Kolekcje",
+      type: "array",
+      description: "Opcjonalnie. Brakującą kolekcję utworzysz przyciskiem „Create new” — powstanie jako szkic.",
+      of: [{ type: "reference", to: [{ type: "collection" }], weak: true }],
+      validation: (Rule: any) => Rule.unique(),
+    },
     { name: "brand", title: "Brand", type: "string" },
     { name: "vendor", title: "Vendor", type: "string" },
 
@@ -219,6 +246,8 @@ export default {
     },
   }
 };
+
+export default productType;
 
 
 

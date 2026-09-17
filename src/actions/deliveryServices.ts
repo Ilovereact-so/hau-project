@@ -20,6 +20,8 @@ export interface DeliveryService {
   deliveryType:    'kurier' | 'paczkomat'
   priceCents:      number
   estimatedDays:   string | null
+  isActive:        boolean
+  sortOrder:       number
 }
 
 // ─── public ───────────────────────────────────────────────────────────────────
@@ -43,8 +45,6 @@ export async function getActiveDeliveryServices(): Promise<DeliveryService[]> {
     .orderBy(deliveryServices.sortOrder)
     
   await redis.setEx(CACHE_KEY, CACHE_TTL, JSON.stringify(rows))
-  console.log("something")
-  console.log(JSON.stringify(rows))
   return rows as DeliveryService[]
 }
 
@@ -64,6 +64,17 @@ export async function getDeliveryServiceByCode(serviceCode: string): Promise<Del
     .limit(1)
 
   return (rows[0] as DeliveryService) ?? null
+}
+
+/** Wszystkie metody dostawy (również nieaktywne) — panel admina. */
+export async function getAllDeliveryServices(): Promise<DeliveryService[]> {
+  const { sessionClaims } = await auth()
+  const role = (sessionClaims?.metadata as { role?: string })?.role
+  if (role !== 'admin') throw new Error('Brak uprawnień')
+  return db
+    .select()
+    .from(deliveryServices)
+    .orderBy(deliveryServices.sortOrder)
 }
 
 // ─── admin — sync from Furgonetka ─────────────────────────────────────────────

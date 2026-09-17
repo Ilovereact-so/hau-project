@@ -6,7 +6,7 @@ interface Props {
   numRef?: React.RefObject<HTMLInputElement | null>
 }
 
-const PriceFormatter = ({ amount, className, numRef }: Props) => {
+const PriceFormatter = ({ amount, className }: Props) => {
   const formattedPrice = new Number(amount).toLocaleString("pl-PL", {
     currency: "PLN",
     style: "currency",

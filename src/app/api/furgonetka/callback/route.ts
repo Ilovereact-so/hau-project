@@ -26,11 +26,11 @@ export async function GET(req: NextRequest) {
   ])
 
   // Print to server console so dev can copy to .env
-  console.log('\n✅ FURGONETKA OAUTH SUCCESS')
-  console.log('────────────────────────────────────────')
-  console.log('Add to .env:')
-  console.log(`FURGONETKA_REFRESH_TOKEN=${tokens.refresh_token}`)
-  console.log('────────────────────────────────────────\n')
+  console.info('\n✅ FURGONETKA OAUTH SUCCESS')
+  console.info('────────────────────────────────────────')
+  console.info('Add to .env:')
+  console.info(`FURGONETKA_REFRESH_TOKEN=${tokens.refresh_token}`)
+  console.info('────────────────────────────────────────\n')
 
   return new NextResponse(
     `<!DOCTYPE html>

@@ -3,7 +3,7 @@ import React from 'react'
 import { TypedObject } from 'sanity'
 
 const TopInfoBar = () => {
-    let content: TypedObject[] = [
+    const content: TypedObject[] = [
         {
             _type: 'block',
             _key: '1',
@@ -26,7 +26,7 @@ const TopInfoBar = () => {
         }
     ]
     return (
-        <div className='flex w-full justify-center bg-[#D1EAE6] px-3 text-center text-black py-2 text-[clamp(13px,1.5vw,16px)]'>
+        <div className='flex w-full justify-center bg-[#D1EAE6] px-3 text-center text-black py-2 text-[clamp(13px,1.5vw,16px)] font-poppins'>
             <PortableText value={content}/>
         </div>
     )

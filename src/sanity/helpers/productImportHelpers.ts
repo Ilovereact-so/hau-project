@@ -4,7 +4,7 @@
 // Kopiuj je do pliku helpers/productImportHelpers.ts i używaj w komponencie upload.
 // -----------------------------
 
-/* eslint-disable max-lines */
+ 
 
 import { customAlphabet } from 'nanoid';
 const nanoid = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 8);
@@ -116,6 +116,26 @@ export function parseFilterValues(row: Record<string, string | undefined>) {
   return filterValues;
 }
 
+/**
+ * Kolumna `collections` — nazwy kolekcji rozdzielone `;` lub `|`
+ * (przecinek bywa częścią nazwy, np. „Spacer, deszcz i błoto”).
+ * Brakujące kolekcje importer tworzy jako szkic.
+ */
+export function parseCollectionNames(row: Record<string, string | undefined>): string[] {
+  const cell = row.collections ?? row.kolekcje ?? '';
+  const seen = new Set<string>();
+  const names: string[] = [];
+  for (const part of String(cell).split(/[;|]/)) {
+    const name = part.replace(/\s+/g, ' ').trim().slice(0, 120);
+    const key = name.toLowerCase();
+    if (name && !seen.has(key)) {
+      seen.add(key);
+      names.push(name);
+    }
+  }
+  return names;
+}
+
 export function parseOptionColumns(row: Record<string, string | undefined>) {
   const options: Array<any> = [];
   const availableOptions = row.productOptions ? splitList(row.productOptions) : []; 
@@ -191,9 +211,7 @@ export function mapCsvRowToProductPartial(row: Record<string, string | undefined
   const images = splitList(row.images || '').map(url => url.trim()).filter(Boolean);
   const tags = splitList(row.tags || ';').map(t => t.trim()).filter(Boolean);
   const options = parseOptionColumns(row);
-  const filterValues = parseFilterValues(row);
   const dimensions: any = {};
-  console.log(row)
   if (row.properties_width_cm) dimensions.width_cm = Number(row.properties_width_cm);
   if (row.properties_height_cm) dimensions.height_cm = Number(row.properties_height_cm);
   if (row.properties_depth_cm) dimensions.depth_cm = Number(row.properties_depth_cm);

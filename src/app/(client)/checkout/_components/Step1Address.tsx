@@ -1,8 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Truck, MapPin, ChevronRight, Plus } from 'lucide-react'
+import { ChevronRight, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import toast from 'react-hot-toast'
@@ -12,7 +11,7 @@ import Field from './Field'
 
 // ─── delivery type tab ────────────────────────────────────────────────────────
 
-function DeliveryTypeCard({
+export function DeliveryTypeCard({
   icon: Icon, label, selected, onClick,
 }: {
   icon: React.ElementType; label: string; selected: boolean; onClick: () => void
@@ -34,7 +33,7 @@ function DeliveryTypeCard({
         selected ? "w-full" : "w-0"
       }`}>
         <span className={cn(
-          'text-[16px] text-black font-medium absolute left-0 top-[50%] translate-y-[-50%] w-[170px]',
+          'text-[clamp(14px,1.4vw,16px)] text-black font-medium absolute left-0 top-[50%] translate-y-[-50%] w-[170px]',
           selected ? 'opacity-100 ' : 'opacity-0',
         )}>
           {label}
@@ -53,26 +52,21 @@ const EMPTY_ADDRESS: CheckoutAddress = {
 
 export interface Step1Result {
   address:      CheckoutAddress
-  deliveryType: 'kurier' | 'automat'
 }
 
 interface Props {
   savedAddress: SavedAddress | null
   onContinue:   (data: Step1Result) => void
+  deliveryType: 'kurier' | 'automat'
 }
 
 // ─── component ────────────────────────────────────────────────────────────────
 
-export default function Step1Address({ savedAddress, onContinue }: Props) {
+export default function Step1Address({ savedAddress, onContinue, deliveryType }: Props) {
   const [address, setAddress]               = useState<CheckoutAddress>(savedAddress ?? EMPTY_ADDRESS)
-  const [deliveryType, setDeliveryType]     = useState<'kurier' | 'automat'>('automat')
   const [additionalField, setAdditionalField] = useState(false)
   const [errors, setErrors]                 = useState<Partial<Record<keyof CheckoutAddress, string>>>({})
 
-  function switchType(t: 'kurier' | 'automat') {
-    setDeliveryType(t)
-    setErrors({})
-  }
 
   function setField<K extends keyof CheckoutAddress>(key: K, val: CheckoutAddress[K]) {
     setAddress(prev => ({ ...prev, [key]: val }))
@@ -96,25 +90,18 @@ export default function Step1Address({ savedAddress, onContinue }: Props) {
 
   function handleContinue() {
     if (!validate()) { toast.error('Uzupełnij wymagane pola'); return }
-    onContinue({ address, deliveryType })
+    onContinue({address})
   }
 
   return (
-    <div className="flex flex-col">
-      <h2 className="text-[20px] font-medium text-black my-4">Dostawa</h2>
-
-      {/* delivery type tabs */}
-      <div className="flex my-2">
-        <DeliveryTypeCard icon={Truck}  label="Dostawa kurierem"  selected={deliveryType === 'kurier'}  onClick={() => switchType('kurier')} />
-        <DeliveryTypeCard icon={MapPin} label="Dostawa do punktu" selected={deliveryType === 'automat'} onClick={() => switchType('automat')} />
-      </div>
+    <div className="flex flex-col w-full">
 
       {/* address form */}
-      <div className="border border-black rounded-[28px] px-6 py-5 mt-5 space-y-4 relative">
+      <div className="border border-black/40 rounded-[28px] sm:px-6 px-4 py-5 mt-5 space-y-4 relative">
         <Field label="E-mail" type="email" placeholder="jankowalski@gmail.com"
           value={address.email} onChange={e => setField('email', e.target.value)} error={errors.email} />
 
-        <div className="grid sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4">
           <Field label="Imię" placeholder="Jan"
             value={address.firstName} onChange={e => setField('firstName', e.target.value)} error={errors.firstName} />
           <Field label="Nazwisko" placeholder="Kowalski"
@@ -122,55 +109,56 @@ export default function Step1Address({ savedAddress, onContinue }: Props) {
         </div>
 
         {/* kurier-only: full address */}
-        <AnimatePresence>
-          {deliveryType === 'kurier' && (
-            <motion.div key="addr" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }} className="overflow-hidden space-y-4">
-              <Field label="Adres" placeholder="Mickiewicza 99"
-                value={address.street} onChange={e => setField('street', e.target.value)} error={errors.street} />
-              <div className="grid sm:grid-cols-3 gap-4">
-                <Field label="Kod pocztowy" placeholder="33-100" maxLength={6}
-                  value={address.postalCode} onChange={e => setField('postalCode', e.target.value)} error={errors.postalCode} />
-                <Field label="Miejscowość" placeholder="Tarnów"
-                  value={address.city} onChange={e => setField('city', e.target.value)} error={errors.city} />
-                <Field label="Kraj/region" placeholder="Polska" value="Polska" readOnly
-                  className="bg-[#F9F9F9] cursor-default" />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <div className={cn(
+          "grid transition-all duration-300",
+          deliveryType === 'kurier' ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+        )}>
+          <div className="overflow-hidden space-y-4">
+            <Field label="Adres" placeholder="Mickiewicza 99"
+              value={address.street} onChange={e => setField('street', e.target.value)} error={errors.street} />
+            <div className="grid 3xs:grid-cols-3 grid-cols-[auto_33%] gap-4">
+              <Field label="Miejscowość" placeholder="Tarnów"
+                value={address.city} onChange={e => setField('city', e.target.value)} error={errors.city} />
+              <Field label="Kod pocztowy" placeholder="33-100" maxLength={6}
+                value={address.postalCode} onChange={e => setField('postalCode', e.target.value)} error={errors.postalCode} />              
+              <Field label="Kraj/region" placeholder="Polska" value="Polska" readOnly
+                className="bg-[#F9F9F9] cursor-default" />
+            </div>
+          </div>
+        </div>
 
         <Field label="Telefon" type="tel" placeholder="848037241" className='w-fit'
           value={address.phone} onChange={e => setField('phone', e.target.value)} error={errors.phone} />
 
         {/* kurier-only: optional apartment */}
-        <AnimatePresence mode="wait">
-          {deliveryType === 'kurier' && !additionalField && (
-            <motion.div key="apt-toggle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}> 
-              <div onClick={() => setAdditionalField(true)} className="text-[16px] cursor-pointer flex items-center text-black">
-                <Plus size={18} className="mr-2" />
-                <p>mieszkanie / apartament / lokal</p>
-              </div>
-            </motion.div>
-          )}
-          {deliveryType === 'kurier' && additionalField && (
-            <motion.div key="apt-field" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
-              <Field label="mieszkanie / apartament / lokal" placeholder="13"
-                value={address.apartment_number || ''} onChange={e => setField('apartment_number', e.target.value)} />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {deliveryType === 'kurier' && !additionalField && (
+          <div onClick={() => setAdditionalField(true)} className="text-[clamp(14px,1.4vw,15px)] cursor-pointer flex items-center text-black max-lg:pb-7">
+            <Plus size={18} className="mr-2" />
+            <p>mieszkanie / apartament / lokal</p>
+          </div>
+        )}
+        <div className={cn(
+          "grid transition-all duration-300",
+          deliveryType === 'kurier' && additionalField ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+        )}>
+          <div className="overflow-hidden">
+            <Field label="mieszkanie / apartament / lokal" placeholder="13"
+              value={address.apartment_number || ''} onChange={e => setField('apartment_number', e.target.value)} />
+          </div>
+        </div>
 
         <Button type="button" onClick={handleContinue}
-          className="w-fit rounded-full font-bold bg-fancy-black text-white text-[15px] py-6 px-6 hover:bg-fancy-black/90 transition-colors absolute bottom-5 right-6">
+          className={`w-fit rounded-full font-bold bg-fancy-black text-white text-[clamp(14px,1.4vw,15px)] lg:py-6 py-5.5 px-6 hover:bg-fancy-black/90 transition-colors ${
+            deliveryType === 'kurier' && additionalField ? "relative left-[calc(100%-200px)]" : deliveryType === 'kurier' ? "absolute bottom-5 right-6" : "lg:absolute lg:bottom-5 lg:right-6 max-lg:relative max-lg:left-[calc(100%-200px)]"
+          }`}>
           Zapisz i kontynuj
-          <ChevronRight size={16} className="ml-2" />
+          <ChevronRight strokeWidth={3} size={18} className="ml-2" />
         </Button>
       </div>
 
       {/* disabled delivery methods placeholder */}
-      <div className="mt-4 h-13 w-full rounded-full bg-linear-to-b from-[#F7F7F7] to-[#CFCFCF] opacity-70 flex items-center px-6">
-        <span className="text-[16px] text-[#999] font-medium">Metody dostawy</span>
+      <div className="mt-4 h-13 w-full rounded-full bg-fancy-black/[0.03] flex items-center px-6">
+        <span className="text-[clamp(14px,1.4vw,15px)] text-[#999] font-medium">Metody dostawy</span>
       </div>
     </div>
   )

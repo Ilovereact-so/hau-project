@@ -33,7 +33,7 @@ type RawPoint = {
 
 export async function GET(req: NextRequest) {
   const query = req.nextUrl.searchParams.get('query')?.trim() ?? ''
-  const service = req.nextUrl.searchParams.get('service')?.trim() ?? ''
+  const services = req.nextUrl.searchParams.getAll('services').map(normalizeServiceCode).filter(Boolean)
   const limitParam = Number(req.nextUrl.searchParams.get('limit') ?? '20')
   const limit = Number.isFinite(limitParam) ? Math.max(5, Math.min(50, limitParam)) : 20
 
@@ -49,14 +49,12 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  const serviceFilter = normalizeServiceCode(service)
-
   try {
     const response = await fetch(`${BASE_URL}/points/map`, {
       method: 'POST',
       headers: {
         Accept: 'application/vnd.furgonetka.v1+json',
-        'Content-Type': 'application/vnd.furgonetka.v1+json',
+        'Content-Type': 'application/json',
         'Furgonetka-Map-Api-Key': apiKey,
       },
       body: JSON.stringify({
@@ -74,7 +72,7 @@ export async function GET(req: NextRequest) {
         filters: {
           point_id: null,
           type: null,
-          services: serviceFilter ? [serviceFilter] : [],
+          services,
           map_bounds: null,
           limit,
           point_types: [],
@@ -87,7 +85,6 @@ export async function GET(req: NextRequest) {
       }),
       cache: 'no-store',
     })
-
     if (!response.ok) {
       const text = await response.text().catch(() => '')
       return NextResponse.json(
@@ -101,7 +98,7 @@ export async function GET(req: NextRequest) {
     }
 
     const contentType = response.headers.get('content-type') ?? ''
-    if (!contentType.includes('application/json')) {
+    if (!contentType || !contentType.includes('json')) {
       const text = await response.text().catch(() => '')
       return NextResponse.json(
         {
@@ -116,7 +113,7 @@ export async function GET(req: NextRequest) {
     let payload: { points?: RawPoint[] } = {}
     try {
       payload = await response.json() as { points?: RawPoint[] }
-    } catch (err) {
+    } catch {
       const text = await response.text().catch(() => '')
       return NextResponse.json(
         {

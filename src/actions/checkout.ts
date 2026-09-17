@@ -1,16 +1,26 @@
 'use server'
 
 import { auth } from '@clerk/nextjs/server'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { db } from '@/lib/db'
 import { orders, orderItems, shippingAddresses, paymentTransactions } from '@/db/schema'
 import { cartItems as cartItemsTable } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { redis } from '@/lib/redis'
 import { registerTransaction } from '@/lib/przelewy24'
-import { createPaymentUrl } from '@/lib/autopay'
+import {
+  buildTransactionRequest,
+  startTransactionInBackground,
+  describeRejection,
+  isAutopayConfigured,
+  AUTOPAY_BLIK0_ENABLED,
+  AUTOPAY_CARD_IFRAME_ENABLED,
+  AUTOPAY_BLIK_GATEWAY_ID,
+  AUTOPAY_CARD_GATEWAY_ID,
+} from '@/lib/autopay'
 import { client } from '@/sanity/lib/client'
 import { upsertSavedAddress } from '@/actions/address'
+import { effectivePrice } from '@/lib/omnibus'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL!
 
@@ -29,9 +39,12 @@ export interface CheckoutAddress {
 }
 
 export interface CheckoutPickupPoint {
-  code:    string  // point.code from Furgonetka widget
-  name:    string  // point.name from Furgonetka widget
-  carrier: string  // point.type from Furgonetka widget
+  code:     string
+  name:     string
+  carrier:  string
+  street:   string
+  city:     string
+  postcode: string
 }
 
 export interface CheckoutItem {
@@ -50,12 +63,34 @@ export interface CheckoutInput {
   shippingMethod: string         // furgonetka_service_id from Sanity
   deliveryType:   'kurier' | 'automat'
   pickupPoint?:   CheckoutPickupPoint
+  gatewayId?:     number         // wybrany kanał Autopay; brak = wybór metody na stronie Autopay
+  saveCard?:      boolean        // zgoda na zapamiętanie karty (tokenizacja)
+  blikCode?:      string         // BLIK-0: 6-cyfrowy kod z aplikacji banku
   discountCode?:  string
   notes?:         string
 }
 
+/** Dane formularza, który przeglądarka wysyła POST-em na bramkę Autopay. */
+export interface AutopayFormPayload {
+  url:    string
+  fields: Record<string, string>
+}
+
+/**
+ * Płatność uruchomiona bez opuszczania sklepu:
+ * `blik` — czekamy na potwierdzenie w aplikacji banku,
+ * `card` — `url` ląduje w `<iframe>` z formularzem karty Autopay.
+ */
+export interface AutopayInlinePayload {
+  orderId: string
+  mode:    'blik' | 'card'
+  url:     string
+}
+
 export type CheckoutResult =
-  | { ok: true;  redirectUrl: string }
+  | { ok: true;  redirectUrl: string;                autopayForm?: undefined; autopayInline?: undefined }
+  | { ok: true;  autopayForm: AutopayFormPayload;    redirectUrl?: undefined; autopayInline?: undefined }
+  | { ok: true;  autopayInline: AutopayInlinePayload; redirectUrl?: undefined; autopayForm?: undefined }
   | { ok: false; error: string }
 
 // ─── Sanity fetches ───────────────────────────────────────────────────────────
@@ -63,13 +98,14 @@ export type CheckoutResult =
 interface SanityProduct {
   _id:      string
   title:    string
-  price:    number
-  variants: Array<{ _key: string; price: number }> | null
+  price:    number | null
+  brand:    string | null
+  variants: Array<{ _key: string; price: number | null }> | null
 }
 
 async function fetchSanityPrices(productIds: string[]): Promise<Map<string, SanityProduct>> {
   const data = await client.fetch<SanityProduct[]>(
-    `*[_type == "product" && _id in $ids]{ _id, title, price, variants[]{ _key, price } }`,
+    `*[_type == "product" && _id in $ids]{ _id, title, price, brand, variants[]{ _key, price } }`,
     { ids: productIds },
   )
   return new Map(data.map(p => [p._id, p]))
@@ -84,12 +120,11 @@ async function fetchShippingPriceCents(furgonetkaServiceId: string): Promise<num
   return Math.round((result.internal_price ?? 0) * 100)
 }
 
-function resolveProductPrice(product: SanityProduct, variantId: string): number {
-  if (variantId) {
-    const variant = product.variants?.find(v => v._key === variantId)
-    if (variant) return variant.price
-  }
-  return product.price
+// Ta sama reguła co koszyk i rejestr cen (lib/omnibus.ts): cena wariantu,
+// a gdy wariant jej nie ma — cena produktu. Wcześniej wariant bez ceny dawał
+// `undefined` → NaN w sumie zamówienia.
+function resolveProductPrice(product: SanityProduct, variantId: string): number | null {
+  return effectivePrice(product, variantId || null)
 }
 
 // ─── validation ───────────────────────────────────────────────────────────────
@@ -152,14 +187,20 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
     return { ok: false, error: 'Wybrany sposób dostawy jest niedostępny' }
   }
 
+  for (const item of input.items) {
+    if (resolveProductPrice(sanityPrices.get(item.productId)!, item.variantId) === null) {
+      return { ok: false, error: `Produkt "${item.name}" jest chwilowo niedostępny` }
+    }
+  }
+
   // ── calculate totals ──────────────────────────────────────────────────────
   let subtotalCents = 0
   const lineItems = input.items.map(item => {
     const product    = sanityPrices.get(item.productId)!
-    const pricePLN   = resolveProductPrice(product, item.variantId)
+    const pricePLN   = resolveProductPrice(product, item.variantId)!
     const priceCents = Math.round(pricePLN * 100)
     subtotalCents   += priceCents * item.qty
-    return { ...item, priceCents, name: product.title }
+    return { ...item, priceCents, name: product.title, brand: product.brand ?? '' }
   })
 
   const discountCents = 0
@@ -196,6 +237,7 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
         qty:          item.qty,
         priceCents:   item.priceCents,
         name:         item.name,
+        brand:        item.brand,
         variantLabel: item.variantLabel,
         imageUrl:     item.imageUrl,
       })),
@@ -219,12 +261,13 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
 
     if (input.paymentMethod !== 'cod') {
       await tx.insert(paymentTransactions).values({
-        id:          crypto.randomUUID(),
+        id:              crypto.randomUUID(),
         orderId,
-        provider:    input.paymentMethod,
+        provider:        input.paymentMethod,
         sessionId,
-        status:      'pending',
-        amountCents: totalCents,
+        status:          'pending',
+        amountCents:     totalCents,
+        saveCardConsent: input.saveCard ?? false,
       })
     }
   })
@@ -244,17 +287,42 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
     })
   }
 
-  // ── clear cart ────────────────────────────────────────────────────────────
-  await Promise.all([
-    redis.del(`cart:${ownerId}`),
-    db.delete(cartItemsTable).where(eq(cartItemsTable.ownerId, ownerId)),
-  ])
-
   // ── initiate payment ──────────────────────────────────────────────────────
+  // UWAGA: koszyk czyścimy dopiero po udanym starcie płatności. BLIK-0 potrafi
+  // odrzucić transakcję (zły/wygasły kod) i klient musi mieć do czego wrócić.
   const urlReturn = `${APP_URL}/orders/${orderId}?payment=success`
   const urlStatus = `${APP_URL}/api/webhooks/${input.paymentMethod}`
 
+  const result = await initiatePayment({
+    input, orderId, sessionId, totalCents, urlReturn, urlStatus,
+  })
+
+  if (result.ok) {
+    await Promise.all([
+      redis.del(`cart:${ownerId}`),
+      db.delete(cartItemsTable).where(eq(cartItemsTable.ownerId, ownerId)),
+    ])
+  }
+
+  return result
+}
+
+// ─── uruchomienie płatności ───────────────────────────────────────────────────
+
+interface InitiateArgs {
+  input:       CheckoutInput
+  orderId:     string
+  sessionId:   string
+  totalCents:  number
+  urlReturn:   string
+  urlStatus:   string
+}
+
+async function initiatePayment(
+  { input, orderId, sessionId, totalCents, urlReturn, urlStatus }: InitiateArgs,
+): Promise<CheckoutResult> {
   if (input.paymentMethod === 'przelewy24') {
+    // (Przelewy24 zostaje bez zmian — adresy przekazywane są w rejestracji transakcji.)
     const { redirectUrl } = await registerTransaction({
       sessionId,
       amount:      totalCents,
@@ -268,18 +336,136 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
   }
 
   if (input.paymentMethod === 'autopay') {
-    const amountPLN = (totalCents / 100).toFixed(2)
-    const { redirectUrl } = createPaymentUrl({
+    const isProduction = process.env.NODE_ENV === 'production'
+
+    // Dev bypass: brak realnych danych Autopay — symulujemy natychmiastowy sukces.
+    // Zablokowane jawnie w produkcji, żeby brak configu nigdy nie oznaczał zamówienia
+    // jako opłaconego bez realnej płatności.
+    if (!isAutopayConfigured()) {
+      if (isProduction) {
+        throw new Error('Autopay nie jest skonfigurowany (brak AUTOPAY_SERVICE_ID/AUTOPAY_HASH_KEY) — płatność odrzucona.')
+      }
+      return { ok: true, redirectUrl: `${APP_URL}/api/dev/payment-success?orderId=${orderId}` }
+    }
+
+    const label = `Zamowienie ${orderId.slice(0, 8).toUpperCase()}`
+
+    const base = {
       orderId,
-      amount:        amountPLN,
-      description:   `Zamówienie #${orderId.slice(0, 8).toUpperCase()}`,
-      customerEmail: input.address.email,
-      urlReturn,
-      urlStatus,
-    })
-    return { ok: true, redirectUrl }
+      amount:          (totalCents / 100).toFixed(2),
+      description:     label,
+      title:           label,
+      customerEmail:   input.address.email,
+      gatewayId:       input.gatewayId,
+      customerIp:      await clientIp(),
+      returnUrl:       `${APP_URL}/api/autopay/return`,
+      recurringAction: input.saveCard ? ('INIT_WITH_PAYMENT' as const) : undefined,
+    }
+
+    // ── BLIK-0: kod wpisany u nas, potwierdzenie w aplikacji banku ──────────
+    if (input.gatewayId === AUTOPAY_BLIK_GATEWAY_ID && AUTOPAY_BLIK0_ENABLED) {
+      const code = (input.blikCode ?? '').replace(/\D/g, '')
+      if (code.length !== 6) return { ok: false, error: 'Wpisz 6-cyfrowy kod BLIK' }
+
+      try {
+        const started = await startTransactionInBackground({ ...base, authorizationCode: code })
+        if (!started.ok) {
+          console.warn('[Autopay] BLIK-0 odrzucony:', started.reason)
+          return { ok: false, error: describeRejection(started.reason) }
+        }
+        return { ok: true, autopayInline: { orderId, mode: 'blik', url: started.redirectUrl } }
+      } catch (err) {
+        // Bramka nie przyjęła przedtransakcji — schodzimy do przekierowania,
+        // żeby klient mógł zapłacić mimo problemu z BLIK-0.
+        console.error('[Autopay] BLIK-0 nieudany, fallback na przekierowanie:', err)
+      }
+    }
+
+    // ── karta: formularz Autopay w ramce na naszej stronie ──────────────────
+    if (input.gatewayId === AUTOPAY_CARD_GATEWAY_ID && AUTOPAY_CARD_IFRAME_ENABLED) {
+      try {
+        const started = await startTransactionInBackground({ ...base, screenType: 'IFRAME' })
+        if (started.ok) {
+          return { ok: true, autopayInline: { orderId, mode: 'card', url: started.redirectUrl } }
+        }
+        console.warn('[Autopay] Formularz karty odrzucony:', started.reason)
+      } catch (err) {
+        console.error('[Autopay] Iframe karty nieudany, fallback na przekierowanie:', err)
+      }
+    }
+
+    // ── klasyczne przekierowanie POST na stronę Autopay ─────────────────────
+    return { ok: true, autopayForm: buildTransactionRequest(base) }
   }
 
   await db.update(orders).set({ status: 'processing' }).where(eq(orders.id, orderId))
-  return { ok: true, redirectUrl: `${APP_URL}/orders/${orderId}?payment=cod` }
+  return { ok: true, redirectUrl: `${APP_URL}/profile/orders/${orderId}?payment=cod` }
+}
+
+// ─── ponowna próba BLIK-0 dla istniejącego zamówienia ─────────────────────────
+
+/**
+ * Kod BLIK wygasa po ~2 minutach, więc pomyłka jest częsta. Zamiast kazać
+ * klientowi składać zamówienie od nowa, pozwalamy podać nowy kod do tego samego
+ * zamówienia (o ile nadal czeka na płatność i należy do tego samego właściciela).
+ */
+export async function retryBlikPayment(
+  orderId: string,
+  blikCode: string,
+): Promise<CheckoutResult> {
+  const code = (blikCode ?? '').replace(/\D/g, '')
+  if (code.length !== 6) return { ok: false, error: 'Wpisz 6-cyfrowy kod BLIK' }
+
+  if (!isAutopayConfigured()) return { ok: false, error: 'Płatności są chwilowo niedostępne' }
+
+  const { userId } = await auth()
+  const cookieStore = await cookies()
+  const ownerId = userId ?? cookieStore.get('guest_id')?.value
+  if (!ownerId) return { ok: false, error: 'Sesja wygasła. Odśwież stronę.' }
+
+  const [order] = await db
+    .select({ id: orders.id, status: orders.status, totalCents: orders.totalCents, userId: orders.userId })
+    .from(orders)
+    .where(eq(orders.id, orderId))
+
+  if (!order || order.userId !== ownerId) return { ok: false, error: 'Nie znaleziono zamówienia' }
+  if (order.status !== 'awaiting_payment') return { ok: false, error: 'To zamówienie nie oczekuje już na płatność' }
+
+  const [address] = await db
+    .select({ email: shippingAddresses.email })
+    .from(shippingAddresses)
+    .where(eq(shippingAddresses.orderId, orderId))
+
+  if (!address) return { ok: false, error: 'Nie znaleziono danych zamówienia' }
+
+  const label = `Zamowienie ${orderId.slice(0, 8).toUpperCase()}`
+
+  try {
+    const started = await startTransactionInBackground({
+      orderId,
+      amount:            (order.totalCents / 100).toFixed(2),
+      description:       label,
+      title:             label,
+      customerEmail:     address.email,
+      gatewayId:         AUTOPAY_BLIK_GATEWAY_ID,
+      customerIp:        await clientIp(),
+      authorizationCode: code,
+    })
+
+    if (!started.ok) return { ok: false, error: describeRejection(started.reason) }
+    return { ok: true, autopayInline: { orderId, mode: 'blik', url: started.redirectUrl } }
+  } catch (err) {
+    console.error('[Autopay] Ponowna próba BLIK nieudana:', err)
+    return { ok: false, error: 'Nie udało się uruchomić płatności. Spróbuj ponownie.' }
+  }
+}
+
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
+/** IP klienta dla parametru `CustomerIP`; przy braku sensownej wartości 127.0.0.1. */
+async function clientIp(): Promise<string> {
+  const headerList = await headers()
+  const forwarded = headerList.get('x-forwarded-for')?.split(',')[0]?.trim()
+  const candidate = forwarded || headerList.get('x-real-ip')?.trim() || ''
+  return /^\d{1,3}(\.\d{1,3}){3}$/.test(candidate) ? candidate : '127.0.0.1'
 }

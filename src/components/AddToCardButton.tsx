@@ -1,12 +1,9 @@
 "use client";
-import { GetSlugProduct, Product } from "../../sanity.types";
+import { GetSlugProduct } from "../../sanity.types";
 import React, { useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import PriceFormatter from "./PriceFormatter";
 import { cn } from "@/lib/utils";
-import QuantityButtons from "./QuantityButtons";
 import useCartStore from "../../store";
-import { Button } from "./ui/button";
 import { motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
 
@@ -14,10 +11,11 @@ interface Props {
   product: GetSlugProduct;
   className?: string;
   variant: string
+  type?: "top" | "bottom" | undefined;
 }
 
-const AddToCartButton = ({ product, className, variant }: Props) => {
-  const { addItem, getItemCount } = useCartStore();
+const AddToCartButton = ({ product, className, variant, type = "top" }: Props) => {
+  const { addItem } = useCartStore();
   const [isClient, setIsClient] = useState(false);
 
   const isOutOfStock = product?.stock === 0;
@@ -31,13 +29,11 @@ const AddToCartButton = ({ product, className, variant }: Props) => {
     setIsClicked(true)
 
     await Promise.all([
-        addItem(product, variant),           // twoja akcja
+        addItem(product, variant, true, type), // type → CartIcon decyduje: popup "top" | "bottom"
         new Promise(resolve => setTimeout(resolve, 700)) // minimum 1s
     ]);
     
-    toast.success(
-      `${product?.title?.substring(0, 12)}... added successfully!`
-    );
+    toast.success(`Dodano do koszyka: ${product?.title ?? 'produkt'}`);
     setIsClicked(false)
   }
 
@@ -48,7 +44,7 @@ const AddToCartButton = ({ product, className, variant }: Props) => {
     return null;
   }
   return (
-    <div className="w-full h-12 flex items-center">
+    <div className="w-auto flex items-center text-white">
         <motion.button
           onClick={() => 
             handleClick()
@@ -56,7 +52,7 @@ const AddToCartButton = ({ product, className, variant }: Props) => {
           whileTap={{filter:"contrast(0.6)"}}
           disabled={isOutOfStock}
           className={cn(
-            "w-full bg-black rounded-[20px] h-[50px] flex justify-center items-center font-poppins text-whie text-[clamp(16px,1.3vw,20px)] font-bold tracking-wide cursor-pointer",
+            "w-auto bg-black hover:bg-fancy-black ease-in-out duration-100 rounded-full py-3 px-10 flex justify-center items-center font-poppins text-whie text-[clamp(16px,1.3vw,18px)] font-medium tracking-wide cursor-pointer",
             className
           )}
         >

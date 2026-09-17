@@ -1,13 +1,42 @@
 import React from "react";
 import { notFound } from "next/navigation";
 import { getProductsBySubCategory, getSubCategoryBySlug, SubcategoryWithCategory } from "@/sanity/helpers";
-import { GetSlugProduct, Product, Subcategory } from "../../../../../sanity.types";
-import { ArrowDown, ChevronRight } from "lucide-react";
+import { GetSlugProduct } from "../../../../../sanity.types";
+import { ChevronRight } from "lucide-react";
+import SortSelect from "@/components/SortSelect";
+import { parseProductSort } from "@/lib/productSort";
+import { sortProductsForListing } from "@/lib/productListing";
 import Image from "next/image";
-import ProductItem from "@/components/ProductItem";
 import ProductItemWithoutBTN from "@/components/ProductItemWithoutBTN";
 import SubcategoryFilterContainer from "@/components/SubcategoryFilterContainer";
 import Container from "@/components/Container";
+import { headers } from "next/headers";
+import type { Metadata } from "next";
+import { breadcrumbJsonLd, jsonLdScript, pageMetadata } from "@/lib/seo/metadata";
+
+export async function generateMetadata({
+    params,
+    searchParams,
+}: {
+    params: Promise<{ slug: string }>
+    searchParams: Promise<Record<string, string | string[] | undefined>>
+}): Promise<Metadata> {
+    const { slug } = await params
+    const details = (await getSubCategoryBySlug(slug)) as SubcategoryWithCategory | null
+    if (!details) return { title: "Nie znaleziono kategorii" }
+
+    // Listing z filtrami albo innym sortowaniem to ta sama oferta w innej
+    // kolejności — kanoniczny jest czysty adres, a wersje z parametrami
+    // dostają `noindex, follow` (robot i tak przejdzie do produktów).
+    const hasParams = Object.keys(await searchParams).length > 0
+    const title = details.category?.title ? `${details.title} — ${details.category.title}` : details.title
+    return pageMetadata({
+        title,
+        description: details.description || `${details.title} w sklepie HAU. Sprawdź ceny, opinie i dostępność.`,
+        path: `/subcategory/${slug}`,
+        index: !hasParams,
+    })
+}
 
 const SubCategoryProductPage = async ({
   params,
@@ -17,7 +46,13 @@ const SubCategoryProductPage = async ({
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) => {
     const { slug} = await params;
-    const products = await getProductsBySubCategory(slug) as GetSlugProduct[];
+    // Oba zapytania są niezależne (produkty w subkategorii + jej metadane),
+    // więc lecą równolegle — sekwencyjne await potrafiło podwoić czas oczekiwania
+    // na wolniejszym łączu do Sanity.
+    const [products, subCategoryDetails] = await Promise.all([
+        getProductsBySubCategory(slug) as Promise<GetSlugProduct[]>,
+        getSubCategoryBySlug(slug) as Promise<SubcategoryWithCategory>,
+    ]);
     if (!products) {
         return notFound();
       }
@@ -93,13 +128,35 @@ function filterProductsByVariantOptions(
     }
 
 
-    const filters = parseFiltersFromSearchParams(await searchParams)
-    const subCategoryDetails = await getSubCategoryBySlug(slug) as SubcategoryWithCategory;
-    const filteredProducts = filterProductsByVariantOptions(products, filters)
-    console.log("Products in Subcategory:", products);
+    const resolvedSearchParams = await searchParams
+    // `sort` to — jak `price` — klucz zarezerwowany w adresie, nie filtr.
+    const { sort: sortParam, ...filterParams } = resolvedSearchParams
+    const sort = parseProductSort(sortParam)
+    const filters = parseFiltersFromSearchParams(filterParams)
+    const filteredProducts = await sortProductsForListing(
+        filterProductsByVariantOptions(products, filters),
+        sort,
+    )
+    // Podpowiedź z middleware (User-Agent), ten sam mechanizm co w NavbarContainer —
+    // żeby SubcategoryFilterContainer od razu na pierwszym renderze (SSR + pierwsza
+    // hydracja) wiedział czy jest mobile, zamiast zakładać desktop i dopiero po
+    // zamontowaniu (realny matchMedia) przełączać się na mobile. Bez tego panel
+    // filtrów renderował się w wersji desktopowej i wychodził poza zaokrągloną
+    // pigułkę, zanim się "zorientował", że jest wąsko.
+    const initialMobile = (await headers()).get('x-is-mobile') === '1'
+    const breadcrumb = breadcrumbJsonLd([
+        { name: "Strona główna", path: "/" },
+        ...(subCategoryDetails?.category?.title
+            ? [{ name: subCategoryDetails.category.title, path: `/subcategory/${slug}` }]
+            : []),
+        { name: subCategoryDetails?.title ?? "", path: `/subcategory/${slug}` },
+    ])
+
     return(
-        <Container id="sub-category-container" className="flex justify-center mt-10 md:px-10 sm:px-8 px-6 min-h-[100vh]">
-            <div className="flex flex-col h-full w-full relative">
+        <>
+        <script {...jsonLdScript(breadcrumb)} />
+        <Container id="sub-category-container" className="flex justify-center lg:mt-10 md:mt-7 sm:mt-10 mt-7 md:px-10 sm:px-8 px-6 min-h-[100vh] font-poppins">
+            <div className="flex flex-col h-full w-auto relative">
                 <div className="flex w-full relative z-[3]">
                     <div className="flex flex-col space-y-1">
                         <div className="flex items-center space-x-2">
@@ -107,34 +164,35 @@ function filterProductsByVariantOptions(
                             <ChevronRight className="text-black w-[20px] h-[20px]"/>
                             <h1 className="text-black  text-[clamp(14px,1.4vw,16px)]">{subCategoryDetails?.title}</h1>
                         </div>
-                        <h1 className="font-medium text-black text-[clamp(18px,2vw,26px)]">{subCategoryDetails?.description}</h1>
+                        <h1 className="font-medium text-black sm:text-[clamp(18px,2vw,26px)] text-[16px]">{subCategoryDetails?.description}</h1>
                     </div>
                 </div>
                 <div className="flex justify-center w-full mt-[clamp(30px,8vw,80px)]">
-                    <div className="flex subcategory-dock-shadow relative bg-fancy-black md:py-2 xs:py-3 py-2 md:pt-4 md:px-9 3xs:px-7 xs:px-5 px-4 rounded-full lg:w-[65vw] 2md:w-[70vw] w-[80vw] z-[1] min-h-[50px] max-w-[1350px]">
-                        <Image className="w-[clamp(300px,33vw,400px)] absolute bottom-[0] xl:left-[-200px] lg:left-[-15vw] 2md:left-[-12vw] left-[-8vw] z-[2] opacity-80" src='/white-holo.png' alt="white-holo" width={460} height={330}/>
+                    <div className="flex subcategory-dock-shadow relative bg-fancy-black md:py-2 xs:py-3 py-2 md:pt-4 md:px-9 3xs:px-7 xs:px-4 px-3 rounded-full lg:w-[65vw] 2md:w-[70vw] w-[80vw] z-[1] min-h-[50px] max-w-[1350px]">
+                        <Image className="3xs:w-[clamp(300px,33vw,400px)] w-[250px] absolute bottom-[0] xl:left-[-200px] lg:left-[-15vw] 2md:left-[-12vw] left-[-8vw] z-[2] opacity-80" src='/white-holo.png' alt="white-holo" width={460} height={330}/>
                         <div className="w-full flex justify-between">
                             <div className="flex flex-col w-full z-[3] relative space-y-2 pr-4">
                                 <h1 className="text-white text-[clamp(16px,1.4vw,18px)] ml-1 max-md:hidden">Filtruj:</h1>                            
-                                <SubcategoryFilterContainer subcategoryDetails={subCategoryDetails} products={products} paramsFilter={filters}/>
+                                <SubcategoryFilterContainer subcategoryDetails={subCategoryDetails} products={products} paramsFilter={filters} initialMobile={initialMobile}/>
                             </div>
                             <div className="flex md:flex-col flex-row-reverse md:space-y-2 h-fit relative z-[3]">
-                                <div className="flex items-center justify-between 3xs:px-4 px-2">
+                                <div className="flex items-center 3xs:px-4 px-2">
                                     <h1 className="text-white text-[clamp(16px,1.4vw,18px)] max-md:hidden">Sortuj:</h1>
-                                    <ArrowDown className="text-white w-[20px] h-[20px]"/>
+                                    
                                 </div>
-                                <div className="xs:text-[clamp(15px,1.4vw,17px)] text-[14px] text-black bg-white 3xs:px-8 px-6 py-2 h-fit rounded-[20px] font-medium">Popularne</div>
+                                <SortSelect value={sort} />
                             </div>
                         </div>
                     </div>
                 </div>
-                <div className="3xs:grid flex max-3xs:flex-wrap justify-center justify-items-center mt-4 2.5xl:grid-cols-4 grid-cols-3 gap-x-[18px] gap-y-[75px] mt-12 mb-15">
+                <div className="grid justify-items-center 2.5xl:grid-cols-4 lg:grid-cols-4 sm:grid-cols-3 grid-cols-2 sm:gap-x-[18px] gap-x-3 md:gap-y-[75px] sm:gap-y-[65px] gap-y-[40px] sm:mt-12 mt-7 mb-15">
                     {filteredProducts.map((product, index)=>(
                         <ProductItemWithoutBTN key={index} product={product as GetSlugProduct & { defaultVariant?: string }}/>
                     ))}
                 </div>
             </div>
         </Container>
+        </>
     )
 }
 

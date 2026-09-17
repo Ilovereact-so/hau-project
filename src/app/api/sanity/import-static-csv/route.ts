@@ -1,31 +1,28 @@
 // route.ts - Minimalna wersja testowa z wymuszonym patchem
 
 import { NextResponse } from "next/server";
+import { adminDenied } from "@/lib/admin/guard";
 import { sanityClient } from "@/sanity/sanityClient.server"; // Klient z tokenem (dla zapisu)
 
 import Papa from "papaparse";
-import {
-  // Zachowujemy tylko niezbędne importy
-  extractZipImages,
-  mapCsvRowToProductPartial,
-} from "@/sanity/helpers/productImportHelpers";
+import { mapCsvRowToProductPartial } from "@/sanity/helpers/productImportHelpers";
+import { recordPriceChanges } from "@/lib/priceHistory";
 
 // Uproszczony typ dokumentu
-type TestProductDoc = {
-    _type: 'product';
-    title?: string;
-    visibility: string;
-    sku: string;
-    [key: string]: any; 
-};
-
 // =========================
 //      POST HANDLER
 // =========================
 
 export async function POST(req: Request) {
+  // Narzędzie testowe zapisujące do Sanity — tylko dla admina i nigdy na produkcji.
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Not available in production" }, { status: 404 });
+  }
+  const denied = await adminDenied();
+  if (denied) {
+    return NextResponse.json({ error: denied.error }, { status: denied.status });
+  }
   const TEST_DOCUMENT_ID = `test-api-read-${Date.now()}`;
-  const DOC_TYPE = 'product';
 
   try {
     const form = await req.formData();
@@ -47,13 +44,7 @@ export async function POST(req: Request) {
       skipEmptyLines: true,
     });
     const rows = parsed.data;
-    console.log("Parsed CSV rows:", rows);
-    // --- PARSE ZIP (Dla zgodności API) ---
-    let zipImages: Record<string, Blob> = {};
-    if (zipFile) {
-      zipImages = await extractZipImages(zipFile);
-    }
-    
+    console.info("Parsed CSV rows:", rows);
     // Używamy tylko pierwszego wiersza do testu
     if (rows.length === 0) {
         return NextResponse.json({ error: "CSV file is empty." }, { status: 400 });
@@ -62,30 +53,17 @@ export async function POST(req: Request) {
     const logs: string[] = [];
     let savedId: string | null = null;
     const docId = rows[0].sku ? `product.${rows[0].sku}` : TEST_DOCUMENT_ID;
-    console.log("Using document ID:", rows[0].sku, docId);
+    console.info("Using document ID:", rows[0].sku, docId);
     //const title =  || 'Produkt Testowy';
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
         try {
             const partial = mapCsvRowToProductPartial(row);
-            // --- TWORZENIE DANYCH TESTOWYCH (NA WZÓR testProductAccess.ts) ---
-            const docData: TestProductDoc = {
-                _type: DOC_TYPE,
-                title: rows[0].title || "Untitled",
-                subtitle: rows[0].subtitle || undefined,
-                slug: { _type: 'slug', current: rows[0].slug || undefined },
-                price: rows[0].price ? parseFloat(rows[0].price) : undefined,
-                stock: rows[0].stock ? parseInt(rows[0].stock) : undefined,
-                // KLUCZOWE: Ustawienie na 'storefront'
-                visibility: 'storefront', 
-                // Możemy dodać jakiś identyfikator, np. SKU z wiersza
-                sku: rows[0].sku || 'TEST-SKU-001',
-            };
-
             // 1. TWORZENIE DOKUMENTU (Z TOKENEM)
             const saved = await sanityClient.create(partial);
             savedId = saved._id;
             logs.push(`1. Utworzono dokument: ${savedId}`);
+            await recordPriceChanges([savedId], "import");
 
             // 2. WYMUSZENIE PATCH (GWARANCJA PUBLICZNEGO DOSTĘPU)
             // To jest rozwiązanie problemu z niewidocznością po masowym imporcie.
