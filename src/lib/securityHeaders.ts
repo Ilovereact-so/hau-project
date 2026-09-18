@@ -30,8 +30,14 @@ const SHIPPING = ['https://furgonetka.pl', 'https://*.furgonetka.pl']
 const VIDEO = ['https://www.youtube-nocookie.com', 'https://www.youtube.com', 'https://player.vimeo.com', 'https://i.ytimg.com']
 const FONTS = ['https://fonts.googleapis.com', 'https://fonts.gstatic.com']
 
-/** Buduje wartość nagłówka CSP. W dev dokładamy to, czego wymaga HMR i Studio. */
-export function buildContentSecurityPolicy(isDev: boolean): string {
+/**
+ * Buduje wartość nagłówka CSP. W dev dokładamy to, czego wymaga HMR i Studio.
+ *
+ * `enforcing` decyduje o `upgrade-insecure-requests`: przeglądarka IGNORUJE tę
+ * dyrektywę w polityce report-only i wypisuje o tym ostrzeżenie przy każdym
+ * żądaniu, więc dokładamy ją dopiero przy realnym wymuszaniu.
+ */
+export function buildContentSecurityPolicy(isDev: boolean, enforcing = false): string {
   const directives: Record<string, string[]> = {
     'default-src': [SELF],
     // `unsafe-inline` jest potrzebne dla skryptów startowych Next.js i danych
@@ -56,8 +62,9 @@ export function buildContentSecurityPolicy(isDev: boolean): string {
     .map(([directive, values]) => `${directive} ${values.join(' ')}`)
     .join('; ')
 
-  // Na produkcji wymuszamy HTTPS dla wszystkich podzasobów.
-  return isDev ? policy : `${policy}; upgrade-insecure-requests`
+  // Na produkcji wymuszamy HTTPS dla wszystkich podzasobów — ale tylko gdy
+  // polityka realnie blokuje (patrz komentarz przy `enforcing`).
+  return !isDev && enforcing ? `${policy}; upgrade-insecure-requests` : policy
 }
 
 export type HeaderEntry = { key: string; value: string }
@@ -72,8 +79,10 @@ export function securityHeaders(isDev: boolean): HeaderEntry[] {
     { key: 'X-Frame-Options', value: 'DENY' },
     // Do innych domen wysyłamy samą domenę, nie pełny adres z parametrami.
     { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-    // Wyłączamy nieużywane API przeglądarki.
-    { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()' },
+    // Wyłączamy nieużywane API przeglądarki. Bez `interest-cohort` — FLoC
+    // został wycofany, a Chrome wypisuje przy nim „Unrecognized feature”
+    // przy każdym żądaniu.
+    { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
     { key: 'X-DNS-Prefetch-Control', value: 'on' },
     { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },
   ]
@@ -86,7 +95,7 @@ export function securityHeaders(isDev: boolean): HeaderEntry[] {
   if (mode !== 'off') {
     headers.push({
       key: mode === 'enforce' ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only',
-      value: buildContentSecurityPolicy(isDev),
+      value: buildContentSecurityPolicy(isDev, mode === 'enforce'),
     })
   }
 
