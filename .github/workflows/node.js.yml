@@ -1,22 +1,5 @@
 # Build + wdrożenie na STAGING (e-hau-prod.wibbly.pl).
-#
-# Cztery rzeczy, na których stoi ten plik — nie zmieniaj ich bez powodu:
-#
-#  1. NIEUDANY BUILD NIE JEST WDRAŻANY. Poprzednia wersja miała `if: always()`
-#     przy każdym kroku, więc na serwer leciała także paczka z błędem.
-#  2. NA SERWER IDZIE KOMPLETNA PACZKA `standalone`. `output: 'standalone'`
-#     celowo NIE kopiuje `.next/static` ani `public` — trzeba to zrobić ręcznie,
-#     inaczej strona wstaje bez CSS, JS i obrazków.
-#  3. ZMIENNE `NEXT_PUBLIC_*` MUSZĄ BYĆ PRZY BUDOWANIU. Są wkompilowywane
-#     w paczkę przeglądarki — dopisanie ich później do `.env` na serwerze
-#     nic nie zmieni. Sekrety siedzą w GitHub → Settings → Environments →
-#     `staging`.
-#  4. NAGŁÓWKI (w tym CSP) TEŻ POWSTAJĄ PRZY BUDOWANIU — `next.config.ts`
-#     zapisuje je do manifestu. `CSP_MODE` na serwerze jest bez znaczenia.
-#
-# Reszta konfiguracji (baza, Redis, klucze płatności, SMTP) to zmienne
-# RUNTIME — te wpisujesz w `.env` obok `server.js` na serwerze i tego pliku
-# workflow nie dotyczy.
+
 
 name: Deploy staging
 
@@ -112,7 +95,12 @@ jobs:
           rm -rf .next/standalone/.next/static .next/standalone/public
           cp -r .next/static .next/standalone/.next/
           if [ -d public ]; then cp -r public .next/standalone/; fi
+          # Next kopiuje do standalone `package.json` aplikacji, ale już nie
+          # `package-lock.json`. Dokładamy go, żeby `npm ci --omit=dev`
+          # na serwerze zainstalował dokładnie te wersje co build w CI.
+          cp package-lock.json .next/standalone/
           test -f .next/standalone/server.js
+          test -f .next/standalone/package.json
           test -d .next/standalone/.next/static
           echo "--- zawartość paczki ---"
           ls -la .next/standalone
@@ -126,8 +114,21 @@ jobs:
       #
       # Akcja kasuje na serwerze tylko te pliki, które sama wcześniej wgrała
       # (pilnuje tego plik stanu `.ftp-deploy-sync-state.json` w katalogu
-      # docelowym). Wgrany ręcznie `.env` jest więc bezpieczny — pod warunkiem,
-      # że `dangerous-clean-slate` zostaje `false`.
+      # docelowym). Wgrany ręcznie `.env` i zainstalowane na serwerze
+      # `node_modules` są więc bezpieczne — pod warunkiem, że
+      # `dangerous-clean-slate` zostaje `false`.
+      #
+      # DLACZEGO `node_modules` NIE IDZIE PRZEZ FTP: to ~15–20 tys. plików na
+      # jednym połączeniu bez ponawiania. Gdy transfer się urwie i akcja wstanie
+      # na nowo, traci katalog roboczy i próbuje wejść do `node_modules`
+      # względem katalogu logowania — stąd `550 node_modules: Nie ma takiego
+      # pliku ani katalogu`. Zależności instalujemy na serwerze:
+      #
+      #     cd /home/srv45036/domains/e-hau-prod.wibbly.pl/public_html
+      #     npm ci --omit=dev
+      #
+      # (albo przycisk „NPM install” w panelu hostingu). Powtarzasz to tylko po
+      # zmianie `package.json` / `package-lock.json`, nie po każdym deployu.
       - name: Wdrożenie przez FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.6
         with:
@@ -144,19 +145,24 @@ jobs:
           log-level: standard
           # NIGDY `true` — skasowałoby `.env` i wszystko wgrane ręcznie.
           dangerous-clean-slate: false
-          # Uwaga: podanie `exclude` NADPISUJE domyślną listę akcji, w której
-          # jest `**/node_modules/**`. To celowe — `standalone/node_modules`
-          # musi trafić na serwer, bez niego `server.js` nie wstanie.
-          # Pomijamy tylko to, czego Node przy uruchomieniu nie czyta:
-          # dokumentację, licencje, typy i mapy źródeł (mniej plików = krótszy
-          # transfer).
+          # `node_modules` zostaje na serwerze (patrz komentarz wyżej) — akcja
+          # go nie wgrywa i, skoro nie ma go w pliku stanu, nigdy nie skasuje.
           exclude: |
+            **/node_modules/**
             **/.git*
             **/.git*/**
             **/.env
             **/.env.*
             **/cgi-bin*
-            **/*.md
             **/*.map
-            **/*.d.ts
-            **/LICENSE*
+
+      # Next nie podmienia się w locie — po wgraniu plików proces trzeba
+      # zrestartować. Ten krok tylko przypomina, czego workflow nie zrobi sam.
+      - name: Co zrobić na serwerze
+        run: |
+          echo "----------------------------------------------------------"
+          echo "Pliki wgrane. Na serwerze:"
+          echo "  1. cd /home/srv45036/domains/e-hau-prod.wibbly.pl/public_html"
+          echo "  2. npm ci --omit=dev   <- tylko po zmianie package.json / package-lock.json"
+          echo "  3. restart aplikacji Node w panelu hostingu"
+          echo "----------------------------------------------------------"
