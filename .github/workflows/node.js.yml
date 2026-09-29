@@ -5,6 +5,7 @@
 #   public_html/                    <- „Katalog główny aplikacji” w panelu Node.js
 #   ├─ package.json                 <- dla przycisku „Uruchom NPM Install”
 #   ├─ package-lock.json
+#   ├─ .npmrc                       <- omit=dev + ignore-scripts (generowany niżej)
 #   ├─ node_modules/                <- instalowane NA SERWERZE, nie wgrywane
 #   ├─ _next/static/…               <- statyki serwowane wprost przez Apache
 #   └─ standalone/
@@ -27,7 +28,8 @@
 #     i proxuje żądanie sam do siebie: zawieszenie i 500 po 30 sekundach.
 #  4. `node_modules` NIE idzie przez FTP (~20 tys. plików na jednym połączeniu
 #     bez ponawiania — transfer się urywa i akcja gubi katalog roboczy).
-#     Instaluje się je na serwerze: `npm ci --omit=dev` w `public_html`.
+#     Instaluje się je na serwerze przyciskiem „Uruchom NPM Install”;
+#     wgrywany `.npmrc` sprawia, że to jest instalacja produkcyjna bez skryptów.
 #  5. `NEXT_PUBLIC_*` są wkompilowywane w paczkę przeglądarki, więc muszą być
 #     PRZY BUDOWANIU (GitHub → Settings → Environments → `staging`). To samo
 #     dotyczy nagłówków z `next.config.ts`, w tym `CSP_MODE`.
@@ -122,8 +124,10 @@ jobs:
         run: |
           set -euo pipefail
 
+          # `.next/static` NIE jest kopiowane do paczki: Apache serwuje te pliki
+          # wprost z `public_html/_next/static` (tak działa też druga aplikacja
+          # na tym koncie). Podwójna kopia tylko podwajałaby transfer FTP.
           rm -rf .next/standalone/.next/static .next/standalone/public
-          cp -r .next/static .next/standalone/.next/
           if [ -d public ]; then cp -r public .next/standalone/; fi
 
           # Plik startowy dla Passengera. Musi ustawić HOSTNAME przed
@@ -148,15 +152,28 @@ jobs:
           mkdir -p deploy-root
           cp package.json package-lock.json deploy-root/
 
+          # `.npmrc` TYLKO dla serwera (nie w repo — lokalnie dev-zależności są
+          # potrzebne). Przycisk w panelu odpala zwykłe `npm install`, bez flag:
+          #  - omit=dev: drizzle-kit, eslint, typescript itp. nie są potrzebne do
+          #    uruchomienia `server.js`, a tylko wydłużają instalację,
+          #  - ignore-scripts: jedyne skrypty instalacyjne w zależnościach
+          #    produkcyjnych to walidacja binarki esbuild (sanity/vite — na
+          #    serwerze esbuild nie jest używany; Studio jest już zbudowane),
+          #    sprawdzenie sharpa (binarka przychodzi jako pakiet @img/sharp-*)
+          #    i komunikat o telemetrii Clerka. Walidacja esbuilda wywracała
+          #    instalację na hostingu: „Expected "0.28.2" but got "0.25.12"”
+          #    (zagnieżdżony esbuild trafiał na binarkę z innej wersji).
+          printf 'omit=dev\nignore-scripts=true\nfund=false\naudit=false\n' > deploy-root/.npmrc
+
           test -f .next/standalone/server.js
           test -f .next/standalone/start.js
           test -f .next/standalone/package.json
           test -f .next/standalone/.next/BUILD_ID
-          test -d .next/standalone/.next/static
 
           echo "--- BUILD_ID: $(cat .next/standalone/.next/BUILD_ID) ---"
-          echo "--- liczba plików (bez node_modules): ---"
-          find .next/standalone -type f -not -path "*/node_modules/*" | wc -l
+          echo "--- plików w .next/static:  $(find .next/static -type f | wc -l)"
+          echo "--- plików w standalone/.next: $(find .next/standalone/.next -type f | wc -l)"
+          echo "--- plików w reszcie paczki:  $(find .next/standalone -type f -not -path "*/node_modules/*" -not -path "*/.next/*" | wc -l)"
 
       # Konto FTP loguje się do /home/srv45036/domains/e-hau-prod.wibbly.pl,
       # więc ścieżki zaczynają się od /public_html/.
@@ -165,6 +182,17 @@ jobs:
       # (pilnuje tego plik stanu w katalogu docelowym). `.env`, `node_modules`
       # i wszystko wgrane ręcznie jest bezpieczne — pod warunkiem, że
       # `dangerous-clean-slate` zostaje `false`.
+      #
+      # DLACZEGO CZTERY OSOBNE KROKI, A NIE JEDEN: ten serwer FTP zrywa
+      # połączenie przy długich transferach (`ECONNRESET (data socket)`),
+      # a akcja zapisuje plik stanu dopiero po UDANYM przebiegu. Jeden wielki
+      # transfer po zerwaniu zaczynał od zera i nigdy nie dochodził do końca.
+      # Każdy krok ma własny katalog docelowy, czyli własny plik stanu —
+      # po ponownym uruchomieniu workflow kroki, które przeszły, są pomijane
+      # w kilka sekund i transfer posuwa się do przodu.
+      #
+      # Przerwy między krokami są celowe: konto FTP na współdzielonym hostingu
+      # bywa przycinane przy szybkim otwieraniu kolejnych sesji.
 
       # Statyki idą PIERWSZE: przez chwilę po wdrożeniu przeglądarki mogą
       # jeszcze prosić o pliki starego builda, ale nowy HTML nigdy nie wskaże
@@ -186,7 +214,33 @@ jobs:
           exclude: |
             **/*.map
 
-      - name: FTP — aplikacja (standalone)
+      - name: Przerwa
+        run: sleep 20
+
+      # Najcięższa część paczki (skompilowane trasy) w osobnym kroku, żeby
+      # zerwane połączenie nie przekreślało reszty.
+      - name: FTP — skompilowana aplikacja (standalone/.next)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+        with:
+          server: ${{ secrets.SERVER }}
+          username: ${{ secrets.USERNAME }}
+          password: ${{ secrets.PASSWORD }}
+          protocol: ftp
+          port: 21
+          security: loose
+          local-dir: ./.next/standalone/.next/
+          server-dir: /public_html/standalone/.next/
+          timeout: 180000
+          log-level: standard
+          dangerous-clean-slate: false
+          exclude: |
+            **/*.map
+
+      - name: Przerwa
+        run: sleep 20
+
+      # server.js, start.js, package.json i katalog public.
+      - name: FTP — pliki startowe i public (standalone)
         uses: SamKirkland/FTP-Deploy-Action@v4.3.6
         with:
           server: ${{ secrets.SERVER }}
@@ -200,15 +254,20 @@ jobs:
           timeout: 180000
           log-level: standard
           dangerous-clean-slate: false
-          # `node_modules` zostaje na serwerze (patrz punkt 4 w nagłówku),
-          # `.env` też jest wgrany ręcznie i nie może zostać nadpisany.
+          # `.next` wgrywa krok wyżej, `node_modules` zostaje na serwerze,
+          # a `.env` jest wgrany ręcznie i nie może zostać nadpisany.
           exclude: |
+            .next/**
+            **/.next/**
             **/node_modules/**
             **/.env
             **/.env.*
             **/.git*
             **/.git*/**
             **/*.map
+
+      - name: Przerwa
+        run: sleep 20
 
       - name: FTP — package.json w katalogu aplikacji
         uses: SamKirkland/FTP-Deploy-Action@v4.3.6
