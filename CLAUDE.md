@@ -30,6 +30,18 @@ Poradniki są osobną gałęzią treści w Sanity, celowo odciętą od drzewa pr
 - Filmy z YouTube/Vimeo ładują się dopiero po kliknięciu (fasada z miniaturą w `components/guides/VideoPlayer.tsx`) — osadzony odtwarzacz to ~1 MB skryptów na film. Miniatury lecą z `i.ytimg.com`, host jest w `next.config.ts`.
 - Moduł na stronie głównej (`components/guides/GuidesCarousel.tsx`, wstawiony w `ContentContainer` nad `AboutAs`) pobiera dane po stronie klienta przez `getLatestGuidesClient` — karuzele produktów, subkategorie i poradniki na stronie głównej są komponentami klienckimi (banery już NIE: patrz niżej), więc server-only `sanityFetch` tam nie działa.
 - Po dodaniu tych typów odpal `npm run typegen`, żeby wygenerowane typy Sanity objęły `guide`/`guideCategory`.
+- **Karta poradnika** (`components/guides/GuideCard.tsx`) układa się przez container queries (`@container`, próg 560 px SZEROKOŚCI KARTY): węższa = pionowa (okładka 16:9, kategoria na okładce), szersza = pozioma (okładka 40% / max 320 px). Ta sama karta działa w siatce `/poradniki` (`GuidesGrid`: 1 → 2 → 3 kolumny od `sm`/`2xl`, równe wysokości w rzędzie), w „Zobacz też”, na stronie głównej i w wyróżnionych. Rodzic musi dawać karcie szerokość z układu (`w-full`, `minmax(0,1fr)`), nie z treści — w kolumnie `auto` kontener zapada się do zera (stąd kolumny `#guides` w `globals.css`). Szkielet `GuideCardSkeleton` ma tę samą geometrię.
+- **Blog w panelu admina** — patrz sekcja „Blog (poradniki) w panelu” niżej. Tam też bloki treści `callout`, `productEmbed`, `divider` i pola `seoTitle`/`seoDescription`.
+
+### Centrum pomocy (`/help`)
+
+Dokumenty `helpDocument` (regulamin, dostawa, płatności, zwroty, prywatność, cookies). Wygląd spięty z resztą sklepu: tło `patern` (jak `/poradniki`), białe karty `rounded-[30px]` z ramką `#E8E8E8`, miętowe koło z ikoną (`#e2f3f0` + `#6EB0A6`), ciemny panel w stylu stopki.
+
+- **Lista i grupy**: `HELP_DOCUMENTS` (`constants`) ma `group` (`zakupy` | `dokumenty`) i `description` (opis na kafelku, gdy w Sanity brak `lead`); kolejność grup — `HELP_GROUPS`. Dokumenty dodane w Studio spoza listy trafiają do grupy „Pozostałe dokumenty”. Scalanie z Sanity: `lib/helpNavigation.ts` (`getHelpNavigation`, `groupHelpNavigation`, `flattenHelpNavigation` — ta ostatnia wyznacza „Poprzedni / Następny”). `column` zostaje tylko dla układu stopki.
+- **Ikony** po slugu: `components/help/helpIcons.tsx` (nowy dokument bez wpisu dostaje `FileText`).
+- **Strona dokumentu**: okruszki (bez `<h1>`), `HelpSidebar` (desktop: przyklejona kolumna z grupami; telefon: rząd pigułek, który `HelpChipScroller` przewija do aktywnego dokumentu), karta z nagłówkiem (ikona, tytuł, `lead`, data aktualizacji, czas czytania), spis treści `GuideToc` (wariant `inline`, od 3 nagłówków H2/H3), treść, „Poprzedni / Następny”, `HelpSupportPanel` (zamówienia, poradniki, ustawienia cookies). Pusta treść = stan „w przygotowaniu”, nie 404.
+- **Kotwice**: `PortableTextContent` przyjmuje `anchors` (mapa `_key` → `id` z `guideHeadings`), więc spis treści trafia w nagłówki tak samo jak w poradnikach. `h1` z treści renderuje się jako `<h2>` (wygląd bez zmian) — strona ma jeden H1 = tytuł dokumentu.
+- **Ładowanie**: `app/help/loading.tsx` i `app/help/[slug]/loading.tsx` (biblioteka `ui/Skeleton`, geometria 1:1 ze stronami).
 
 ### Wydajność Sanity + skeletony
 
@@ -69,12 +81,12 @@ App routes are organized into groups under `src/app/`:
 | Group | Purpose |
 |---|---|
 | `(auth)` | Sign-in, sign-up, password reset, SSO callback |
-| `(admin)` | Panel admina `/admin/*` (dashboard, zamówienia, produkty, kategorie, import, klienci, płatności, dostawy, marketing, analityka, integracje) |
+| `(admin)` | Panel admina `/admin/*` (dashboard, zamówienia, produkty, kategorie, import, blog, klienci, płatności, dostawy, marketing, analityka, integracje) |
 | `(products)` | Product detail pages `[slug]`, subcategory listings |
 | `(client)` | Cart (także dla gości), checkout, profil (`/profile/wishlist` publiczne), order success |
 | `(errors)` | 403, 404 pages |
 | `(using)` | Home page with banner |
-| `help` | Centrum pomocy — regulaminy i dokumenty formalne (`helpDocument`) |
+| `help` | Centrum pomocy — regulaminy i dokumenty formalne (`helpDocument`); patrz „Centrum pomocy” |
 | `poradniki` | Poradniki: lista + wpis `[slug]` (`guide`, `guideCategory`) |
 
 ## Key Conventions
@@ -125,6 +137,26 @@ Autopay/Przelewy24, Furgonetka, SMTP).
 - `/api/sanity/import-csv` wymaga roli admina (middleware przepuszcza `/api/sanity/*`),
   ZIP ze zdjęciami jest opcjonalny. `/upload` przekierowuje do `/admin/import`.
 - `next.config.ts`: `serverActions.bodySizeLimit = 12mb` (zdjęcia produktów i CSV).
+
+## Blog (poradniki) w panelu (`/admin/blog`)
+
+Pisanie i publikacja poradników bez wchodzenia do Studio. Dane to te same dokumenty `guide`/`guideCategory` co w Studio — obie drogi działają równolegle.
+
+- **Trasy**: `/admin/blog` (lista: filtry statusu/kategorii, wyszukiwarka + `?q=` z paska, wyróżnianie, duplikowanie), `/admin/blog/new` (po pierwszym zapisie adres zmienia się bez nawigacji na `/admin/blog/new?id=…` — NIE na `/admin/blog/<id>`, bo odświeżanie danych panelu co 60 s zamontowałoby wtedy edytor od nowa), `/admin/blog/[id]`, `/admin/blog/categories`.
+- **Edytor treści** (`components/admin/blog/ArticleEditor.tsx`) to `@portabletext/editor` — ten sam silnik co Studio, więc treść jest zapisywana 1:1 jako Portable Text (bez konwersji HTML). Pasek: style (akapit, H2–H4, cytat), pogrubienie/kursywa/podkreślenie/przekreślenie/kod, listy, link (Ctrl+K; wyszukiwarka produktów i poradników), „Wstaw”: zdjęcie (także wklejone ze schowka), film (YouTube/Vimeo albo plik ≤ 11 MB), ramka, polecane produkty, separator. Skróty Markdown (`## `, `- `, `1. `, `> `, `**…**`, `---`). Wklejanie z Worda/Docs zachowuje nagłówki, listy i linki. Bloki można edytować (okno), przesuwać i przeciągać. Renderowany tylko w przeglądarce (`next/dynamic` z `ssr:false`) — SSR dawał losowe klucze bloków i błąd hydracji.
+- **Zdarzenie `mutation` edytora przychodzi z opóźnieniem** (edytor grupuje zmiany). Zapis czyta treść przez `ArticleEditorHandle.getValue()` (stan edytora), a nie z ostatniego `onChange` — inaczej ostatnie sekundy pisania by przepadły.
+- **Zapis = szkic**: `saveGuideDraft` pisze wyłącznie do `drafts.<id>` (pierwsza zmiana opublikowanego artykułu kopiuje go do szkicu, więc pola dodane w Studio nie giną). Sklep widzi zmiany dopiero po „Opublikuj” (`publishGuide` → `publishDocument`). To celowo INNE niż przy produktach (`patchAllVersions`) — tekst przepisuje się długo, z autozapisem. Wyjątek: przełącznik „Wyróżniony” na liście działa od razu na obu wersjach.
+- **Autozapis** 2,5 s po zmianie + Ctrl+S; kopia robocza w `localStorage` (`hau-blog-backup:<id|new>`) z propozycją przywrócenia po ponownym wejściu; ostrzeżenie przy zamykaniu karty i przy kliknięciu linku w panelu. Edytor liczy zmiany dopiero po interakcji użytkownika (`interactedRef`) — PTE potrafi przy wczytaniu znormalizować wartość i bez tego samo otwarcie opublikowanego artykułu tworzyło szkic.
+- **Konflikty**: klient wysyła `_rev` wersji, którą edytuje; gdy dokument zmienił się w Studio albo innej karcie → `GuideConflictError` i baner „Wczytaj wersję z serwera / Nadpisz moją wersją” (autozapis staje do decyzji). Patch szkicu idzie z `ifRevisionId`.
+- **Sanityzacja** (`lib/guides/content.ts` → `sanitizeGuideBody`): tylko znane bloki/style/dekoratory/listy, bezpieczne adresy linków (`normalizeHref` odrzuca `javascript:`, `data:`, `//…`), poprawne referencje `image-…`/`file-…`, unikalne `_key`, limit 1500 bloków. Pominięte elementy wracają w `dropped` (toast).
+- **Publikacja** wymaga tego samego co schemat w Studio (`publishBlockers`): tytuł, slug, zajawka ≤ 200, kategoria (opublikowana — referencja jest silna), okładka z alt, data (pusta = „teraz”). Data w przyszłości = zaplanowany (sklep i tak filtruje `publishedAt <= now()`).
+- **Kategorie z panelu powstają od razu jako opublikowane** — Sanity nie opublikuje artykułu z silną referencją do samego szkicu. Usunięcie kategorii w użyciu jest blokowane.
+- **Kontrola jakości / SEO** (`guideChecks`): długość tytułu i opisu w Google (z nadpisaniem `seoTitle`/`seoDescription`), okładka i alt, liczba słów, struktura nagłówków (H1 w treści, pominięty poziom), zdjęcia bez alt, linki do sklepu, ramka produktów. Podgląd wyniku Google i wynik 0–100.
+- **Podgląd** w edytorze to ten sam `components/guides/GuideArticle.tsx`, którego używa strona `/poradniki/[slug]` (linki w podglądzie są wyłączone). Układ reaguje na szerokość KONTENERA (`@container`), nie okna.
+- **Nowe bloki treści** (`sanity/schemaTypes/guideBlocks.ts`): `callout` (ton: tip/info/warning/important, tytuł, tekst), `productEmbed` (tytuł + 1–4 SŁABE referencje do produktów; GROQ na stronie dokleja `items` — nawias w `(products[]->{…})[filtr]` jest konieczny, bez niego filtr zwraca `null`), `divider` (linia/łapki). Zdjęcie w treści ma pole `caption` (podpis pod zdjęciem; `alt` nie jest już wyświetlany jako podpis w poradnikach). Stałe (tony, style, limity) — `lib/guides/content.ts`, jedno źródło dla schematu, edytora i renderera.
+- **Strona artykułu**: kolumna ~760 px, spis treści z H2/H3 (sticky na szerokich ekranach, zwijany na telefonie; kotwice z `guideHeadings` — ta sama funkcja nadaje `id` nagłówkom), autor i daty („Zaktualizowano”, gdy zmiana > 1 dzień po publikacji), udostępnianie (Web Share / kopiuj link — bez skryptów serwisów społecznościowych), JSON-LD `BlogPosting` + okruszki. Kafelki poradników pokazują czas czytania wyliczony w GROQ (`round(length(pt::text(body)) / 1300)`), gdy nie wpisano go ręcznie.
+- **Kod**: `lib/admin/guides.ts` (server-only), `actions/adminGuides.ts`, `components/admin/blog/*`, `app/(admin)/admin/blog/*` (`editorData.ts` — kategorie, katalog i lista artykułów dla edytora).
+- **Testy** (przy wdrożeniu): sanityzacja i SEO (`lib/guides/content`), cały cykl `lib/admin/guides` na atrapie klienta Sanity z `groq-js` (tworzenie, konflikt `_rev`, publikacja, planowanie, wycofanie, odrzucenie zmian, duplikat, kategorie), interakcje edytora w przeglądarce (Markdown, skróty, link dodaj/edytuj/usuń, bloki, cofanie, wklejanie HTML).
 
 ## Environment Variables
 

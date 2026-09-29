@@ -30,25 +30,34 @@ function isEmptyBlock(children: React.ReactNode) {
     )
 }
 
-const components: PortableTextComponents = {
-    block: {
-        h1: ({ children }) => (
-            <h1 className="text-black font-poppins font-semibold text-[clamp(22px,2.4vw,30px)] mt-10 first:mt-0 mb-4 scroll-mt-28">
-                {children}
-            </h1>
-        ),
-        h2: ({ children }) => (
-            <h2 className="text-black font-poppins font-semibold text-[clamp(19px,2vw,24px)] mt-9 first:mt-0 mb-3 scroll-mt-28">
+/**
+ * Mapa `_key` bloku → `id` kotwicy. Liczona przez `guideHeadings` (ta sama
+ * funkcja zasila spis treści), więc link „#sekcja” zawsze trafia w nagłówek.
+ */
+type HeadingAnchors = Map<string, string>
+
+function buildBlockComponents(anchors?: HeadingAnchors): PortableTextComponents['block'] {
+    const headingId = (value: { _key?: string }) => (value?._key ? anchors?.get(value._key) : undefined)
+    return {
+        // `h1` z treści renderujemy jako <h2> (z wyglądem h1) — strona dokumentu ma
+        // już własny <h1> z tytułem, a dwa H1 na stronie to błąd dostępności i SEO.
+        h1: ({ children, value }) => (
+            <h2 id={headingId(value)} className="text-black font-poppins font-semibold text-[clamp(22px,2.4vw,30px)] mt-10 first:mt-0 mb-4 scroll-mt-28">
                 {children}
             </h2>
         ),
-        h3: ({ children }) => (
-            <h3 className="text-black font-poppins font-medium text-[clamp(17px,1.7vw,20px)] mt-7 first:mt-0 mb-2 scroll-mt-28">
+        h2: ({ children, value }) => (
+            <h2 id={headingId(value)} className="text-black font-poppins font-semibold text-[clamp(19px,2vw,24px)] mt-9 first:mt-0 mb-3 scroll-mt-28">
+                {children}
+            </h2>
+        ),
+        h3: ({ children, value }) => (
+            <h3 id={headingId(value)} className="text-black font-poppins font-medium text-[clamp(17px,1.7vw,20px)] mt-7 first:mt-0 mb-2 scroll-mt-28">
                 {children}
             </h3>
         ),
-        h4: ({ children }) => (
-            <h4 className="text-black font-poppins font-medium text-[clamp(15px,1.5vw,17px)] mt-6 first:mt-0 mb-2 scroll-mt-28">
+        h4: ({ children, value }) => (
+            <h4 id={headingId(value)} className="text-black font-poppins font-medium text-[clamp(15px,1.5vw,17px)] mt-6 first:mt-0 mb-2 scroll-mt-28">
                 {children}
             </h4>
         ),
@@ -65,13 +74,17 @@ const components: PortableTextComponents = {
                 </p>
             )
         },
-    },
+    }
+}
+
+const components: PortableTextComponents = {
+    block: buildBlockComponents(),
     list: {
         bullet: ({ children }) => (
-            <ul className="list-disc marker:text-[#7A7A7A] pl-6 my-4 space-y-2">{children}</ul>
+            <ul className="list-disc marker:text-[#6EB0A6] pl-6 my-4 space-y-2">{children}</ul>
         ),
         number: ({ children }) => (
-            <ol className="list-decimal marker:text-[#7A7A7A] pl-6 my-4 space-y-2">{children}</ol>
+            <ol className="list-decimal marker:font-semibold marker:text-[#5E9E94] pl-6 my-4 space-y-2">{children}</ol>
         ),
     },
     listItem: {
@@ -147,9 +160,10 @@ const components: PortableTextComponents = {
  */
 export const portableTextBaseComponents = components
 
-const PortableTextContent = ({ value }: { value?: any[] }) => {
+const PortableTextContent = ({ value, anchors }: { value?: any[]; anchors?: HeadingAnchors }) => {
     if (!value || value.length === 0) return null
-    return <PortableText value={value} components={components} />
+    const withAnchors = anchors?.size ? { ...components, block: buildBlockComponents(anchors) } : components
+    return <PortableText value={value} components={withAnchors} />
 }
 
 export default PortableTextContent

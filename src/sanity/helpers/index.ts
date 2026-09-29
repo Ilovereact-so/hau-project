@@ -571,6 +571,8 @@ export type GuideListItem = {
   publishedAt?: string;
   readingTime?: number;
   featured?: boolean;
+  /** Szacunek z długości treści (GROQ) — kafelek pokazuje `readingTime ?? estimatedReadingTime`. */
+  estimatedReadingTime?: number;
   /** Wyliczone w GROQ, żeby nie ciągnąć całego `body` tylko po znaczek "wideo" na kafelku. */
   hasVideo?: boolean;
 };
@@ -579,6 +581,10 @@ export type Guide = GuideListItem & {
   author?: string;
   heroVideo?: GuideVideo;
   body?: any[];
+  seoTitle?: string;
+  seoDescription?: string;
+  /** Ostatnia zmiana opublikowanej wersji — „Zaktualizowano …” i `dateModified` w JSON-LD. */
+  updatedAt?: string;
 };
 
 // Wspólne pola kafelka. Trzymane w stałej, bo powtarzają się w czterech
@@ -593,6 +599,10 @@ const GUIDE_CARD_PROJECTION = `
   "category": category->{_id, title, "slug": slug.current},
   publishedAt,
   readingTime,
+  // Czas czytania, gdy w Studio/panelu nie wpisano go ręcznie: znaki treści
+  // (pt::text) / ~1300 znaków na minutę ≈ 200 słów/min — ta sama skala co
+  // estimateReadingTime. Liczone w GROQ, żeby kafelek nie ciągnął całego body.
+  "estimatedReadingTime": round(length(pt::text(body)) / 1300),
   featured,
   "hasVideo": defined(heroVideo.url) || defined(heroVideo.file)
 `;
@@ -647,9 +657,17 @@ export const getGuideBySlug = async (slug: string): Promise<Guide | null> => {
   // `fileUrl` dereferencjonujemy już w GROQ — inaczej w przeglądarce zostałby
   // sam `_ref` pliku, a złożenie z niego adresu cdn.sanity.io wymagałoby
   // powielania konwencji nazewniczej Sanity po stronie komponentu.
+  // `items` w bloku „Polecane produkty”: produkty rozwiązane z (słabych)
+  // referencji. Produkt usunięty albo wycofany ze sklepu daje null — filtr
+  // [defined(_id) && defined(slug)] go pomija (nawias jest konieczny — bez
+  // niego filtr stosuje się do pojedynczego obiektu i zwraca null), więc ramka
+  // pokazuje tylko dostępne produkty.
   const QUERY = `*[_type == "guide" && slug.current == $slug][0]{
     ${GUIDE_CARD_PROJECTION},
     author,
+    seoTitle,
+    seoDescription,
+    "updatedAt": _updatedAt,
     heroVideo{
       provider,
       url,
@@ -661,6 +679,17 @@ export const getGuideBySlug = async (slug: string): Promise<Guide | null> => {
       ...,
       _type == "videoEmbed" => {
         "fileUrl": file.asset->url
+      },
+      _type == "productEmbed" => {
+        "items": (products[]->{
+          _id,
+          title,
+          subtitle,
+          "slug": slug.current,
+          price,
+          "variants": variants[]{ _key, price },
+          "imageUrl": images[0].asset->url
+        })[defined(_id) && defined(slug)]
       }
     }
   }`;

@@ -59,7 +59,7 @@ export function useProductPrice(
 }
 
 export function omnibusLabel(info: OmnibusInfo | null) {
-  return info?.promo ? 'Najniższa cena z 30 dni przed obniżką:' : 'Najniższa cena z 30 dni:'
+  return info?.promo ? 'Najniższa cena z 30 dni:' : 'Najniższa cena z 30 dni:'
 }
 
 /** Dwie linijki „Najniższa cena z 30 dni: …” (etykieta + kwota). */

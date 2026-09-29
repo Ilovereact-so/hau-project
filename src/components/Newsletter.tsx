@@ -42,30 +42,30 @@ const Newsletter = () => {
   return (
     <div className='flex flex-col justify-start lg:pt-5 sm:pt-3 pb-10 lg:mt-2 sm:mx-12 mx-7 rounded-[80px] relative z-1'>
        <div id='newsletterContainer' className=''> 
-            <h1 style={{gridArea:"heading"}} className='text-[clamp(20px,2vw,40px)] text-black font-medium font-poppins sm:text-left text-center relative z-1'>Zapisz sie do newslettera<br/><span className='text-[#6eb0a6]'>i odbierz 10% rabatu!</span></h1>
+            <h1 style={{gridArea:"heading"}} className='text-[clamp(20px,2vw,40px)] text-black font-medium font-poppins sm:text-left text-center relative z-1'>Zapisz sie do newslettera<br/><span className='text-[#efefef]'>i odbierz 10% rabatu!</span></h1>
             <div style={{gridArea:"form"}} className='flex sm:w-auto max-sm:justify-center w-full h-auto relative z-1'>
-                <form onSubmit={handleSubmit} className='flex flex-col space-y-2 w-full h-full max-md:bg-[#ffffff5d] p-6 rounded-[40px] backdrop-blur-[10px]'>
+                <form onSubmit={handleSubmit} className='flex flex-col space-y-2 w-full h-full bg-[#ffffff5d] p-6 rounded-[40px] backdrop-blur-[10px]'>
                     <label className='w-fit flex flex-col space-y-2'>
                         <p className='text-black text-[clamp(12px,1.3vw,18px)] font-medium'>Email:</p>
                     </label>
-                    <div className='flex items-center'>
+                    <div className='flex items-center space-x-2'>
                         <input
                             type='email'
                             required
                             value={email}
                             onChange={e => setEmail(e.target.value)}
                             placeholder='jankowalski@onet.pl'
-                            className='px-5 flex justify-center items-center bg-white text-black placeholder:text-[#8E8E8E] text-[clamp(10px,1.2vw,16px)] rounded-l-[20px] py-3.5 outline-none w-full max-w-[180px] sm:max-w-[350px]'
+                            className='px-5 flex justify-center items-center bg-white text-black placeholder:text-[#8E8E8E] text-[clamp(10px,1.2vw,16px)] rounded-[20px] py-3.5 outline-none w-full max-w-[180px] sm:max-w-[350px]'
                         />
                         <button
                             type='submit'
                             disabled={isPending}
-                            className='text-white font-medium text-[clamp(12px,1.4vw,18px)] px-8 flex justify-center items-center bg-fancy-black rounded-[20px] translate-x-[-10px] h-[clamp(40px,4vw,55px)] cursor-pointer hover:bg-[#3cbca5] ease-in-out duration-200 disabled:opacity-60 disabled:cursor-not-allowed'
+                            className='text-white font-medium text-[clamp(12px,1.4vw,18px)] px-8 flex justify-center items-center bg-fancy-black rounded-[22px] h-[clamp(40px,4vw,55px)] cursor-pointer hover:opacity-90 ease-in-out duration-200 disabled:opacity-60 disabled:cursor-not-allowed'
                         >
                             {isPending ? 'Wysyłanie…' : 'Wyślij'}
                         </button>
                     </div>
-                    <div className='sm:mt-4 mt-2 flex space-x-3 items-start'>
+                    <label className='sm:mt-4 mt-2 flex space-x-3 items-start'>
                         <label className='w-4 h-4 relative mt-1'>
                             <input
                                 type='checkbox'
@@ -80,7 +80,7 @@ const Newsletter = () => {
                             </div>
                         </label>
                         <p className='text-black text-[14px] sm:max-w-[330px] max-w-[240px]'>Wyrażam zgodę na otrzymywanie newslettera i akcepuję politykę prywatności.</p>
-                    </div>
+                    </label>
                 </form>
             </div>
             <div className='absolute sm:-right-12 -right-7 bottom-0 max-w-[1000px] sm:w-[60vw] w-[90vw] flex justify-end z-0'>

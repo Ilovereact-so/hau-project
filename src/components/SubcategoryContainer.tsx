@@ -110,7 +110,7 @@ const SubCategoryContainer = () => {
                                     </div>
                                     <div className='text-white font-medium text-center flex flex-col items-center mt-4 text-[clamp(14px,1.1vw,16px)]'>
                                         <p>{item.title}</p>
-                                        <hr className='text-[#e2f3f0] w-[50px] group-hover:w-full mt-2 border border-[#e2f3f0] ease-in-out duration-300'></hr>
+                                        <hr className='text-[#e2f3f0] w-[50px]  mt-2 border border-[#e2f3f0] ease-in-out duration-300'></hr>
                                     </div>
                                 </div>
                                 <Link href={`/subcategory/${item.path}`} className='flex text-[clamp(11px,1.2vw,14px)] text-white space-x-1 items-center cursor-pointer'>

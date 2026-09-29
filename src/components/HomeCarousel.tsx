@@ -104,7 +104,7 @@ const HomeCarousel = ({ collections }: Props) => {
                               href={`/kolekcje/${encodeURIComponent(item.slug)}`}
                               tabIndex={isIndex === index ? 0 : -1}
                               aria-hidden={isIndex === index ? undefined : true}
-                              className='bg-fancy-black rounded-full cursor-pointer text-white md:text-[clamp(18px,1.6vw,22px)] font-poppins font-medium sm:px-10 px-6 sm:py-3 py-2 inline-flex w-fit hover:bg-black ease-in-out duration-200'
+                              className='bg-fancy-black rounded-[24px] cursor-pointer text-white hover:text-black md:text-[clamp(18px,1.6vw,22px)] font-poppins font-semibold sm:px-10 px-6 sm:py-3 py-2 inline-flex w-fit hover:bg-[#ededed] ease-in-out duration-400'
                             >
                               Sprawdź ofertę
                             </Link>

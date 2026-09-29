@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Megaphone,
   MessageSquareText,
+  NotebookPen,
   PackageOpen,
   PlugZap,
   ShoppingBag,
@@ -68,6 +69,16 @@ export const NAV_ITEMS: NavItem[] = [
     ],
   },
   { label: 'Magazyn', icon: Boxes, href: '/admin/products?filter=low', badgeKey: 'lowStock' },
+  {
+    label: 'Blog',
+    icon: NotebookPen,
+    href: '/admin/blog',
+    children: [
+      { label: 'Artykuły', href: '/admin/blog' },
+      { label: 'Nowy artykuł', href: '/admin/blog/new' },
+      { label: 'Kategorie', href: '/admin/blog/categories' },
+    ],
+  },
   { label: 'Klienci', icon: UsersRound, href: '/admin/customers' },
   { label: 'Opinie', icon: MessageSquareText, href: '/admin/reviews' },
   { label: 'Płatności', icon: WalletCards, href: '/admin/payments', badgeKey: 'failedPayments' },
@@ -123,6 +134,10 @@ const HEADINGS: Array<[prefix: string, heading: Heading]> = [
   ['/admin/categories', { title: 'Kategorie', subtitle: 'Kategorie i subkategorie sklepu z Sanity — nazwy, zdjęcia, liczniki produktów.' }],
   ['/admin/collections', { title: 'Kolekcje', subtitle: 'Kolekcje produktów z Sanity — strony /kolekcje, przypisanie produktów i link z banera.' }],
   ['/admin/import', { title: 'Import CSV', subtitle: 'Hurtowe dodawanie i aktualizacja produktów w Sanity z pliku CSV (+ ZIP ze zdjęciami).' }],
+  ['/admin/blog/new', { title: 'Nowy artykuł', subtitle: 'Pisz, formatuj i wstawiaj zdjęcia, filmy, ramki i produkty. Autozapis do szkicu — sklep widzi tekst dopiero po publikacji.' }],
+  ['/admin/blog/categories', { title: 'Kategorie bloga', subtitle: 'Kategorie poradników — filtry na /poradniki.' }],
+  ['/admin/blog/', { title: 'Edycja artykułu', subtitle: 'Autozapis do szkicu co kilka sekund (Ctrl+S — od razu). Zmiany trafiają do sklepu po „Opublikuj”.' }],
+  ['/admin/blog', { title: 'Blog', subtitle: 'Poradniki sklepu — pisanie, publikacja, planowanie i wyróżnienia.' }],
   ['/admin/customers', { title: 'Klienci', subtitle: 'Klienci zagregowani z zamówień — wartość zakupów i historia.' }],
   ['/admin/reviews', { title: 'Opinie', subtitle: 'Opinie klientów o produktach — moderacja, odpowiedzi sklepu i niskie oceny.' }],
   ['/admin/payments', { title: 'Płatności', subtitle: 'Transakcje Autopay i Przelewy24 — nieudane i oczekujące wymagają uwagi.' }],
@@ -147,4 +162,4 @@ export function headingFor(pathname: string, firstName?: string | null): Heading
 }
 
 /** Sekcje, w których wyszukiwarka z topbaru filtruje bieżącą listę. */
-export const SEARCHABLE_PATHS = ['/admin/orders', '/admin/products', '/admin/customers', '/admin/categories', '/admin/reviews', '/admin/collections']
+export const SEARCHABLE_PATHS = ['/admin/blog', '/admin/orders', '/admin/products', '/admin/customers', '/admin/categories', '/admin/reviews', '/admin/collections']

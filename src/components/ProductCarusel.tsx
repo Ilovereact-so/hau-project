@@ -47,9 +47,9 @@ const ProductCarusel = ({title, subtitle, className, categorySlug = 'feeding'}:P
         <Carousel>
             <div className='flex 1xl:space-x-10 lg:space-x-7 space-x-5 w-auto h-auto'>
                 {
-                    // Szkielety zamiast napisu "Products is loading..." (patrz
-                    // components/ui/Skeleton.tsx) — ten sam rząd szerokości co ProductItem.
-                    loading ? <ProductCardRowSkeleton count={4} /> :
+                    // Szkielety w gapie starej karuzeli (ProductItem) — patrz
+                    // components/ui/Skeleton.tsx.
+                    loading ? <ProductCardRowSkeleton count={4} gap="1xl:space-x-10 lg:space-x-7 space-x-5" /> :
                     products.map((item: GetSlugProduct)=>(
                         <ProductItem product={item} key={item?._id}/>
                     ))

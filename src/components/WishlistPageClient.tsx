@@ -5,7 +5,7 @@ import Link from 'next/link'
 import useStore from 'store'
 import Container from './Container'
 import WishlistProduct from './WishlistProduct'
-import { ProductCardSkeleton } from './ui/Skeleton'
+import { WishlistCardSkeleton } from './ui/Skeleton'
 import { useAuthModalStore } from '@/store/authModalStore'
 
 function GuestWishlistNotice({ hasItems }: { hasItems: boolean }) {
@@ -42,7 +42,7 @@ export function WishlistPageClient() {
       <Container className="w-full font-poppins flex flex-col">
         <div className="mt-4 grid 3xl:grid-cols-4 2lg:grid-cols-3 3md:grid-cols-2 1md:grid-cols-3 grid-cols-2 max-3xl:gap-x-[25px] max-2xl:gap-x-[18px] max-sm:gap-x-[10px] gap-x-[25px] gap-y-[75px]">
           {Array.from({ length: 6 }).map((_, i) => (
-            <ProductCardSkeleton key={i} />
+            <WishlistCardSkeleton key={i} />
           ))}
         </div>
       </Container>

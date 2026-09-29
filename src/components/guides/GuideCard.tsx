@@ -1,8 +1,9 @@
 import React from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { ArrowRight, Bookmark, Clock } from 'lucide-react'
+import { ArrowRight, Bookmark, Clock, PlayCircle } from 'lucide-react'
 import { urlFor } from '@/sanity/lib/image'
+import { Paw_Filled } from '@/components/ui/paw'
 
 export type GuideCardItem = {
     _id: string
@@ -13,6 +14,7 @@ export type GuideCardItem = {
     category?: { _id: string; title: string; slug: string } | null
     publishedAt?: string
     readingTime?: number
+    estimatedReadingTime?: number
     hasVideo?: boolean
 }
 
@@ -28,12 +30,18 @@ export const formatGuideDate = (value?: string) => {
 }
 
 /**
- * Kafelek poradnika — jedyny wygląd wpisu na liście, w module na stronie
- * głównej i w sekcji "zobacz też". Jeden komponent, żeby te trzy miejsca nie
- * zaczęły się rozjeżdżać przy pierwszej korekcie.
+ * Kafelek poradnika — jeden wygląd wpisu na liście /poradniki, w module na
+ * stronie głównej, w wyróżnionych i w sekcji „Zobacz też”.
  *
- * `variant="featured"` to ten sam kafelek w układzie poziomym (obraz obok
- * tekstu) — używany dla wyróżnionego poradnika na górze /poradniki.
+ * Responsywność zależy od szerokości SAMEJ KARTY (`@container`), a nie okna:
+ * ta sama karta siedzi raz w wąskiej kolumnie siatki, raz w szerokiej liście.
+ *  - karta < 560 px — układ pionowy: okładka 16:9 na całą szerokość,
+ *    kategoria na okładce, tytuł, zajawka, stopka z „Czytaj więcej” i datą,
+ *  - karta ≥ 560 px — układ poziomy: okładka po lewej (40%, max 320 px),
+ *    tekst po prawej, zakładka w rogu.
+ * W siatce wszystkie karty rzędu mają równą wysokość (h-full + mt-auto stopki).
+ *
+ * `variant` zostaje w API dla zgodności — wygląd wynika z dostępnego miejsca.
  */
 const GuideCard = ({
     guide,
@@ -47,68 +55,93 @@ const GuideCard = ({
     priority?: boolean
 }) => {
     const date = formatGuideDate(guide.publishedAt)
-    const cover = guide.coverImage?.asset ? urlFor(guide.coverImage).url() : null
+    // Ręcznie wpisany czas czytania ma pierwszeństwo, inaczej szacunek z GROQ.
+    const readingTime =
+        guide.readingTime || (typeof guide.estimatedReadingTime === 'number' ? Math.max(1, guide.estimatedReadingTime) : null)
+    const cover = guide.coverImage?.asset ? urlFor(guide.coverImage).width(900).height(560).fit('crop').auto('format').url() : null
     const coverAlt = guide.coverImage?.alt || guide.title
 
     return (
-        <Link 
-            id='guidesCard'           
+        <Link
             href={`/poradniki/${guide.slug}`}
-            className={`bg-[#ebe0d1] p-4 rounded-[25px] flex max-sm:flex-col h-auto w-auto 3xl:max-w-[60vw] max-w-[1100px] hover:scale-97 ease-in-out duration-300 relative ${className ?? ''}`}
-        >   
-            <div
-                style={{gridArea: "image"}}
-                className={'relative overflow-hidden rounded-[24px] bg-[#EDEDED] shrink-0  lg:w-[300px] w-[100px] lg:h-[200px] h-[50px] '}
-            >
-                {cover ? (
-                    <Image
-                        src={cover}
-                        alt={coverAlt}
-                        fill
-                        priority={priority}
-                        className="object-cover w-full h-full"
-                    />
-                ) : null}                
-            </div>
-            <div style={{gridArea: "title"}} className='flex flex-col'>
-                {guide.category && (
-                    <span className="bg-[#f5f9f7] text-[#94cdc3] uppercase text-[clamp(10px,1.5vw,12px)] w-fit sm:text-[13px] font-medium px-3 py-[5px] rounded-full max-md:hidden">
-                        {guide.category.title}
-                    </span>
-                )}
-        
-                <h3
-                    className={'text-fancy-black font-medium text-[clamp(16px,1.5vw,18px)] mt-2 '}
-                >
-                    {guide.title}
-                </h3>
-            </div>
-            <div style={{gridArea: "description"}} className={`flex flex-col w-full max-sm:pb-2`}>
-                
-                <p
-                    className={`text-[clamp(14px,1.5vw,16px)] text-fancy-black mt-2`}
-                >
-                    {guide.excerpt}
-                </p>
-                <div className='flex text-[#78afa5] text-[clamp(14px,1.5vw,16px)] font-medium space-x-2 items-center mt-4'>
-                    <p>Czytaj więcej</p>
-                    <ArrowRight className='w-[20px] h-[20px] '/>
-                </div>
-            </div>
-            
-            <div style={{gridArea: "actions"}} className='flex flex-col justify-between items-end w-fit max-3xs:absolute right-0 h-full'>
-                <Bookmark className='w-[30px] h-[30px] text-black/50'/>
-                <div className="flex items-center text-fancy-black  font-medium text-[12px] sm:text-[13px] text-nowrap bg-[#f5f9f7] p-2 rounded-[14px]">
-                    {date && <span className=''>{date}</span>}
-                    {guide.readingTime ? (
-                        <span className="inline-flex items-center gap-1 ">
-                            <Clock className="w-[13px] h-[13px]" />
-                            {guide.readingTime} min
+            className={`guide-card group @container mx-auto block h-full w-full max-w-[1100px] rounded-[25px] bg-[#ebe0d1] font-poppins transition duration-300 ease-in-out hover:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6EB0A6] focus-visible:ring-offset-2 ${className ?? ''}`}
+        >
+            <article className='flex h-full flex-col gap-4 p-3 @min-[560px]:flex-row @min-[560px]:gap-6 @min-[560px]:p-4'>
+                {/* Okładka */}
+                <div className='relative aspect-[16/9] w-full shrink-0 overflow-hidden rounded-[20px] bg-[#e0d3c1] @min-[560px]:aspect-auto @min-[560px]:min-h-[190px] @min-[560px]:w-[40%] @min-[560px]:max-w-[320px] @min-[560px]:rounded-[22px]'>
+                    {cover ? (
+                        <Image
+                            src={cover}
+                            alt={coverAlt}
+                            fill
+                            priority={priority}
+                            sizes='(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 420px'
+                            className='object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]'
+                        />
+                    ) : (
+                        // Wpis bez okładki — łapka zamiast pustego prostokąta.
+                        <Paw_Filled className='absolute inset-0 m-auto size-12 text-[#d3c3ad]' />
+                    )}
+
+                    {guide.hasVideo && (
+                        <span className='absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-fancy-black/80 px-3 py-[5px] text-[12px] font-medium text-white backdrop-blur-sm'>
+                            <PlayCircle className='size-[14px]' aria-hidden />
+                            Film
                         </span>
-                    ) : null}
+                    )}
+
+                    {/* Kategoria na okładce — tylko w układzie pionowym. */}
+                    {guide.category && (
+                        <span className='absolute left-3 top-3 rounded-full bg-[#f5f9f7] px-3 py-[5px] text-[11px] font-semibold uppercase tracking-[0.06em] text-[#4E8F85] @min-[560px]:hidden'>
+                            {guide.category.title}
+                        </span>
+                    )}
                 </div>
-            </div>
-            
+
+                {/* Treść */}
+                <div className='flex min-w-0 flex-1 flex-col px-1 pb-1 @min-[560px]:px-0 @min-[560px]:py-1'>
+                    <div className='hidden items-start justify-between gap-3 @min-[560px]:flex'>
+                        {guide.category ? (
+                            <span className='rounded-full bg-[#f5f9f7] px-3 py-[5px] text-[12px] font-semibold uppercase tracking-[0.06em] text-[#4E8F85]'>
+                                {guide.category.title}
+                            </span>
+                        ) : (
+                            <span />
+                        )}
+                        <Bookmark className='size-6 shrink-0 text-black/40' aria-hidden />
+                    </div>
+
+                    <h3 className='line-clamp-2 text-[clamp(17px,1.5vw,19px)] font-medium leading-snug text-fancy-black @min-[560px]:mt-3'>
+                        {guide.title}
+                    </h3>
+
+                    {guide.excerpt && (
+                        <p className='mt-2 line-clamp-3 text-[15px] leading-relaxed text-[#4A4540]'>{guide.excerpt}</p>
+                    )}
+
+                    <div className='mt-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-2 pt-4'>
+                        <span className='inline-flex items-center gap-2 text-[15px] font-medium text-fancy-black'>
+                            Czytaj więcej
+                            <ArrowRight
+                                className='size-[18px] text-[#5E9E94] transition-transform group-hover:translate-x-[3px]'
+                                aria-hidden
+                            />
+                        </span>
+                        {(date || readingTime) && (
+                            <span className='inline-flex items-center gap-2 whitespace-nowrap rounded-[14px] bg-[#f5f9f7] px-3 py-1.5 text-[12px] font-medium text-fancy-black sm:text-[13px]'>
+                                {date && <time dateTime={guide.publishedAt}>{date}</time>}
+                                {date && readingTime ? <span className='text-black/30' aria-hidden>·</span> : null}
+                                {readingTime ? (
+                                    <span className='inline-flex items-center gap-1'>
+                                        <Clock className='size-[13px]' aria-hidden />
+                                        {readingTime} min
+                                    </span>
+                                ) : null}
+                            </span>
+                        )}
+                    </div>
+                </div>
+            </article>
         </Link>
     )
 }

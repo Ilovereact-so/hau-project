@@ -115,18 +115,71 @@ export type HelpDocumentLink = {
   title: string;
   slug: string;
   column: 1 | 2;
+  /** Grupa w Centrum pomocy (/help i sidebar dokumentu) — patrz HELP_GROUPS. */
+  group: HelpGroupId;
+  /** Opis na kafelku /help, gdy dokument w Sanity nie ma jeszcze `lead`. */
+  description: string;
 };
 
+export type HelpGroupId = "zakupy" | "dokumenty" | "inne";
+
+/**
+ * Grupy Centrum pomocy w kolejności wyświetlania. Najpierw sprawy, z którymi
+ * klient przychodzi najczęściej (dostawa, płatność, zwrot), potem dokumenty
+ * prawne. Dokumenty dodane w Studio spoza HELP_DOCUMENTS trafiają do „inne”.
+ */
+export const HELP_GROUPS: { id: HelpGroupId; title: string }[] = [
+  { id: "zakupy", title: "Zakupy i dostawa" },
+  { id: "dokumenty", title: "Regulaminy i prywatność" },
+  { id: "inne", title: "Pozostałe dokumenty" },
+];
+
 export const HELP_DOCUMENTS: HelpDocumentLink[] = [
-  { title: "Regulamin", slug: "regulamin", column: 1 },
-  { title: "Polityka prywatności", slug: "polityka-prywatnosci", column: 1 },
-  { title: "Zwroty i reklamacje", slug: "zwroty-i-reklamacje", column: 1 },
-  { title: "Dostawa", slug: "dostawa", column: 2 },
-  { title: "Formy płatności", slug: "formy-platnosci", column: 2 },
+  {
+    title: "Regulamin",
+    slug: "regulamin",
+    column: 1,
+    group: "dokumenty",
+    description: "Zasady korzystania ze sklepu HAU, składania zamówień i zawierania umów.",
+  },
+  {
+    title: "Polityka prywatności",
+    slug: "polityka-prywatnosci",
+    column: 1,
+    group: "dokumenty",
+    description: "Jakie dane przetwarzamy, w jakim celu i jakie prawa Ci przysługują.",
+  },
+  {
+    title: "Zwroty i reklamacje",
+    slug: "zwroty-i-reklamacje",
+    column: 1,
+    group: "zakupy",
+    description: "Jak odesłać produkt albo zgłosić reklamację — krok po kroku.",
+  },
+  {
+    title: "Dostawa",
+    slug: "dostawa",
+    column: 2,
+    group: "zakupy",
+    description: "Dostępne metody wysyłki, ich koszty i czas realizacji zamówienia.",
+  },
+  {
+    title: "Formy płatności",
+    slug: "formy-platnosci",
+    column: 2,
+    group: "zakupy",
+    description: "Jak możesz zapłacić za zamówienie i co dzieje się po płatności.",
+  },
   // Baner zgód linkuje do polityki cookies — dokument żyje w Sanity
   // (typ helpDocument, slug "polityka-cookies"); do czasu jego dodania
   // strona pokazuje stan „w przygotowaniu” zamiast 404.
-  { title: "Polityka cookies", slug: "polityka-cookies", column: 2 },
+  {
+    title: "Polityka cookies",
+    slug: "polityka-cookies",
+    column: 2,
+    group: "dokumenty",
+    description: "Jakich plików cookies używamy i jak zmienić swoje ustawienia.",
+  },
 ];
 
 type BanerItem = {

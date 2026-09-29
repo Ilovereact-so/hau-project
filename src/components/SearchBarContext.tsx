@@ -8,7 +8,7 @@ import { useState } from 'react'
 import { useProductSearch } from '@/hooks/useProductSearch'
 import { urlFor } from '@/sanity/lib/image'
 import Image from 'next/image'
-import { OmnibusNote, PriceRow, useProductPrice } from './price/ProductPrice'
+import PriceFormatter from './PriceFormatter'
 import Link from 'next/link'
 import { SearchOverlay } from './SearchOverlay'
 import SearchPortal from './SearchPortal'
@@ -272,17 +272,9 @@ const SearchBarContext = ({mode, isChangeMode, mobile, showSearchBar, focusChang
 // localStorage na przyszłość, ale nie ten pierwszy link. Bez fallbacku tutaj klik
 // w świeży wynik wyszukiwania leciał z pustym ?variant=, a strona produktu robi
 // notFound() gdy variant jest pusty — czyli twarde 404 przy pierwszym kliknięciu.
-const ProductCard = ({ product, mode: _mode, onClick }: { product: RecentProduct & { variants?: Array<{ _key: string; price: number }> }, mode: number, onClick?: VoidFunction }) => {
+const ProductCard = ({ product, mode, onClick }: { product: RecentProduct & { variants?: Array<{ _key: string; price: number }> }, mode: number, onClick?: VoidFunction }) => {
     const router = useRouter()
     const effectiveVariantKey = product?.variantKey ?? product?.variants?.[0]?._key ?? "";
-    // Zapisany RecentProduct nie ma `variants` — cena z localStorage mogła się
-    // zmienić, więc wolimy bieżącą cenę z rejestru, gdy ją znamy.
-    const priceState = useProductPrice(
-        { _id: product._id, price: product.price, variants: product.variants ?? null },
-        effectiveVariantKey || null,
-        undefined,
-        { preferRegistryPrice: !product.variants },
-    )
     // Gdy nie da się wyznaczyć klucza wariantu, w ogóle nie doklejamy ?variant= —
     // puste wartości ("?variant=" / "?variant=undefined" ze starych wpisów w
     // localStorage bez variantKey) dawały twardy 404 na stronie produktu (ona
@@ -318,9 +310,9 @@ const ProductCard = ({ product, mode: _mode, onClick }: { product: RecentProduct
         href={href}
         onClick={handleCardClick}
         className="cursor-pointer flex flex-col min-w-[130px] w-auto max-sm:overflow-hidden max-sm:min-h-[200px] max-sm:justify-center relative max-sm:rounded-[20px] "
-    >   <div className='grid sm:grid-cols-2 gap-x-4'>
+    >   <div className='grid sm:grid-cols-[1fr_auto] gap-x-4 w-fit'>
             {product?.images &&
-                <Image src={urlFor(product.images[0]).url()} alt={String(product?.title)} width={154} height={154} className='sm:min-w-[154px] min-h-[154px] sm:w-auto w-full h-auto opacity-90 max-sm:absolute max-sm:top-[50%] max-sm:translate-y-[-50%] z-1 sm:brightness-93 max-sm:contrast-30 max-sm:opacity-50 object-cover rounded-[20px]'/>
+                <Image src={urlFor(product.images[0]).url()} alt={String(product?.title)} width={154} height={154} className='w-[154px] h-[154px] opacity-90 max-sm:absolute max-sm:top-[50%] max-sm:translate-y-[-50%] z-1 sm:brightness-93 max-sm:contrast-30 max-sm:opacity-50 object-cover rounded-[20px]'/>
             }
             <div className="w-auto flex flex-col font-poppins relative z-2 max-sm:px-4 max-sm:py-3">
                 <div className="2lg:mb-2">
@@ -330,13 +322,16 @@ const ProductCard = ({ product, mode: _mode, onClick }: { product: RecentProduct
                 </div>
                 
                 <div className=''>
-                <PriceRow
-                    state={priceState}
-                    className='text-[14px]'
-                    priceClassName='text-[14px] text-black'
-                    suffix={priceState.info?.promo ? undefined : <span className='text-[#6C6C6C] text-[12px]'>w tym VAT</span>}
-                />
-                <OmnibusNote state={priceState} className='text-[#6C6C6C] text-[12px] line-clamp-2' labelClassName='mt-1' />
+                {product?.compareAtPrice ? 
+                <div className='text-[14px] space-x-2 flex'>
+                    <p className='text-black'><PriceFormatter amount={product?.price} className='font-medium'/></p>
+                    <div className='text-[#6C6C6C] flex'><span className='line-through'><PriceFormatter amount={product?.compareAtPrice} className='font-normal'/></span><span>{(100 - ((parseFloat(String(product?.compareAtPrice)) / parseFloat(String(product?.price))) * 100)).toFixed(0)}%</span></div>
+                </div>
+                :
+                <p className='text-[#6C6C6C] text-[12px] '><PriceFormatter amount={product?.price} className='font-medium text-[14px] text-black mr-1'/>  w tym VAT</p>
+                }
+                <p className='mt-1 text-[#6C6C6C] text-[12px] line-clamp-2'>Najniższa cena z ostatnich 30dni:</p>
+                <p className='text-[#6C6C6C] text-[12px] line-clamp-2'><PriceFormatter amount={product?.price} className='font-normal'/></p>
                 </div>
             </div>
         </div>
@@ -411,7 +406,7 @@ const Context = ({loading, mode, mobile, showSearchBar, results, query, counts, 
         <div
             onMouseDown={(e) => e.preventDefault()}
             className={`${
-                mode == 1 ? "3lg:absolute items-center top-[100%] right-0 bg-[#D1EAE5]/95 backdrop-blur-[2px] ease-in-out duration-200 flex flex-col ":"max-md:max-h-[calc(100vh-190px)] max-md:overflow-y-auto max-md:overflow-x-hidden search-scroll-container"
+                mode == 1 ? "3lg:absolute 3lg:max-w-[calc(100vw-200px)]  items-center top-[100%] right-0 bg-[#D1EAE5]/95 backdrop-blur-[2px] ease-in-out duration-200 flex flex-col ":"max-md:max-h-[calc(100vh-190px)] max-md:overflow-y-auto max-md:overflow-x-hidden search-scroll-container"
                 } ${
                     mode == 1 ? !isOpen ? "min-w-[calc(100%-20px)] 3lg:w-max  opacity-0" : "rounded-[35px] 3lg:min-w-[calc(100%+40px)] 3lg:w-max w-full 3lg:rounded-tr-[0px] md:px-6 px-5 py-4 opacity-100" : "w-auto "
                 }`}>
@@ -488,7 +483,7 @@ const Context = ({loading, mode, mobile, showSearchBar, results, query, counts, 
 
                                 
                                 {!loading && results.length != 0 && showSearchBar &&
-                                <motion.div initial={{opacity:0, height:"0px", margin:"0px", padding:"0px", width:"100%"}} animate={{ opacity:1, height:"auto", margin:"8px 0 0 0", padding: mobile ? "0" : "20px 24px", width:"100%"}} exit={{opacity:0, height:"0px", margin:"0px", padding:"0px",width:"0px"}} className='flex bg-[#EAEAEA]/58 rounded-[40px] overflow-hidden'>
+                                <motion.div initial={{opacity:0, height:"0px", margin:"0px", padding:"0px", width:"100%"}} animate={{ opacity:1, height:"auto", margin:"8px 0 0 0", padding: mobile ? "0" : "20px 24px", width:"100%"}} exit={{opacity:0, height:"0px", margin:"0px", padding:"0px",width:"0px"}} className='flex bg-[#fbfbfb] rounded-[40px] overflow-hidden'>
                                     <div className='flex flex-col w-full md:overflow-auto md:h-[calc(100vh-200px)] h-auto space-y-3 pr-3 rounded-[20px] search-scroll-container'>
                                         {results.slice(0,5).map((product) => (
                                             <ProductCard key={product._id} product={product} mode={mode} onClick={() => onProductClick(product)} />
@@ -506,7 +501,7 @@ const Context = ({loading, mode, mobile, showSearchBar, results, query, counts, 
                         więc przed startem mierzył docelową szerokość (w-fit = max-content
                         dwóch kart obok siebie) i przez cały czas animacji trzymał na
                         elemencie JAWNĄ wartość w px. W przeciwieństwie do w-fit/100%
-                        (które są przycinane do dostępnego miejsca) sztywne px wchodzi do
+                        (które są przycinane do dostępnego miejsca) stała wartość w px wchodzi do
                         intrinsic size przodków — anchor → wrapper → NavRMenu → grid
                         navbara — więc cały navbar rozjeżdżał się o kilkanaście px, a po
                         końcu animacji (powrót do "" → w-fit) wracał. Teraz w mode 0

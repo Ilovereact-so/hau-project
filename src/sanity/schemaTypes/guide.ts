@@ -1,4 +1,5 @@
 import { defineArrayMember, defineField, defineType } from 'sanity'
+import { GUIDE_SEO_DESCRIPTION_MAX, GUIDE_SEO_TITLE_MAX } from '../../lib/guides/content'
 
 /**
  * Poradnik — wpis blogowy sklepu (tekst + opcjonalne wideo).
@@ -22,6 +23,7 @@ export default defineType({
     { name: 'content', title: 'Treść', default: true },
     { name: 'media', title: 'Okładka i wideo' },
     { name: 'meta', title: 'Publikacja' },
+    { name: 'seo', title: 'SEO' },
   ],
   fields: [
     defineField({
@@ -148,9 +150,19 @@ export default defineType({
               type: 'string',
               title: 'Tekst alternatywny',
             },
+            {
+              name: 'caption',
+              type: 'string',
+              title: 'Podpis pod zdjęciem',
+              description: 'Opcjonalny. Bez podpisu pod zdjęciem nic się nie wyświetla (tekst alternatywny jest tylko dla czytników ekranu i Google).',
+            },
           ],
         }),
         defineArrayMember({ type: 'videoEmbed' }),
+        // Bloki z guideBlocks.ts — ramka, polecane produkty, separator.
+        defineArrayMember({ type: 'callout' }),
+        defineArrayMember({ type: 'productEmbed' }),
+        defineArrayMember({ type: 'divider' }),
       ],
     }),
     defineField({
@@ -185,6 +197,24 @@ export default defineType({
       type: 'boolean',
       group: 'meta',
       initialValue: false,
+    }),
+    defineField({
+      name: 'seoTitle',
+      title: 'Tytuł SEO',
+      description:
+        'Opcjonalny. Tytuł w wynikach Google i przy udostępnianiu linku, gdy ma być inny (zwykle krótszy) niż tytuł wpisu. Do sklepu dokleja się „ — HAU”.',
+      type: 'string',
+      group: 'seo',
+      validation: (Rule) => Rule.max(GUIDE_SEO_TITLE_MAX),
+    }),
+    defineField({
+      name: 'seoDescription',
+      title: 'Opis SEO',
+      description: `Opcjonalny. Pusty = zajawka. Google pokazuje ok. ${GUIDE_SEO_DESCRIPTION_MAX} znaków.`,
+      type: 'text',
+      rows: 3,
+      group: 'seo',
+      validation: (Rule) => Rule.max(GUIDE_SEO_DESCRIPTION_MAX),
     }),
   ],
   orderings: [

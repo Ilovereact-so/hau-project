@@ -11,11 +11,11 @@ export default function GuidesLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <>
+    <div className="patern">
       <TopInfoBar />
       <NavbarContainer mode={1} />
       {children}
       <Footer />
-    </>
+    </div>
   );
 }

@@ -7,6 +7,7 @@
   --colorbg: #f7f7f7;
   --facny-black:#20201F;
   --menu-content: #ededed;
+  --patern:#ededed75;
 }
 
 @theme {
@@ -229,26 +230,18 @@ body {
     justify-content: center;
   }
 }
+/* Moduł poradników na stronie głównej (GuidesCarousel). Kolumny MUSZĄ mieć
+   szerokość z siatki (minmax/fr), nie z treści (auto): karta poradnika jest
+   kontenerem `@container`, więc nie podaje szerokości treści i w kolumnie
+   `auto` zapadała się do zera. */
 #guides{
   display: grid;
   grid-template-areas: "heading heading"
                        "cards cards"
                        "description description"
                        "actions actions";
-  grid-template-columns: auto auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   column-gap: 2vw;
-  justify-content: center;
-}
-#guidesCard{
-  display: grid;
-  grid-template-areas: "image image actions"
-                       "title title actions"
-                      "description description actions"
-                      "description description actions";
-
-  grid-template-columns: min-content auto auto;
-  column-gap: 2vw;
-  justify-content: center;
 }
 @media (min-width: 920px) {
     #cart_container{
@@ -260,26 +253,6 @@ body {
     justify-content: center;
   }
 }
-@media (min-width: 550px) {
-  #guidesCard{
-  display: grid;
-  grid-template-areas: "image title actions"
-                      "description description actions";
-  grid-template-columns: min-content auto auto;
-  column-gap: 2vw;
-  justify-content: center;
-}
-}
-@media (min-width: 1024px) {
-  #guidesCard{
-    display: grid;
-    grid-template-areas: "image title actions"
-                        "image description actions";
-    grid-template-columns: auto auto auto;
-    column-gap: 2vw;
-    justify-content: center;
-  }
-}
 
 @media (min-width: 1600px) {
   #guides{
@@ -287,7 +260,7 @@ body {
   grid-template-areas: "heading cards"
                        "description cards"
                        "actions cards";
-  grid-template-columns: max(350px) auto;
+  grid-template-columns: 350px minmax(0, 1100px);
   column-gap: 2vw;
   justify-content: center;
 }
@@ -598,4 +571,60 @@ body {
   .profile-order-buttons {
     margin-left: 80px;
   }
+}
+
+/* Karta poradnika (components/guides/GuideCard.tsx) układa się sama przez
+   container queries — tu tylko jej szerokość w rzędzie wyróżnionych. */
+.featured-guides-static .guide-card {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: none;
+  width: 100%;
+}
+
+@keyframes featured-guides-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-featured-guides-marquee {
+  animation-name: featured-guides-marquee;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+/* Pauza przesuwu po najechaniu / focusie — da się spokojnie kliknąć kafel. */
+.featured-guides-viewport:hover .animate-featured-guides-marquee,
+.featured-guides-viewport:focus-within .animate-featured-guides-marquee {
+  animation-play-state: paused;
+}
+
+.featured-guides-fade-left {
+  background: linear-gradient(to right, var(--colorbg) 0%, transparent 100%);
+}
+
+.featured-guides-fade-right {
+  background: linear-gradient(to left, var(--colorbg) 0%, transparent 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-featured-guides-marquee {
+    animation: none;
+  }
+  .featured-guides-viewport {
+    overflow-x: auto;
+  }
+}
+
+.patern{
+  /* background: repeating-linear-gradient(45deg, var(--patern) 0px, var(--patern) 2px, transparent 2px, transparent 20px), repeating-linear-gradient(135deg, var(--patern) 0px, var(--patern) 2px, transparent 2px, transparent 20px), var(--background); */
+
+
+  background-image:  radial-gradient(var(--main) 1.5px, transparent 1.5px), radial-gradient(var(--main) 1.5px, var(--background) 1.5px);
+  background-size: 20px 20px;
+  background-position: 0 0,10px 10px;
 }

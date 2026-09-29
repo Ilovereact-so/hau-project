@@ -12,6 +12,7 @@ import helpDocument from './helpDocument'
 import guide from './guide'
 import guideCategory from './guideCategory'
 import videoEmbed from './videoEmbed'
+import { calloutBlock, dividerBlock, productEmbedBlock } from './guideBlocks'
 import collection from './collection'
 
 
@@ -35,5 +36,10 @@ export const schema: { types: SchemaTypeDefinition[] } = {
     guide,
     guideCategory,
     videoEmbed,
+    // Bloki treści poradnika (ramka, polecane produkty, separator) — obiekty
+    // osadzane w `guide.body`, rejestrowane globalnie z tego samego powodu co videoEmbed.
+    calloutBlock,
+    productEmbedBlock,
+    dividerBlock,
   ],
 }

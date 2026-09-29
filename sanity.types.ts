@@ -13,6 +13,30 @@
  */
 
 // Source: schema.json
+export type Divider = {
+  _type: "divider";
+  style?: "line" | "paws";
+};
+
+export type ProductEmbed = {
+  _type: "productEmbed";
+  title?: string;
+  products?: Array<{
+    _ref: string;
+    _type: "reference";
+    _weak?: boolean;
+    _key: string;
+    [internalGroqTypeReferenceTo]?: "product";
+  }>;
+};
+
+export type Callout = {
+  _type: "callout";
+  tone?: "tip" | "info" | "warning" | "important";
+  title?: string;
+  text?: string;
+};
+
 export type VideoEmbed = {
   _type: "videoEmbed";
   provider?: "external" | "file";
@@ -100,15 +124,24 @@ export type Guide = {
     hotspot?: SanityImageHotspot;
     crop?: SanityImageCrop;
     alt?: string;
+    caption?: string;
     _type: "image";
     _key: string;
   } | {
     _key: string;
-  } & VideoEmbed>;
+  } & VideoEmbed | {
+    _key: string;
+  } & Callout | {
+    _key: string;
+  } & ProductEmbed | {
+    _key: string;
+  } & Divider>;
   author?: string;
   publishedAt?: string;
   readingTime?: number;
   featured?: boolean;
+  seoTitle?: string;
+  seoDescription?: string;
 };
 
 export type SanityImageCrop = {
@@ -630,7 +663,7 @@ export type Geopoint = {
   alt?: number;
 };
 
-export type AllSanitySchemaTypes = VideoEmbed | Guide | SanityImageCrop | SanityImageHotspot | GuideCategory | Slug | HelpDocument | Shipping_methods | BanerVariants | Collection | OptionList | Product | FilterValue | Filter | Subcategory | Category | SanityImagePaletteSwatch | SanityImagePalette | SanityImageDimensions | SanityImageMetadata | SanityFileAsset | SanityAssetSourceData | SanityImageAsset | Geopoint;
+export type AllSanitySchemaTypes = Divider | ProductEmbed | Callout | VideoEmbed | Guide | SanityImageCrop | SanityImageHotspot | GuideCategory | Slug | HelpDocument | Shipping_methods | BanerVariants | Collection | OptionList | Product | FilterValue | Filter | Subcategory | Category | SanityImagePaletteSwatch | SanityImagePalette | SanityImageDimensions | SanityImageMetadata | SanityFileAsset | SanityAssetSourceData | SanityImageAsset | Geopoint;
 export declare const internalGroqTypeReferenceTo: unique symbol;
 // Source: ./src/sanity/helpers/index.ts
 // Variable: METHODS_QUERY

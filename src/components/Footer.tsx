@@ -30,7 +30,7 @@ const Footer = ({className}:{className?:string}) => {
                         bo Footer to komponent kliencki i nie może odpytać sanityFetch
                         (server-only). Podział na `column` odwzorowuje dotychczasowy
                         dwukolumnowy układ. */}
-                    <div className='flex bg-black rounded-[40px] sm:rounded-br-[0px] text-white text-[clamp(14px,1.6vw,18px)] px-8 py-6 pb-8 space-x-8 1md:w-auto w-full 1md:justify-start justify-around'>
+                    <div className='flex bg-black rounded-[40px] sm:rounded-br-[0px] text-white md:text-[clamp(15px,1.5vw,17px)] text-[clamp(14px,2vw,18px)] px-8 py-6 pb-8 space-x-8 1md:w-auto w-full 1md:justify-start justify-around'>
                         {([1, 2] as const).map((column) => (
                             <div key={column} className='flex flex-col space-y-4'>
                                 {HELP_DOCUMENTS.filter(doc => doc.column === column).map(doc => (
@@ -81,7 +81,7 @@ const Footer = ({className}:{className?:string}) => {
                 <button
                     type='button'
                     onClick={openConsentSettings}
-                    className='mt-2 w-fit text-[14px] text-white/80 underline underline-offset-2 hover:text-main cursor-pointer'
+                    className='mt-2 w-fit text-[14px] text-white/80 hover:text-main cursor-pointer'
                 >
                     Ustawienia cookies
                 </button>

@@ -117,3 +117,49 @@
   background: var(--adm-bg);
   color: var(--adm-text);
 }
+
+/* ── Edytor bloga (components/admin/blog/ArticleEditor.tsx) ─────────────────
+   Portable Text Editor renderuje każdy blok jako osobny element z klasami
+   `pt-list-item-*` i atrybutem `data-list-index` — numerację i punktory
+   rysujemy stąd, bo bloki listy nie są zagnieżdżone w <ul>/<ol>. */
+.hau-admin .hau-blog-editable {
+  font-family: var(--font-poppins), system-ui, sans-serif;
+  caret-color: var(--adm-text);
+}
+.hau-admin .hau-blog-editable .pt-list-item {
+  position: relative;
+  padding-left: 1.7em;
+  margin: 0.3em 0;
+}
+.hau-admin .hau-blog-editable .pt-list-item p {
+  margin: 0;
+}
+.hau-admin .hau-blog-editable .pt-list-item-level-2 { margin-left: 1.7em; }
+.hau-admin .hau-blog-editable .pt-list-item-level-3 { margin-left: 3.4em; }
+.hau-admin .hau-blog-editable .pt-list-item-bullet::before {
+  content: '•';
+  position: absolute;
+  left: 0.5em;
+  color: #5e9e94;
+  font-weight: 700;
+}
+.hau-admin .hau-blog-editable .pt-list-item-number::before {
+  content: attr(data-list-index) '.';
+  position: absolute;
+  left: 0;
+  width: 1.3em;
+  text-align: right;
+  color: #5e9e94;
+  font-weight: 600;
+}
+.hau-admin .hau-blog-editable ::selection {
+  background: rgba(156, 209, 200, 0.45);
+}
+.hau-admin .hau-blog-flash {
+  animation: hau-blog-flash 1.4s ease-out;
+  border-radius: 10px;
+}
+@keyframes hau-blog-flash {
+  0%, 30% { background: rgba(156, 209, 200, 0.45); }
+  100% { background: transparent; }
+}

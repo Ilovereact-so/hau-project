@@ -98,11 +98,9 @@ const GuidesCarousel = ({ className, limit = 2 }: { className?: string; limit?: 
                 <div style={{gridArea: "cards"}} className='flex flex-col w-auto 3xl:space-y-2 space-y-4'>
                    
                     {loading
-                        ? // Szkielety zamiast napisu "ładowanie" — wysokość modułu jest znana od
-                          // razu, więc treść pod spodem (sekcja "O nas") nie przeskakuje po
-                          // dojechaniu danych. Kształt wydzielony do components/ui/Skeleton.tsx,
-                          // żeby wishlist i loading.tsx korzystały z tego samego wyglądu.
-                          Array.from({ length: 4 }).map((_, index) => (
+                        ? // Szkielety 1:1 z GuideCard — tyle samo kart ile limit,
+                          // więc po dojściu danych nic się nie przeskoczy.
+                          Array.from({ length: limit }).map((_, index) => (
                               <GuideCardSkeleton key={index} />
                           ))
                         : guides.map((guide) => (

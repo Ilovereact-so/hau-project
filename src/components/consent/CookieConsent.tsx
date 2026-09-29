@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Cookie, X } from 'lucide-react'
+import { Check, Cookie, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   ALL_DENIED,
@@ -94,20 +94,22 @@ export default function CookieConsent() {
     >
       <div
         className={cn(
-          'mx-auto w-full bg-white text-black shadow-[0_-10px_40px_rgba(0,0,0,0.18)]',
+          'mx-auto w-full bg-background text-black shadow-[0_-10px_40px_rgba(0,0,0,0.18)]',
           settings
-            ? 'max-h-[85vh] max-w-[620px] overflow-auto rounded-[28px] p-6 sm:p-8'
+            ? 'max-h-[85vh] max-w-[620px] overflow-auto rounded-[32px] p-6 sm:p-8'
             : 'max-w-[1350px] rounded-t-[28px] p-5 sm:rounded-[28px] sm:p-6 sm:mb-4',
         )}
       >
         <div className="flex items-start gap-3">
-          <span className="mt-1 hidden rounded-full bg-[#e2f3f0] p-2 sm:block" aria-hidden="true">
-            <Cookie className="h-5 w-5 text-fancy-black" />
-          </span>
+          
           <div className="flex-1">
-            <h2 id="cookie-consent-title" className="text-[clamp(16px,1.6vw,20px)] font-medium">
-              {settings ? 'Ustawienia cookies' : 'Dbamy o Twoją prywatność'}
-            </h2>
+            <div className="flex space-x-3 items-center">              
+              <Cookie className="h-5 w-5 text-fancy-black" />              
+              <h2 id="cookie-consent-title" className="text-[clamp(16px,1.6vw,20px)] font-medium">
+                  {settings ? 'Ustawienia cookies' : 'Dbamy o Twoją prywatność'}
+              </h2>
+            </div>
+            
             <p className="mt-1 text-[14px] leading-[1.6] text-[#4a4a4a]">
               Używamy plików cookies, żeby sklep działał (koszyk, logowanie, płatności) oraz — za Twoją zgodą — żeby
               liczyć anonimowe statystyki odwiedzin. Zgodę możesz zmienić w każdej chwili w stopce, w „Ustawieniach
@@ -136,7 +138,7 @@ export default function CookieConsent() {
 
         {settings && (
           <ul className="mt-5 grid gap-3">
-            <li className="rounded-[18px] border border-[#ededed] bg-[#fafafa] p-4">
+            <li className="rounded-[18px] bg-[#ededed]  p-4">
               <div className="flex items-center justify-between gap-3">
                 <span className="font-medium">{CONSENT_LABELS.necessary.title}</span>
                 <span className="text-[13px] text-[#6C6C6C]">zawsze aktywne</span>
@@ -147,12 +149,17 @@ export default function CookieConsent() {
               <li key={category} className="rounded-[18px] border border-[#ededed] p-4">
                 <label className="flex cursor-pointer items-center justify-between gap-3">
                   <span className="font-medium">{CONSENT_LABELS[category].title}</span>
-                  <input
-                    type="checkbox"
-                    checked={values[category]}
-                    onChange={(event) => setters[category](event.target.checked)}
-                    className="h-5 w-5 cursor-pointer accent-[#6EB0A6]"
-                  />
+                  <label className="flex relative group ">
+                    <input
+                      type="checkbox"
+                      checked={values[category]}
+                      onChange={(event) => setters[category](event.target.checked)}
+                      className="h-5 w-5 rounded-[5px] opacity-0"
+                    />
+                    <div className="absolute top-0 left-0 w-full flex justify-center items-center h-full border-[2px] border-[#818181] group-has-[:checked]:border-fancy-black group-has-[:checked]:bg-fancy-black rounded-[6px] ease-in-out duration-150">
+                      <Check size={14} strokeWidth={3} className=" text-white group-has-[:checked]:opacity-100 opacity-0" />
+                    </div>
+                  </label>
                 </label>
                 <p className="mt-1 text-[13px] leading-[1.6] text-[#6C6C6C]">{CONSENT_LABELS[category].description}</p>
               </li>
@@ -173,7 +180,7 @@ export default function CookieConsent() {
           <button
             type="button"
             onClick={() => save(ALL_DENIED)}
-            className="order-2 rounded-full border border-fancy-black px-6 py-3 text-[15px] font-medium text-black hover:bg-[#ededed] cursor-pointer"
+            className="order-2 rounded-full bg-[#ededed] px-6 py-3 text-[15px] font-medium text-black hover:bg-[#ededed] cursor-pointer"
           >
             Odrzuć opcjonalne
           </button>
@@ -181,7 +188,7 @@ export default function CookieConsent() {
             <button
               type="button"
               onClick={() => save({ analytics, marketing })}
-              className="order-2 rounded-full border border-fancy-black px-6 py-3 text-[15px] font-medium text-black hover:bg-[#ededed] cursor-pointer"
+              className="order-2 rounded-full bg-[#ededed] px-6 py-3 text-[15px] font-medium text-black hover:bg-[#ededed] cursor-pointer"
             >
               Zapisz wybór
             </button>

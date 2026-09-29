@@ -46,7 +46,7 @@ const GuidesGrid = ({
     return (
         <div className="w-full">
             {usedCategories.length > 0 && (
-                <div className="flex flex-wrap gap-2 sm:gap-3 mb-8">
+                <div className="carousel -mx-6 sm:mx-0 mb-8 flex gap-2 overflow-x-auto px-6 sm:flex-wrap sm:gap-3 sm:overflow-visible sm:px-0">
                     <button type="button" onClick={() => setActiveSlug(null)} className={chipClass(activeSlug === null)}>
                         Wszystkie
                     </button>
@@ -64,11 +64,16 @@ const GuidesGrid = ({
             )}
 
             {visibleGuides.length > 0 ? (
-                <div className="grid lg:grid-cols-3 sm:grid-cols-2 grid-cols-1 gap-x-6 gap-y-10">
+                // Kolumny wg szerokości okna, a wygląd karty wg jej własnej szerokości
+                // (container queries w GuideCard): w wąskich kolumnach karta jest
+                // pionowa, w szerokich — pozioma. Karty w rzędzie mają równą wysokość.
+                <ul className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-5 sm:gap-6">
                     {visibleGuides.map((guide, index) => (
-                        <GuideCard key={guide._id} guide={guide} priority={index < 3} />
+                        <li key={guide._id} className="min-w-0">
+                            <GuideCard guide={guide} priority={index < 3} />
+                        </li>
                     ))}
-                </div>
+                </ul>
             ) : (
                 <p className="text-[#6C6C6C] font-poppins text-[clamp(14px,1.4vw,16px)] py-10">
                     W tej kategorii nie ma jeszcze poradników. Zajrzyj do pozostałych — coś na pewno się znajdzie.

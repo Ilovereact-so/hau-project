@@ -360,6 +360,7 @@ export type GuideCardData = {
     category?: { _id: string; title: string; slug: string } | null;
     publishedAt?: string;
     readingTime?: number;
+    estimatedReadingTime?: number;
     hasVideo?: boolean;
 }
 
@@ -384,6 +385,7 @@ export const getLatestGuidesClient = async (limit = 8): Promise<GuideCardData[]>
         "category": category->{_id, title, "slug": slug.current},
         publishedAt,
         readingTime,
+        "estimatedReadingTime": round(length(pt::text(body)) / 1300),
         "hasVideo": defined(heroVideo.url) || defined(heroVideo.file)
     }`
 

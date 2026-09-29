@@ -111,7 +111,7 @@ function Distribution({
               onClick={() => onSelect(selected ? null : rating)}
               className={cn(
                 'group flex w-full items-center gap-3 rounded-full px-2 py-1 text-[13px] text-[#6C6C6C] transition-colors',
-                'enabled:cursor-pointer enabled:hover:bg-white disabled:opacity-50',
+                'enabled:cursor-pointer enabled:hover:bg-[#EDEDED] disabled:opacity-50',
                 selected && 'bg-white text-black',
               )}
               title={count ? `Pokaż opinie z oceną ${rating}` : undefined}
@@ -119,7 +119,7 @@ function Distribution({
             >
               <span className="w-3 text-right tabular-nums text-black">{rating}</span>
               <Paw_Filled className="w-4 h-4 shrink-0 text-[#6EB0A6]" />
-              <span className="relative h-2 flex-1 overflow-hidden rounded-full bg-white group-hover:bg-[#F4F4F4]">
+              <span className="relative h-2 flex-1 overflow-hidden rounded-full bg-[#EDEDED] group-hover:bg-[#F4F4F4]">
                 <span className="absolute inset-y-0 left-0 rounded-full bg-[#6EB0A6]" style={{ width: `${pct}%` }} />
               </span>
               <span className="w-8 text-right tabular-nums">{count}</span>
@@ -316,20 +316,20 @@ export function ProductReviews({
           </div>
 
           {summary.count > 0 && (
-            <div className="rounded-[28px] bg-[#EDEDED] px-3 py-3">
+            <div className="rounded-[28px] border border-fancy-black px-3 py-3">
               <Distribution summary={summary} active={ratingFilter} onSelect={changeFilter} />
             </div>
           )}
 
           {!formOpen && (
             <div className="flex flex-col gap-2">
-              <Button
-                asChild                                
-                className="w-fit rounded-full font-bold bg-[#EDEDED] text-fancy-black 2xl:text-[16px] text-[clamp(13px,1.8vw,15px)] md:py-6 py-4 md:px-8 px-6 hover:bg-[#EDEDED]/40 hover:text-fancy-black transition-colors cursor-pointer"
+              <button
+                                                
+                className="w-fit rounded-full font-bold bg-[#EDEDED] text-fancy-black 2xl:text-[16px] text-[clamp(13px,1.8vw,15px)] md:py-3 py-2 md:px-8 px-6 hover:bg-[#EDEDED]/40 hover:text-fancy-black transition-colors cursor-pointer"
               ><div onClick={openForm}>
                 {myReview ? 'Edytuj swoją opinię' : summary.count ? 'Napisz opinię' : 'Napisz pierwszą opinię'}
                 </div>
-              </Button>
+              </button>
               {!signedIn && (
                 <p className="text-center text-[12px] text-[#6C6C6C]">Opinie mogą dodawać zalogowani klienci.</p>
               )}

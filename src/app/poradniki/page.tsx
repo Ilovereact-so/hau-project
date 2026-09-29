@@ -2,7 +2,7 @@ import React from "react";
 import type { Metadata } from "next";
 import { BookOpen } from "lucide-react";
 import Container from "@/components/Container";
-import GuideCard from "@/components/guides/GuideCard";
+import FeaturedGuidesCarousel from "@/components/guides/FeaturedGuidesCarousel";
 import GuidesGrid from "@/components/guides/GuidesGrid";
 import { getAllGuides, getGuideCategories } from "@/sanity/helpers";
 import { pageMetadata } from "@/lib/seo/metadata";
@@ -17,16 +17,26 @@ export const metadata: Metadata = pageMetadata({
 const GuidesIndexPage = async () => {
   const [guides, categories] = await Promise.all([getAllGuides(), getGuideCategories()]);
 
-  // Wyróżniony = ten oznaczony w Studio, a jak nie ma żadnego, to po prostu
-  // najnowszy. Dzięki temu górna część strony nigdy nie jest pusta.
-  const featured = guides.find((guide) => guide.featured) ?? guides[0] ?? null;
-  const rest = featured ? guides.filter((guide) => guide._id !== featured._id) : guides;
+  // Karuzela pod nagłówkiem: bierzemy wpisy oznaczone `featured` w Studio,
+  // a gdy jest ich mniej niż 3 — uzupełniamy najnowszymi (guides są już
+  // posortowane po publishedAt desc). To, co trafi do karuzeli, nie powtarza
+  // się w siatce poniżej.
+  const featuredOnly = guides.filter((guide) => guide.featured);
+  const carouselGuides =
+    featuredOnly.length >= 3
+      ? featuredOnly
+      : [
+          ...featuredOnly,
+          ...guides.filter((guide) => !guide.featured).slice(0, 3 - featuredOnly.length),
+        ];
+  const carouselIds = new Set(carouselGuides.map((guide) => guide._id));
+  const rest = guides
 
   return (
-    <Container className="lg:mt-10 md:mt-7 sm:mt-10 mt-7 md:px-10 sm:px-8 px-6 min-h-[100vh] mb-20">
-      <header className="flex flex-col space-y-2 max-w-[760px]">
+    <Container className="lg:mt-10 md:mt-7 sm:mt-10 mt-7 md:px-10 sm:px-8 px-6 min-h-[100vh] mb-20 font-poppins">
+      <header className="flex flex-col max-w-[760px] mx-auto mt-30">
         <span className="text-black text-[clamp(14px,1.4vw,16px)] font-poppins">Poradniki</span>
-        <h1 className="font-poppins font-medium text-black sm:text-[clamp(22px,2.6vw,34px)] text-[19px] leading-tight">
+        <h1 className="font-poppins font-medium text-black sm:text-[clamp(22px,2.6vw,34px)] text-[19px] leading-tight mb-1">
           Wiedza o psach, która realnie się przydaje
         </h1>
         <p className="text-[#4E4E4E] font-poppins text-[clamp(14px,1.4vw,17px)] leading-relaxed pt-1">
@@ -53,15 +63,15 @@ const GuidesIndexPage = async () => {
         </div>
       ) : (
         <>
-          {featured && (
+          {carouselGuides.length > 0 && (
             <section className="mt-10 sm:mt-12">
-              <GuideCard guide={featured} variant="featured" priority />
+              <FeaturedGuidesCarousel guides={carouselGuides} />
             </section>
           )}
 
           <section className="mt-14 sm:mt-16">
             <h2 className="font-poppins font-medium text-black text-[clamp(17px,1.9vw,24px)] mb-6">
-              {featured ? "Pozostałe poradniki" : "Wszystkie poradniki"}
+              Wszystkie poradniki
             </h2>
             <GuidesGrid guides={rest} categories={categories} />
           </section>
