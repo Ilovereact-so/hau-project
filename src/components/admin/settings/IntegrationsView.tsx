@@ -41,11 +41,13 @@ export function IntegrationsView({
   endpoints,
   envIssues,
   isProduction,
+  furgonetkaRedirect,
 }: {
   checks: IntegrationCheck[]
   endpoints: Array<{ label: string; value: string; hint: string }>
   envIssues: EnvIssue[]
   isProduction: boolean
+  furgonetkaRedirect: string
 }) {
   const router = useRouter()
   const [refreshing, startRefresh] = useTransition()
@@ -185,14 +187,10 @@ export function IntegrationsView({
                   )}
                   {check.id === 'furgonetka' && (
                     <>
-                      {/* Zwykły <a>: trasa API przekierowuje na zewnętrzny serwer OAuth. */}
-                      <a href="/api/furgonetka/connect" className={buttonClass('secondary', 'sm')}>
-                        <KeyRound size={13} strokeWidth={1.5} />
-                        Autoryzuj konto
-                      </a>
                       <Button size="sm" variant="ghost" onClick={() => void disconnectFurgonetka()}>
                         Rozłącz
                       </Button>
+                      <FurgonetkaAuthorize initialRedirect={furgonetkaRedirect} />
                       <FurgonetkaPasteCode onConnected={() => router.refresh()} />
                     </>
                   )}
@@ -262,7 +260,7 @@ function FurgonetkaPasteCode({ onConnected }: { onConnected: () => void }) {
         value={value}
         onChange={(event) => setValue(event.target.value)}
         error={error}
-        hint="Po „Autoryzuj konto” Furgonetka wraca na zarejestrowany adres. Jeśli to localhost i strona się nie otworzy — skopiuj adres z paska i wklej tutaj (kod jest ważny kilka minut)."
+        hint="Po zalogowaniu i zatwierdzeniu dostępu Furgonetka przekieruje na adres powyżej. Dla localhost strona się nie otworzy — skopiuj cały adres z paska (…/callback?code=…) i wklej tutaj. Kod jest ważny kilka minut."
         autoComplete="off"
         spellCheck={false}
       />
@@ -270,6 +268,38 @@ function FurgonetkaPasteCode({ onConnected }: { onConnected: () => void }) {
         <Button size="sm" type="submit" disabled={pending || !value.trim()}>
           {pending ? 'Łączę…' : 'Połącz'}
         </Button>
+      </div>
+    </form>
+  )
+}
+
+/**
+ * Start autoryzacji. Furgonetka przyjmuje wyłącznie adres przekierowania
+ * zapisany w jej aplikacji OAuth (inny = natychmiastowe `invalid_client`),
+ * dlatego adres jest tu jawny i edytowalny — bez zmian w .env i restartu.
+ */
+function FurgonetkaAuthorize({ initialRedirect }: { initialRedirect: string }) {
+  const [redirect, setRedirect] = useState(initialRedirect)
+  const start = (event: FormEvent) => {
+    event.preventDefault()
+    // Pełne przejście: trasa API przekierowuje na zewnętrzny serwer OAuth.
+    window.location.href = `/api/furgonetka/connect?redirect_uri=${encodeURIComponent(redirect.trim())}`
+  }
+  return (
+    <form onSubmit={start} className="mt-1 flex w-full flex-col gap-2 border-t border-border pt-3">
+      <TextField
+        label="Adres przekierowania (zarejestrowany w Furgonetce)"
+        value={redirect}
+        onChange={(event) => setRedirect(event.target.value)}
+        autoComplete="off"
+        spellCheck={false}
+        hint="Musi być IDENTYCZNY z adresem w aplikacji OAuth Furgonetki — inaczej Furgonetka od razu zwróci „invalid_client”. Aplikacja HAU ma zarejestrowany adres localhost."
+      />
+      <div>
+        <button type="submit" className={buttonClass('secondary', 'sm')} disabled={!redirect.trim()}>
+          <KeyRound size={13} strokeWidth={1.5} />
+          Autoryzuj konto
+        </button>
       </div>
     </form>
   )

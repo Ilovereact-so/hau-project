@@ -132,6 +132,7 @@ Autopay/Przelewy24, Furgonetka, SMTP).
   zakładka Dostawy. Tabela MySQL `delivery_services` to pomocnicza kopia usług
   z konta Furgonetki (przycisk „Synchronizuj”). Checkout pokazuje wyłącznie
   metody z `active === true` (tak samo waliduje serwer).
+- **Autoryzacja Furgonetki (OAuth)**: Furgonetka przyjmuje tylko adres przekierowania zapisany w jej aplikacji OAuth — inny kończy się od razu `invalid_client` (bez logowania). Aplikacja HAU ma zarejestrowany `http://localhost:3000/api/furgonetka/callback`. Adres wybiera się w `/admin/settings` przy „Autoryzuj konto” (Redis `furgonetka:oauth_redirect_uri`, `FURGONETKA_REDIRECT_URI` to tylko zapas). Po zatwierdzeniu przeglądarka ląduje na `localhost…?code=…`; ten adres wkleja się w panelu, a serwer wymienia kod z `redirect_uri` wziętym z wklejonego linku (musi być identyczny z tym z `/oauth/authorize`). Refresh token jest rotowany i żyje w Redisie; martwy (`invalid_grant`) jest usuwany.
 - **Przesyłki**: kurier przez API Furgonetki; zamówienia do paczkomatu nadaje się
   w panelu Furgonetki i rejestruje numer ręcznie (status też ręcznie).
 - `/api/sanity/import-csv` wymaga roli admina (middleware przepuszcza `/api/sanity/*`),

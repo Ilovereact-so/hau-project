@@ -203,7 +203,8 @@ function checkP24(): IntegrationCheck {
 }
 
 async function checkFurgonetka(): Promise<IntegrationCheck> {
-  const lacking = missing(['FURGONETKA_CLIENT_ID', 'FURGONETKA_CLIENT_SECRET', 'FURGONETKA_REDIRECT_URI'])
+  // Adres przekierowania OAuth wybiera się w panelu (Redis) — .env jest tylko zapasowy.
+  const lacking = missing(['FURGONETKA_CLIENT_ID', 'FURGONETKA_CLIENT_SECRET'])
   let tokenSource = 'brak'
   try {
     if (await redis.get('furgonetka:refresh_token')) tokenSource = 'zapisany po autoryzacji (Redis)'

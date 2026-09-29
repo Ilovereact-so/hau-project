@@ -10,18 +10,60 @@ const BASE_URL = FURGONETKA_API_URL
 
 const CLIENT_ID     = process.env.FURGONETKA_CLIENT_ID!
 const CLIENT_SECRET = process.env.FURGONETKA_CLIENT_SECRET!
-const REDIRECT_URI  = process.env.FURGONETKA_REDIRECT_URI!
+const REDIRECT_URI  = process.env.FURGONETKA_REDIRECT_URI?.trim() || ''
 
 const REDIS_ACCESS_TOKEN  = 'furgonetka:access_token'
 const REDIS_REFRESH_TOKEN = 'furgonetka:refresh_token'
+const REDIS_OAUTH_REDIRECT = 'furgonetka:oauth_redirect_uri'
+
+// ─── OAuth: adres przekierowania ──────────────────────────────────────────────
+//
+// Furgonetka przyjmuje autoryzację TYLKO z adresem przekierowania zapisanym
+// w jej aplikacji OAuth — każdy inny kończy się od razu `invalid_client`
+// (bez logowania i bez przekierowania). Aplikacja HAU była zakładana lokalnie,
+// więc ma zarejestrowany adres localhost. Adres wybiera się w /admin/settings
+// (zapamiętany w Redisie), bez edycji .env i restartu; FURGONETKA_REDIRECT_URI
+// to tylko wartość zapasowa.
+
+/** Adres zarejestrowany przy zakładaniu aplikacji HAU (z lokalnego .env). */
+export const DEFAULT_OAUTH_REDIRECT_URI = 'http://localhost:3000/api/furgonetka/callback'
+
+/** Adres przekierowania bez zapytania i kotwicy; `null`, gdy to nie jest adres http(s). */
+export function normalizeRedirectUri(raw: string): string | null {
+  try {
+    const url = new URL(String(raw ?? '').trim())
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+    return `${url.origin}${url.pathname}`
+  } catch {
+    return null
+  }
+}
+
+/** Adres zapamiętany przy ostatniej autoryzacji z panelu. */
+export async function getSavedOAuthRedirectUri(): Promise<string | null> {
+  try {
+    return ((await redis.get(REDIS_OAUTH_REDIRECT)) as string | null) || null
+  } catch {
+    return null // Redis niedostępny — wartość zapasowa
+  }
+}
+
+/** Adres użyty przy ostatniej autoryzacji z panelu (albo z .env). */
+export async function getOAuthRedirectUri(): Promise<string> {
+  return (await getSavedOAuthRedirectUri()) || REDIRECT_URI || DEFAULT_OAUTH_REDIRECT_URI
+}
+
+export async function setOAuthRedirectUri(uri: string): Promise<void> {
+  await redis.set(REDIS_OAUTH_REDIRECT, uri)
+}
 
 // ─── OAuth URLs ───────────────────────────────────────────────────────────────
 
-export function getAuthorizeUrl(): string {
+export function getAuthorizeUrl(redirectUri: string): string {
   const params = new URLSearchParams({
     response_type: 'code',
     client_id:     CLIENT_ID,
-    redirect_uri:  REDIRECT_URI,
+    redirect_uri:  redirectUri,
     scope:         'api',
   })
   return `${BASE_URL}/oauth/authorize?${params}`
@@ -33,7 +75,8 @@ function basicAuthHeader(): string {
   return 'Basic ' + Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64')
 }
 
-export async function exchangeCodeForTokens(code: string): Promise<{
+// `redirectUri` MUSI być identyczny z tym z /oauth/authorize.
+export async function exchangeCodeForTokens(code: string, redirectUri: string): Promise<{
   access_token:  string
   refresh_token: string
   expires_in:    number
@@ -46,7 +89,7 @@ export async function exchangeCodeForTokens(code: string): Promise<{
     },
     body: new URLSearchParams({
       grant_type:   'authorization_code',
-      redirect_uri: REDIRECT_URI,
+      redirect_uri: redirectUri,
       code,
     }),
   })
@@ -78,6 +121,9 @@ export async function connectWithPastedCode(input: string): Promise<void> {
   if (!raw) throw new Error('Wklej adres z paska przeglądarki albo sam kod.')
 
   let code = raw
+  // Adres wymiany = dokładnie ten, na który Furgonetka przekierowała (bierzemy
+  // go z wklejonego linku), więc zawsze zgadza się z tym z /oauth/authorize.
+  let redirectUri: string | null = null
   if (/^https?:\/\//i.test(raw) || raw.includes('code=')) {
     let params: URLSearchParams
     try {
@@ -88,19 +134,25 @@ export async function connectWithPastedCode(input: string): Promise<void> {
     const error = params.get('error')
     if (error) throw new Error(`Furgonetka odrzuciła autoryzację: ${params.get('error_description') || error}`)
     code = params.get('code') ?? ''
-    if (!code) throw new Error('W adresie nie ma parametru code — wklej adres, na który przekierowała Furgonetka.')
+    if (!code) {
+      throw new Error(
+        'W adresie nie ma parametru code. Jeśli strona Furgonetki pokazała „invalid_client”, adres przekierowania nie zgadza się z zarejestrowanym — popraw go w polu obok „Autoryzuj konto”.',
+      )
+    }
+    if (/^https?:\/\//i.test(raw)) redirectUri = normalizeRedirectUri(raw)
   }
+  redirectUri ??= await getOAuthRedirectUri()
 
   let tokens: Awaited<ReturnType<typeof exchangeCodeForTokens>>
   try {
-    tokens = await exchangeCodeForTokens(code)
+    tokens = await exchangeCodeForTokens(code, redirectUri)
   } catch (err) {
     const text = err instanceof Error ? err.message : String(err)
     if (text.includes('invalid_grant')) {
       throw new Error('Kod wygasł albo został już użyty — kliknij „Autoryzuj konto” jeszcze raz i wklej nowy adres od razu.')
     }
     if (text.includes('invalid_client')) {
-      throw new Error('Furgonetka odrzuciła dane aplikacji — FURGONETKA_REDIRECT_URI w .env musi być identyczny z adresem użytym przy autoryzacji.')
+      throw new Error('Furgonetka odrzuciła dane aplikacji (client id / secret albo adres przekierowania).')
     }
     throw err
   }

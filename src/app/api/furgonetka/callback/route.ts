@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import { exchangeCodeForTokens, saveFurgonetkaTokens } from '@/lib/furgonetka'
+import { exchangeCodeForTokens, getOAuthRedirectUri, saveFurgonetkaTokens } from '@/lib/furgonetka'
 
 // Furgonetka redirects here after user grants access
 // Stores refresh_token in Redis and prints instructions
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Missing code param' }, { status: 400 })
   }
 
-  const tokens = await exchangeCodeForTokens(code)
+  const tokens = await exchangeCodeForTokens(code, await getOAuthRedirectUri())
 
   // store in Redis immediately so the app can use them
   await saveFurgonetkaTokens(tokens)
