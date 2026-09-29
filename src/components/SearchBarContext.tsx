@@ -8,7 +8,7 @@ import { useState } from 'react'
 import { useProductSearch } from '@/hooks/useProductSearch'
 import { urlFor } from '@/sanity/lib/image'
 import Image from 'next/image'
-import PriceFormatter from './PriceFormatter'
+import { DiscountBadge, OmnibusNote, PriceRow, useProductPrice } from './price/ProductPrice'
 import Link from 'next/link'
 import { SearchOverlay } from './SearchOverlay'
 import SearchPortal from './SearchPortal'
@@ -279,6 +279,15 @@ const ProductCard = ({ product, mode, onClick }: { product: RecentProduct & { va
     // puste wartości ("?variant=" / "?variant=undefined" ze starych wpisów w
     // localStorage bez variantKey) dawały twardy 404 na stronie produktu (ona
     // wymaga wariantu). Strona produktu sama przekieruje wtedy na pierwszy wariant.
+    // Cena i Omnibus — ten sam mechanizm co kafelki (components/price/ProductPrice).
+    // „Ostatnio oglądane” trzymają cenę z chwili zapisu w localStorage, więc dla
+    // nich pokazujemy bieżącą cenę z rejestru, gdy jest znana.
+    const priceState = useProductPrice(
+        { _id: product._id, price: product.price, variants: product.variants },
+        effectiveVariantKey || null,
+        null,
+        { preferRegistryPrice: !product.variants },
+    );
     const href = effectiveVariantKey
         ? `/product/${product?.slug}?variant=${effectiveVariantKey}`
         : `/product/${product?.slug}`;
@@ -312,7 +321,13 @@ const ProductCard = ({ product, mode, onClick }: { product: RecentProduct & { va
         className="cursor-pointer flex flex-col min-w-[130px] w-auto max-sm:overflow-hidden relative max-sm:rounded-[20px] "
     >   <div className=' flex gap-x-4 w-fit'>
             {product?.images &&
-                <Image src={urlFor(product.images[0]).url()} alt={String(product?.title)} width={154} height={154} className='md:w-[154px] 3xs:w-[120px] w-[80px] md:h-[154px] 3xs:h-[120px] h-[80px] opacity-90 z-1 brightness-93 object-cover rounded-[20px]'/>
+                <div className='relative shrink-0'>
+                    <Image src={urlFor(product.images[0]).url()} alt={String(product?.title)} width={154} height={154} className='md:w-[154px] 3xs:w-[120px] w-[80px] md:h-[154px] 3xs:h-[120px] h-[80px] opacity-90 z-1 brightness-93 object-cover rounded-[20px]'/>
+                    <DiscountBadge
+                        state={priceState}
+                        className='absolute top-2 left-2 z-2 bg-[#e2f3f0] px-1.5 py-0.5 rounded-[8px] text-black sm:text-[12px] text-[10px] font-medium'
+                    />
+                </div>
             }
             <div className="w-auto flex flex-col font-poppins relative z-2 ">
                 <div className="2lg:mb-2">
@@ -322,16 +337,17 @@ const ProductCard = ({ product, mode, onClick }: { product: RecentProduct & { va
                 </div>
                 
                 <div className=''>
-                {product?.compareAtPrice ? 
-                <div className='sm:text-[14px] text-[12px] space-x-2 flex'>
-                    <p className='text-black'><PriceFormatter amount={product?.price} className='font-medium'/></p>
-                    <div className='text-[#6C6C6C] flex'><span className='line-through'><PriceFormatter amount={product?.compareAtPrice} className='font-normal'/></span><span>{(100 - ((parseFloat(String(product?.compareAtPrice)) / parseFloat(String(product?.price))) * 100)).toFixed(0)}%</span></div>
-                </div>
-                :
-                <p className='text-[#6C6C6C] sm:text-[12px] text-[10px]'><PriceFormatter amount={product?.price} className='font-medium sm:text-[14px] text-[12px] text-black mr-1'/>  w tym VAT</p>
-                }
-                <p className='mt-1 text-[#6C6C6C] text-[12px] line-clamp-2 max-md:hidden'>Najniższa cena z ostatnich 30dni:</p>
-                <p className='text-[#6C6C6C] text-[12px] line-clamp-2 max-md:hidden'><PriceFormatter amount={product?.price} className='font-normal'/></p>
+                    <PriceRow
+                        state={priceState}
+                        className='sm:text-[14px] text-[12px] gap-x-1.5'
+                        priceClassName='font-medium'
+                        suffix={<span className='text-[#6C6C6C] sm:text-[12px] text-[10px]'>w tym VAT</span>}
+                    />
+                    <OmnibusNote
+                        state={priceState}
+                        className='text-[#6C6C6C] text-[12px] max-md:hidden'
+                        labelClassName='mt-1'
+                    />
                 </div>
             </div>
         </div>
