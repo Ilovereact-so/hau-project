@@ -5,6 +5,7 @@
 #   public_html/                    <- „Katalog główny aplikacji” w panelu Node.js
 #   ├─ package.json                 <- dla przycisku „Uruchom NPM Install”
 #   ├─ package-lock.json
+#   ├─ .npmrc                       <- omit=dev + ignore-scripts (generowany niżej)
 #   ├─ node_modules/                <- instalowane NA SERWERZE, nie wgrywane
 #   ├─ _next/static/…               <- statyki serwowane wprost przez Apache
 #   └─ standalone/
@@ -27,7 +28,8 @@
 #     i proxuje żądanie sam do siebie: zawieszenie i 500 po 30 sekundach.
 #  4. `node_modules` NIE idzie przez FTP (~20 tys. plików na jednym połączeniu
 #     bez ponawiania — transfer się urywa i akcja gubi katalog roboczy).
-#     Instaluje się je na serwerze: `npm ci --omit=dev` w `public_html`.
+#     Instaluje się je na serwerze przyciskiem „Uruchom NPM Install”;
+#     wgrywany `.npmrc` sprawia, że to jest instalacja produkcyjna bez skryptów.
 #  5. `NEXT_PUBLIC_*` są wkompilowywane w paczkę przeglądarki, więc muszą być
 #     PRZY BUDOWANIU (GitHub → Settings → Environments → `staging`). To samo
 #     dotyczy nagłówków z `next.config.ts`, w tym `CSP_MODE`.
@@ -149,6 +151,19 @@ jobs:
           # Pliki dla przycisku „Uruchom NPM Install” w katalogu głównym aplikacji.
           mkdir -p deploy-root
           cp package.json package-lock.json deploy-root/
+
+          # `.npmrc` TYLKO dla serwera (nie w repo — lokalnie dev-zależności są
+          # potrzebne). Przycisk w panelu odpala zwykłe `npm install`, bez flag:
+          #  - omit=dev: drizzle-kit, eslint, typescript itp. nie są potrzebne do
+          #    uruchomienia `server.js`, a tylko wydłużają instalację,
+          #  - ignore-scripts: jedyne skrypty instalacyjne w zależnościach
+          #    produkcyjnych to walidacja binarki esbuild (sanity/vite — na
+          #    serwerze esbuild nie jest używany; Studio jest już zbudowane),
+          #    sprawdzenie sharpa (binarka przychodzi jako pakiet @img/sharp-*)
+          #    i komunikat o telemetrii Clerka. Walidacja esbuilda wywracała
+          #    instalację na hostingu: „Expected "0.28.2" but got "0.25.12"”
+          #    (zagnieżdżony esbuild trafiał na binarkę z innej wersji).
+          printf 'omit=dev\nignore-scripts=true\nfund=false\naudit=false\n' > deploy-root/.npmrc
 
           test -f .next/standalone/server.js
           test -f .next/standalone/start.js
