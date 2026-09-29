@@ -3,9 +3,8 @@
 # UKŁAD NA SERWERZE — wypracowany ręcznie, workflow tylko go odtwarza:
 #
 #   public_html/                    <- „Katalog główny aplikacji” w panelu Node.js
-#   ├─ package.json                 <- dla przycisku „Uruchom NPM Install”
-#   ├─ package-lock.json
-#   ├─ .npmrc                       <- omit=dev + ignore-scripts (generowany niżej)
+#   ├─ package.json                 <- dla przycisku „Uruchom NPM Install”:
+#   ├─ package-lock.json               TYLKO zależności runtime (scripts/deployPackage.mjs)
 #   ├─ node_modules/                <- instalowane NA SERWERZE, nie wgrywane
 #   ├─ _next/static/…               <- statyki serwowane wprost przez Apache
 #   └─ standalone/
@@ -29,7 +28,8 @@
 #  4. `node_modules` NIE idzie przez FTP (~20 tys. plików na jednym połączeniu
 #     bez ponawiania — transfer się urywa i akcja gubi katalog roboczy).
 #     Instaluje się je na serwerze przyciskiem „Uruchom NPM Install”;
-#     wgrywany `.npmrc` sprawia, że to jest instalacja produkcyjna bez skryptów.
+#     wgrywany package.json zawiera tylko zależności runtime (kilkadziesiąt
+#     pakietów, bez esbuilda i skryptów instalacyjnych).
 #  5. `NEXT_PUBLIC_*` są wkompilowywane w paczkę przeglądarki, więc muszą być
 #     PRZY BUDOWANIU (GitHub → Settings → Environments → `staging`). To samo
 #     dotyczy nagłówków z `next.config.ts`, w tym `CSP_MODE`.
@@ -149,21 +149,14 @@ jobs:
           JS
 
           # Pliki dla przycisku „Uruchom NPM Install” w katalogu głównym aplikacji.
-          mkdir -p deploy-root
-          cp package.json package-lock.json deploy-root/
-
-          # `.npmrc` TYLKO dla serwera (nie w repo — lokalnie dev-zależności są
-          # potrzebne). Przycisk w panelu odpala zwykłe `npm install`, bez flag:
-          #  - omit=dev: drizzle-kit, eslint, typescript itp. nie są potrzebne do
-          #    uruchomienia `server.js`, a tylko wydłużają instalację,
-          #  - ignore-scripts: jedyne skrypty instalacyjne w zależnościach
-          #    produkcyjnych to walidacja binarki esbuild (sanity/vite — na
-          #    serwerze esbuild nie jest używany; Studio jest już zbudowane),
-          #    sprawdzenie sharpa (binarka przychodzi jako pakiet @img/sharp-*)
-          #    i komunikat o telemetrii Clerka. Walidacja esbuilda wywracała
-          #    instalację na hostingu: „Expected "0.28.2" but got "0.25.12"”
-          #    (zagnieżdżony esbuild trafiał na binarkę z innej wersji).
-          printf 'omit=dev\nignore-scripts=true\nfund=false\naudit=false\n' > deploy-root/.npmrc
+          # NIE pełny package.json projektu, tylko zależności runtime wyciągnięte
+          # ze skompilowanych chunków (next, react, jsdom dla Studio…), z dokładnymi
+          # wersjami z tego builda i własnym lockfile. Powód: panel (CloudLinux)
+          # instaluje w ~/nodevenv/…/lib, więc `.npmrc` z public_html jest
+          # ignorowany, a pełna lista ciągnęła tsx/vite/sanity z trzema wersjami
+          # esbuilda — skrypt instalacyjny esbuilda wywracał instalację
+          # („Expected "0.28.2" but got "0.25.12"”). Szczegóły w skrypcie.
+          node scripts/deployPackage.mjs deploy-root
 
           test -f .next/standalone/server.js
           test -f .next/standalone/start.js
@@ -174,6 +167,37 @@ jobs:
           echo "--- plików w .next/static:  $(find .next/static -type f | wc -l)"
           echo "--- plików w standalone/.next: $(find .next/standalone/.next -type f | wc -l)"
           echo "--- plików w reszcie paczki:  $(find .next/standalone -type f -not -path "*/node_modules/*" -not -path "*/.next/*" | wc -l)"
+
+      # Próba generalna PRZED wysyłką: układ jak na serwerze (node_modules
+      # z deploy-root obok `standalone/`, bez node_modules ze standalone — ten
+      # nie idzie przez FTP), instalacja ZE skryptami, jak robi to panel,
+      # i start przez `start.js`. Brak zależności runtime = czerwony build,
+      # a nie niedziałający staging.
+      - name: Test paczki serwerowej
+        run: |
+          set -euo pipefail
+          SRV="$RUNNER_TEMP/public_html"
+          rm -rf "$SRV" && mkdir -p "$SRV"
+          cp deploy-root/package.json deploy-root/package-lock.json "$SRV/"
+          (cd "$SRV" && npm ci --no-audit --no-fund)
+          cp -r .next/standalone "$SRV/standalone"
+          rm -rf "$SRV/standalone/node_modules"
+          node -e "require('$SRV/node_modules/jsdom')"
+
+          # Redis z serwisu — bez niego moduły tras nie wstaną przy imporcie.
+          (cd "$SRV/standalone" && PORT=3123 REDIS_URL=redis://127.0.0.1:6379 \
+            node start.js > "$RUNNER_TEMP/server.log" 2>&1 &)
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3123/favicon.ico || true)
+            if [ "$code" = "200" ]; then echo "Serwer odpowiada (favicon: 200)"; break; fi
+            sleep 1
+          done
+          pkill -f "node start.js" || true
+          if [ "${code:-}" != "200" ]; then
+            echo "Serwer nie wstał na zależnościach z deploy-root (ostatni kod: ${code:-brak})"
+            cat "$RUNNER_TEMP/server.log"
+            exit 1
+          fi
 
       # Konto FTP loguje się do /home/srv45036/domains/e-hau-prod.wibbly.pl,
       # więc ścieżki zaczynają się od /public_html/.

@@ -414,6 +414,14 @@ zanim się go ruszy:
 - **Nagłówki z `next.config.ts` (w tym CSP) powstają przy budowaniu** i trafiają
   do manifestu. `CSP_MODE` ustawia się w środowisku builda, nie na serwerze.
 
+**`package.json` na serwerze NIE jest package.json projektu.** Generuje go
+`scripts/deployPackage.mjs` po buildzie: tylko pakiety, których skompilowane
+chunki `.next/server` wymagają w runtime (`next`, `react`, `jsdom` dla Studio…),
+z dokładnymi wersjami i własnym lockfile. Panel hostingu (CloudLinux) instaluje
+w `~/nodevenv/…/lib`, więc `.npmrc` z katalogu aplikacji jest ignorowany, a pełna
+lista zależności wywracała instalację na skrypcie esbuilda. Krok „Test paczki
+serwerowej” uruchamia `start.js` na tych zależnościach przed wysyłką FTP.
+
 Dodatkowo: **`SITE_INDEXABLE=false` wyłącza indeksowanie całego środowiska**
 (`robots.txt` blokuje wszystko, każda strona dostaje `noindex`). Staging musi to
 mieć ustawione — kopia sklepu pod inną domeną konkurowałaby z produkcją o te
