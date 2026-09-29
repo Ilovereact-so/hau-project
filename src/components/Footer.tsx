@@ -8,10 +8,11 @@ import { useUser } from '@clerk/nextjs'
 import Image from 'next/image'
 import { HELP_DOCUMENTS } from '@/constants'
 import { openConsentSettings } from '@/lib/consent'
+import { useAuthModalStore } from '@/store/authModalStore'
 
 const Footer = ({className}:{className?:string}) => {
     const { user } = useUser()
-
+    const openModal = useAuthModalStore(s => s.openModal)
     // if (!isLoaded) return <Loading />
     // if (!user) return <Loading />
 
@@ -67,7 +68,7 @@ const Footer = ({className}:{className?:string}) => {
                                 <Link href="/profile"><Image src={user?.imageUrl} width={40} height={40} alt="Zdjęcie profilowe" className='rounded-full w-12 h-12 cursor-pointer' /></Link>
                             </div>
                             :
-                            <div className='bg-white px-9 py-2 sm:text-[clamp(14px,1.6vw,18px)] text-[16px] font-bold text-black rounded-[15px]'>Zaloguj</div>
+                            <div onClick={() => openModal('signIn')} className='bg-white px-9 py-2 sm:text-[clamp(14px,1.6vw,18px)] text-[16px] font-bold text-black rounded-[15px]'>Zaloguj</div>
                             }
                         </div>
                     </div>

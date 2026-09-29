@@ -309,29 +309,29 @@ const ProductCard = ({ product, mode, onClick }: { product: RecentProduct & { va
     <Link
         href={href}
         onClick={handleCardClick}
-        className="cursor-pointer flex flex-col min-w-[130px] w-auto max-sm:overflow-hidden max-sm:min-h-[200px] max-sm:justify-center relative max-sm:rounded-[20px] "
-    >   <div className='grid sm:grid-cols-[1fr_auto] gap-x-4 w-fit'>
+        className="cursor-pointer flex flex-col min-w-[130px] w-auto max-sm:overflow-hidden relative max-sm:rounded-[20px] "
+    >   <div className=' flex gap-x-4 w-fit'>
             {product?.images &&
-                <Image src={urlFor(product.images[0]).url()} alt={String(product?.title)} width={154} height={154} className='w-[154px] h-[154px] opacity-90 max-sm:absolute max-sm:top-[50%] max-sm:translate-y-[-50%] z-1 sm:brightness-93 max-sm:contrast-30 max-sm:opacity-50 object-cover rounded-[20px]'/>
+                <Image src={urlFor(product.images[0]).url()} alt={String(product?.title)} width={154} height={154} className='md:w-[154px] 3xs:w-[120px] w-[80px] md:h-[154px] 3xs:h-[120px] h-[80px] opacity-90 z-1 brightness-93 object-cover rounded-[20px]'/>
             }
-            <div className="w-auto flex flex-col font-poppins relative z-2 max-sm:px-4 max-sm:py-3">
+            <div className="w-auto flex flex-col font-poppins relative z-2 ">
                 <div className="2lg:mb-2">
-                    <h1 className="text-[14px] text-black cursor-pointer">{product?.brand}</h1>
-                    <h1 className="text-[16px] text-black font-medium">{product?.title}</h1>
-                    <h1 className="text-[13px] text-black ">{product?.subtitle}</h1>
+                    <h1 className="sm:text-[14px] text-[12px] text-black cursor-pointer">{product?.brand}</h1>
+                    <h1 className="sm:text-[16px] text-[14px] text-black font-medium">{product?.title}</h1>
+                    <h1 className="sm:text-[13px] text-[11px] text-black ">{product?.subtitle}</h1>
                 </div>
                 
                 <div className=''>
                 {product?.compareAtPrice ? 
-                <div className='text-[14px] space-x-2 flex'>
+                <div className='sm:text-[14px] text-[12px] space-x-2 flex'>
                     <p className='text-black'><PriceFormatter amount={product?.price} className='font-medium'/></p>
                     <div className='text-[#6C6C6C] flex'><span className='line-through'><PriceFormatter amount={product?.compareAtPrice} className='font-normal'/></span><span>{(100 - ((parseFloat(String(product?.compareAtPrice)) / parseFloat(String(product?.price))) * 100)).toFixed(0)}%</span></div>
                 </div>
                 :
-                <p className='text-[#6C6C6C] text-[12px] '><PriceFormatter amount={product?.price} className='font-medium text-[14px] text-black mr-1'/>  w tym VAT</p>
+                <p className='text-[#6C6C6C] sm:text-[12px] text-[10px]'><PriceFormatter amount={product?.price} className='font-medium sm:text-[14px] text-[12px] text-black mr-1'/>  w tym VAT</p>
                 }
-                <p className='mt-1 text-[#6C6C6C] text-[12px] line-clamp-2'>Najniższa cena z ostatnich 30dni:</p>
-                <p className='text-[#6C6C6C] text-[12px] line-clamp-2'><PriceFormatter amount={product?.price} className='font-normal'/></p>
+                <p className='mt-1 text-[#6C6C6C] text-[12px] line-clamp-2 max-md:hidden'>Najniższa cena z ostatnich 30dni:</p>
+                <p className='text-[#6C6C6C] text-[12px] line-clamp-2 max-md:hidden'><PriceFormatter amount={product?.price} className='font-normal'/></p>
                 </div>
             </div>
         </div>
@@ -484,7 +484,7 @@ const Context = ({loading, mode, mobile, showSearchBar, results, query, counts, 
                                 
                                 {!loading && results.length != 0 && showSearchBar &&
                                 <motion.div initial={{opacity:0, height:"0px", margin:"0px", padding:"0px", width:"100%"}} animate={{ opacity:1, height:"auto", margin:"8px 0 0 0", padding: mobile ? "0" : "20px 24px", width:"100%"}} exit={{opacity:0, height:"0px", margin:"0px", padding:"0px",width:"0px"}} className='flex bg-[#fbfbfb] rounded-[40px] overflow-hidden'>
-                                    <div className='flex flex-col w-full md:overflow-auto md:h-[calc(100vh-200px)] h-auto space-y-3 pr-3 rounded-[20px] search-scroll-container'>
+                                    <div className='flex flex-col w-full md:overflow-auto md:h-[calc(100vh-200px)] h-auto space-y-4 pr-3 rounded-[20px] search-scroll-container max-md:px-3 max-md:py-3'>
                                         {results.slice(0,5).map((product) => (
                                             <ProductCard key={product._id} product={product} mode={mode} onClick={() => onProductClick(product)} />
                                         ))}
