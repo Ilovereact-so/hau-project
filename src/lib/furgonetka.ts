@@ -58,52 +58,118 @@ export async function exchangeCodeForTokens(code: string): Promise<{
   return res.json()
 }
 
-// ─── access token (via refresh token) ────────────────────────────────────────
-
-async function getRefreshToken(): Promise<string> {
-  // prefer Redis (set after OAuth dance), fallback to env
-  const fromRedis = await redis.get(REDIS_REFRESH_TOKEN)
-  if (fromRedis) return fromRedis as string
-
-  const fromEnv = process.env.FURGONETKA_REFRESH_TOKEN
-  if (fromEnv) return fromEnv
-
-  throw new Error(
-    'Furgonetka refresh token not found. Run /api/furgonetka/connect to authorize.',
-  )
+/** Zapisuje tokeny z autoryzacji — aplikacja korzysta z nich od razu. */
+export async function saveFurgonetkaTokens(tokens: { access_token: string; refresh_token: string; expires_in: number }) {
+  await Promise.all([
+    redis.setEx(REDIS_ACCESS_TOKEN, tokens.expires_in - 60, tokens.access_token),
+    redis.set(REDIS_REFRESH_TOKEN, tokens.refresh_token),
+  ])
 }
 
+/**
+ * Kończy autoryzację z WKLEJONEGO adresu (albo samego kodu). Aplikacja OAuth
+ * w Furgonetce ma zarejestrowany adres przekierowania `localhost` — Furgonetka
+ * nie przyjmie innego (`invalid_client`), więc na serwerze po zatwierdzeniu
+ * przeglądarka ląduje na niedziałającym `localhost…?code=…`. Admin wkleja ten
+ * adres w /admin/settings, a serwer wymienia kod (ważny kilka minut).
+ */
+export async function connectWithPastedCode(input: string): Promise<void> {
+  const raw = input.trim()
+  if (!raw) throw new Error('Wklej adres z paska przeglądarki albo sam kod.')
+
+  let code = raw
+  if (/^https?:\/\//i.test(raw) || raw.includes('code=')) {
+    let params: URLSearchParams
+    try {
+      params = /^https?:\/\//i.test(raw) ? new URL(raw).searchParams : new URLSearchParams(raw.split('?').pop())
+    } catch {
+      throw new Error('To nie wygląda na poprawny adres.')
+    }
+    const error = params.get('error')
+    if (error) throw new Error(`Furgonetka odrzuciła autoryzację: ${params.get('error_description') || error}`)
+    code = params.get('code') ?? ''
+    if (!code) throw new Error('W adresie nie ma parametru code — wklej adres, na który przekierowała Furgonetka.')
+  }
+
+  let tokens: Awaited<ReturnType<typeof exchangeCodeForTokens>>
+  try {
+    tokens = await exchangeCodeForTokens(code)
+  } catch (err) {
+    const text = err instanceof Error ? err.message : String(err)
+    if (text.includes('invalid_grant')) {
+      throw new Error('Kod wygasł albo został już użyty — kliknij „Autoryzuj konto” jeszcze raz i wklej nowy adres od razu.')
+    }
+    if (text.includes('invalid_client')) {
+      throw new Error('Furgonetka odrzuciła dane aplikacji — FURGONETKA_REDIRECT_URI w .env musi być identyczny z adresem użytym przy autoryzacji.')
+    }
+    throw err
+  }
+  await saveFurgonetkaTokens(tokens)
+}
+
+// ─── access token (via refresh token) ────────────────────────────────────────
+
+// Źródła refresh tokena w kolejności: Redis (po autoryzacji w panelu i po
+// każdej rotacji), potem FURGONETKA_REFRESH_TOKEN z .env.
+async function refreshTokenCandidates(): Promise<{ token: string; source: 'redis' | 'env' }[]> {
+  const out: { token: string; source: 'redis' | 'env' }[] = []
+  const fromRedis = (await redis.get(REDIS_REFRESH_TOKEN)) as string | null
+  if (fromRedis) out.push({ token: fromRedis, source: 'redis' })
+  const fromEnv = process.env.FURGONETKA_REFRESH_TOKEN?.trim()
+  if (fromEnv && fromEnv !== fromRedis) out.push({ token: fromEnv, source: 'env' })
+  return out
+}
+
+export const FURGONETKA_REAUTH_MESSAGE =
+  'Token Furgonetki wygasł lub został unieważniony — w /admin/settings kliknij „Autoryzuj konto”.'
+
 async function refreshAccessToken(): Promise<string> {
-  const refreshToken = await getRefreshToken()
-
-  const res = await fetch(`${BASE_URL}/oauth/token`, {
-    method: 'POST',
-    headers: {
-      'Content-Type':  'application/x-www-form-urlencoded',
-      'Authorization': basicAuthHeader(),
-    },
-    body: new URLSearchParams({
-      grant_type:    'refresh_token',
-      refresh_token: refreshToken,
-    }),
-  })
-
-  if (!res.ok) {
-    throw new Error(`Furgonetka token refresh failed: ${res.status} ${await res.text()}`)
+  const candidates = await refreshTokenCandidates()
+  if (!candidates.length) {
+    throw new Error(`Brak refresh tokena Furgonetki. ${FURGONETKA_REAUTH_MESSAGE}`)
   }
 
-  const data: { access_token: string; refresh_token?: string; expires_in: number } =
-    await res.json()
+  for (const { token, source } of candidates) {
+    const res = await fetch(`${BASE_URL}/oauth/token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/x-www-form-urlencoded',
+        'Authorization': basicAuthHeader(),
+      },
+      body: new URLSearchParams({
+        grant_type:    'refresh_token',
+        refresh_token: token,
+      }),
+    })
 
-  // cache new access token
-  await redis.setEx(REDIS_ACCESS_TOKEN, data.expires_in - 60, data.access_token)
+    if (!res.ok) {
+      const text = await res.text()
+      // Martwy token (wygasły / już zrotowany). Ten z Redisa usuwamy — inaczej
+      // miałby pierwszeństwo przed świeżym FURGONETKA_REFRESH_TOKEN z .env
+      // i blokował integrację na zawsze. Próbujemy następnego źródła.
+      if (res.status === 400 && text.includes('invalid_grant')) {
+        if (source === 'redis') await redis.del(REDIS_REFRESH_TOKEN)
+        continue
+      }
+      throw new Error(`Furgonetka token refresh failed: ${res.status} ${text}`)
+    }
 
-  // if provider rotates refresh token, persist the new one
-  if (data.refresh_token) {
-    await redis.set(REDIS_REFRESH_TOKEN, data.refresh_token)
+    const data: { access_token: string; refresh_token?: string; expires_in: number } =
+      await res.json()
+
+    // cache new access token
+    await redis.setEx(REDIS_ACCESS_TOKEN, data.expires_in - 60, data.access_token)
+
+    // Furgonetka rotuje refresh token — stary przestaje działać, więc nowy
+    // MUSI trafić do Redisa (z .env po pierwszym użyciu nie da się korzystać).
+    if (data.refresh_token) {
+      await redis.set(REDIS_REFRESH_TOKEN, data.refresh_token)
+    }
+
+    return data.access_token
   }
 
-  return data.access_token
+  throw new Error(FURGONETKA_REAUTH_MESSAGE)
 }
 
 async function getAccessToken(): Promise<string> {

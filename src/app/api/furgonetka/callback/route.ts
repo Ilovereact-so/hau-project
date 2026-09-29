@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import { exchangeCodeForTokens } from '@/lib/furgonetka'
-import { redis } from '@/lib/redis'
+import { exchangeCodeForTokens, saveFurgonetkaTokens } from '@/lib/furgonetka'
 
 // Furgonetka redirects here after user grants access
 // Stores refresh_token in Redis and prints instructions
@@ -20,10 +19,7 @@ export async function GET(req: NextRequest) {
   const tokens = await exchangeCodeForTokens(code)
 
   // store in Redis immediately so the app can use them
-  await Promise.all([
-    redis.setEx('furgonetka:access_token', tokens.expires_in - 60, tokens.access_token),
-    redis.set('furgonetka:refresh_token', tokens.refresh_token),
-  ])
+  await saveFurgonetkaTokens(tokens)
 
   // Print to server console so dev can copy to .env
   console.info('\n✅ FURGONETKA OAUTH SUCCESS')
