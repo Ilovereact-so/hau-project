@@ -240,7 +240,7 @@ export default function Step2DeliveryPayment({ address, deliveryType, services, 
     const location = q
       ? q : undefined
 
-    openFurgonetkaMap({
+    const opened = openFurgonetkaMap({
       courierServices: paczkomatServices.map(s => s.furgonetka_service_id ?? '').filter(Boolean),
       location,
       onSelect: point => {
@@ -259,6 +259,7 @@ export default function Step2DeliveryPayment({ address, deliveryType, services, 
         selectPickupPoint(candidate)
       },
     })
+    if (!opened) toast.error('Mapa punktów jest chwilowo niedostępna — wyszukaj punkt po kodzie pocztowym.')
   }
 
   function handleContinue() {

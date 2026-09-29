@@ -408,7 +408,10 @@ zanim się go ruszy:
   dlatego workflow nadpisuje domyślną listę `exclude` akcji FTP.
 - **`NEXT_PUBLIC_*` są wkompilowywane w paczkę przeglądarki**, więc muszą być
   ustawione PRZY BUDOWANIU (GitHub → Settings → Environments → `staging`).
-  Dopisanie ich do `.env` na serwerze nic nie zmieni. Reszta konfiguracji
+  Dopisanie ich do `.env` na serwerze nic nie zmieni. **Pusty sekret też jest
+  wartością**: przykrywa `.env` z repo i trafia do paczki jako `""` (tak zniknął
+  klucz mapy paczkomatów → 403 z `api.furgonetka.pl`). Krok Build przerywa się,
+  gdy brakuje któregoś z kluczowych `NEXT_PUBLIC_*`. Reszta konfiguracji
   (baza, Redis, klucze płatności, SMTP) to zmienne runtime — te idą do `.env`
   obok `server.js`; Next w trybie standalone czyta ten plik przy starcie.
 - **Nagłówki z `next.config.ts` (w tym CSP) powstają przy budowaniu** i trafiają

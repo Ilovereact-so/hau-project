@@ -116,7 +116,23 @@ jobs:
           # --- decyzje zapadające przy budowaniu ---
           CSP_MODE: ${{ vars.CSP_MODE || 'report-only' }}
           SITE_INDEXABLE: ${{ vars.SITE_INDEXABLE || 'false' }}
-        run: npm run build
+        # Pusty sekret NIE jest pomijany: pusta zmienna z CI przykrywa wartość
+        # z `.env` i trafia do paczki jako "". Tak zniknął klucz mapy
+        # paczkomatów — widżet dostawał 403 z api.furgonetka.pl. Lepiej
+        # zatrzymać build z nazwą brakującego sekretu niż wdrożyć sklep,
+        # który sypie się dopiero w kasie.
+        run: |
+          missing=0
+          for name in NEXT_PUBLIC_APP_URL NEXT_PUBLIC_SANITY_PROJECT_ID \
+                      NEXT_PUBLIC_SANITY_DATASET NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY \
+                      NEXT_PUBLIC_FURGONETKA_MAP_API_KEY; do
+            if [ -z "$(printenv "$name" | tr -d '[:space:]')" ]; then
+              echo "::error::Brak sekretu $name w środowisku 'staging' (GitHub → Settings → Environments → staging → Environment secrets)."
+              missing=1
+            fi
+          done
+          [ "$missing" = 0 ] || exit 1
+          npm run build
 
       # `output: 'standalone'` daje `server.js` i odchudzone `node_modules`,
       # ale statyków ani `public` nie kopiuje. Tu składamy komplet.

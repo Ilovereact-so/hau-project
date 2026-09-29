@@ -27,7 +27,10 @@ declare global {
   }
 }
 
-const MAP_API_KEY = process.env.NEXT_PUBLIC_FURGONETKA_MAP_API_KEY!
+// Wkompilowywany przy BUDOWANIU (GitHub → Environments → staging). Pusty klucz
+// = widżet i tak się otwiera, ale każde zapytanie o punkty dostaje 403
+// z api.furgonetka.pl — dlatego wtedy mapy w ogóle nie otwieramy.
+const MAP_API_KEY = (process.env.NEXT_PUBLIC_FURGONETKA_MAP_API_KEY ?? '').trim()
 
 export default function FurgonetkaMap() {
   useEffect(() => {
@@ -42,14 +45,22 @@ export default function FurgonetkaMap() {
   return null
 }
 
-/** Open the Furgonetka locker map modal imperatively */
+/**
+ * Open the Furgonetka locker map modal imperatively.
+ * Zwraca `false`, gdy mapy nie da się otworzyć (brak klucza API) — wtedy
+ * wywołujący pokazuje komunikat i odsyła do wyszukiwania po kodzie pocztowym.
+ */
 export function openFurgonetkaMap(opts: {
   courierServices?: string[]
   location?:        string | undefined
   onSelect:         (point: FurgonetkaPoint) => void
   onClose?:         () => void
-}) {
-  if (typeof window === 'undefined') return
+}): boolean {
+  if (typeof window === 'undefined') return false
+  if (!MAP_API_KEY) {
+    console.error('Furgonetka: brak NEXT_PUBLIC_FURGONETKA_MAP_API_KEY w buildzie — mapa punktów wyłączona')
+    return false
+  }
 
   function tryOpen(attempts = 0) {
     if (!window.Furgonetka) {
@@ -83,4 +94,5 @@ export function openFurgonetkaMap(opts: {
   }
 
   tryOpen()
+  return true
 }
