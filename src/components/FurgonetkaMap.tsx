@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { FURGONETKA_ENV } from '@/lib/furgonetkaEnv'
 
 export interface FurgonetkaPoint {
   code:    string
@@ -82,10 +83,10 @@ export function openFurgonetkaMap(opts: {
         opts.onSelect({ code: point.code, name: point.name, carrier: point.service ?? point.type })
       },
       closeModalCallback: opts.onClose,
-      // Ta sama zasada co w `lib/furgonetka.ts`: na produkcji realne punkty,
-      // poza produkcją piaskownica. Zaszyty 'sandbox' pokazywał klientom
-      // testowe paczkomaty.
-      env: process.env.NODE_ENV === 'production' ? 'production' : 'sandbox',
+      // To samo środowisko co `lib/furgonetka.ts` (NEXT_PUBLIC_FURGONETKA_ENV).
+      // Klucz mapy musi pochodzić z tego samego środowiska — klucz
+      // z piaskownicy na produkcyjnym API daje 403 na /points/map.
+      env: FURGONETKA_ENV,
     }).show()
 
     // Nadpisanie stylów widżetu (zaokrąglone rogi) — do włączenia po dwóch

@@ -188,6 +188,7 @@ AUTOPAY_CARD_IFRAME_ENABLED # false = karta przez przekierowanie zamiast iframe 
 FURGONETKA_CLIENT_ID, FURGONETKA_CLIENT_SECRET
 FURGONETKA_REDIRECT_URI, FURGONETKA_REFRESH_TOKEN, FURGONETKA_WEBHOOK_SECRET
 NEXT_PUBLIC_FURGONETKA_MAP_API_KEY
+NEXT_PUBLIC_FURGONETKA_ENV  # sandbox | production (build-time; mapa + API, patrz niżej)
 # Newsletter — SMTP (wysyłka maili, np. Gmail/Brevo/Mailgun)
 SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM
 # Rejestr cen (najniższa cena z 30 dni)
@@ -389,7 +390,7 @@ Adres sklepu (`https://ehau.pl`) i wspólne teksty trzyma `src/lib/site.ts` (`SI
 ### Gotowość produkcyjna — co sprawdzić po wdrożeniu
 
 - `/admin/settings` pokazuje brakujące zmienne z `.env` (krytyczne vs opcjonalne) oraz gotowe adresy do wklejenia u operatorów — w tym webhook cen Sanity i zadanie cykliczne rejestru cen. Adresy MUSZĄ być pełne (`https://…`); sam `/api/…` Sanity odrzuci.
-- Widżet mapy paczkomatów (`components/FurgonetkaMap.tsx`) wybiera środowisko tak samo jak `lib/furgonetka.ts`: produkcja → realne punkty, poza produkcją → piaskownica. Zaszyty na sztywno `env: 'sandbox'` pokazywał klientom testowe paczkomaty.
+- Środowisko Furgonetki (mapa paczkomatów `components/FurgonetkaMap.tsx` i API `lib/furgonetka.ts`) wybiera jedna zmienna `NEXT_PUBLIC_FURGONETKA_ENV` = `sandbox` | `production` (`lib/furgonetkaEnv.ts`; bez niej: build produkcyjny → produkcja, dev → piaskownica). Wkompilowywana przy budowaniu — w workflow stagingu z `vars.FURGONETKA_ENV`, domyślnie `sandbox`. **Klucz mapy, dane OAuth i token muszą pochodzić z konta w TYM SAMYM środowisku** — klucz z piaskownicy na `api.furgonetka.pl` daje 403 na `/points/map`. Na produkcji sklepu ustaw `production` i produkcyjne klucze, inaczej klienci zobaczą testowe paczkomaty.
 - Po pierwszym wdrożeniu: `/robots.txt` i `/sitemap.xml` odpowiadają 200, w Search Console dodaj mapę strony, a w konsoli przeglądarki sprawdź zgłoszenia CSP przed przełączeniem na `enforce`.
 
 ## Wdrożenie (GitHub Actions → FTP)

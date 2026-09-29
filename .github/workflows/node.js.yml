@@ -106,6 +106,11 @@ jobs:
           NEXT_PUBLIC_CLERK_RESET_PASSWORD_URL: ${{ secrets.NEXT_PUBLIC_CLERK_RESET_PASSWORD_URL }}
           NEXT_PUBLIC_CLERK_VERIFY_EMAIL_URL: ${{ secrets.NEXT_PUBLIC_CLERK_VERIFY_EMAIL_URL }}
           NEXT_PUBLIC_FURGONETKA_MAP_API_KEY: ${{ secrets.NEXT_PUBLIC_FURGONETKA_MAP_API_KEY }}
+          # Środowisko Furgonetki dla mapy I API (lib/furgonetkaEnv.ts). Staging
+          # domyślnie w piaskownicy: klucz mapy i dane OAuth muszą być z tego
+          # samego środowiska, inaczej /points/map zwraca 403. Na produkcyjne
+          # konto: zmienna `FURGONETKA_ENV=production` w środowisku staging.
+          NEXT_PUBLIC_FURGONETKA_ENV: ${{ vars.FURGONETKA_ENV || 'sandbox' }}
           NEXT_PUBLIC_GA_MEASUREMENT_ID: ${{ secrets.NEXT_PUBLIC_GA_MEASUREMENT_ID }}
           NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION: ${{ secrets.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION }}
 

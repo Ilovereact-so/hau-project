@@ -2,6 +2,7 @@ import 'server-only'
 import { sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { redis } from '@/lib/redis'
+import { FURGONETKA_ENV } from '@/lib/furgonetkaEnv'
 import { sanityClient } from '@/sanity/sanityClient.server'
 import { smtpTransporter, MAIL_FROM } from '@/lib/mail'
 import {
@@ -219,7 +220,7 @@ async function checkFurgonetka(): Promise<IntegrationCheck> {
     id: 'furgonetka',
     name: 'Furgonetka (wysyłka)',
     state: lacking.length ? 'error' : warnings.length ? 'warn' : 'ok',
-    summary: lacking.length ? 'Nieskonfigurowana' : `Środowisko ${process.env.NODE_ENV === 'production' ? 'produkcyjne' : 'sandbox'}`,
+    summary: lacking.length ? 'Nieskonfigurowana' : `Środowisko ${FURGONETKA_ENV === 'production' ? 'produkcyjne' : 'sandbox'}`,
     details: [
       { label: 'Token odświeżania', value: tokenSource },
       { label: 'Webhook', value: yesNo(has('FURGONETKA_WEBHOOK_SECRET')) },

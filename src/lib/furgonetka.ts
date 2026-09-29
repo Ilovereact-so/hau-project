@@ -1,13 +1,12 @@
 import 'server-only'
 import { redis } from '@/lib/redis'
 
-const IS_PROD = process.env.NODE_ENV === 'production'
+import { FURGONETKA_API_URL } from '@/lib/furgonetkaEnv'
 
 // sandbox: wszystko na api.sandbox.furgonetka.pl
 // prod:    wszystko na api.furgonetka.pl
-const BASE_URL = IS_PROD
-  ? 'https://api.furgonetka.pl'
-  : 'https://api.sandbox.furgonetka.pl'
+// Wybór środowiska: NEXT_PUBLIC_FURGONETKA_ENV (patrz lib/furgonetkaEnv.ts).
+const BASE_URL = FURGONETKA_API_URL
 
 const CLIENT_ID     = process.env.FURGONETKA_CLIENT_ID!
 const CLIENT_SECRET = process.env.FURGONETKA_CLIENT_SECRET!
