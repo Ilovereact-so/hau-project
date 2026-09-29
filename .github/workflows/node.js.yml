@@ -145,7 +145,14 @@ jobs:
           // Na sztywno, bo powłoka hostingu podstawia tu nazwę maszyny.
           process.env.HOSTNAME = 'localhost'
 
-          require('./server.js')
+          // `import()`, nie `require()`: projekt ma "type": "module", więc Next
+          // generuje server.js jako ESM, a ten plik może zostać załadowany
+          // i jako CommonJS (Passenger), i jako ESM (`node start.js`).
+          // Dynamiczny import działa w obu trybach.
+          import('./server.js').catch((err) => {
+            console.error(err)
+            process.exit(1)
+          })
           JS
 
           # Pliki dla przycisku „Uruchom NPM Install” w katalogu głównym aplikacji.
