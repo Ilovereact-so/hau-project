@@ -60,50 +60,67 @@ export async function exchangeCodeForTokens(code: string): Promise<{
 
 // ─── access token (via refresh token) ────────────────────────────────────────
 
-async function getRefreshToken(): Promise<string> {
-  // prefer Redis (set after OAuth dance), fallback to env
-  const fromRedis = await redis.get(REDIS_REFRESH_TOKEN)
-  if (fromRedis) return fromRedis as string
-
-  const fromEnv = process.env.FURGONETKA_REFRESH_TOKEN
-  if (fromEnv) return fromEnv
-
-  throw new Error(
-    'Furgonetka refresh token not found. Run /api/furgonetka/connect to authorize.',
-  )
+// Źródła refresh tokena w kolejności: Redis (po autoryzacji w panelu i po
+// każdej rotacji), potem FURGONETKA_REFRESH_TOKEN z .env.
+async function refreshTokenCandidates(): Promise<{ token: string; source: 'redis' | 'env' }[]> {
+  const out: { token: string; source: 'redis' | 'env' }[] = []
+  const fromRedis = (await redis.get(REDIS_REFRESH_TOKEN)) as string | null
+  if (fromRedis) out.push({ token: fromRedis, source: 'redis' })
+  const fromEnv = process.env.FURGONETKA_REFRESH_TOKEN?.trim()
+  if (fromEnv && fromEnv !== fromRedis) out.push({ token: fromEnv, source: 'env' })
+  return out
 }
 
+export const FURGONETKA_REAUTH_MESSAGE =
+  'Token Furgonetki wygasł lub został unieważniony — w /admin/settings kliknij „Autoryzuj konto”.'
+
 async function refreshAccessToken(): Promise<string> {
-  const refreshToken = await getRefreshToken()
-
-  const res = await fetch(`${BASE_URL}/oauth/token`, {
-    method: 'POST',
-    headers: {
-      'Content-Type':  'application/x-www-form-urlencoded',
-      'Authorization': basicAuthHeader(),
-    },
-    body: new URLSearchParams({
-      grant_type:    'refresh_token',
-      refresh_token: refreshToken,
-    }),
-  })
-
-  if (!res.ok) {
-    throw new Error(`Furgonetka token refresh failed: ${res.status} ${await res.text()}`)
+  const candidates = await refreshTokenCandidates()
+  if (!candidates.length) {
+    throw new Error(`Brak refresh tokena Furgonetki. ${FURGONETKA_REAUTH_MESSAGE}`)
   }
 
-  const data: { access_token: string; refresh_token?: string; expires_in: number } =
-    await res.json()
+  for (const { token, source } of candidates) {
+    const res = await fetch(`${BASE_URL}/oauth/token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/x-www-form-urlencoded',
+        'Authorization': basicAuthHeader(),
+      },
+      body: new URLSearchParams({
+        grant_type:    'refresh_token',
+        refresh_token: token,
+      }),
+    })
 
-  // cache new access token
-  await redis.setEx(REDIS_ACCESS_TOKEN, data.expires_in - 60, data.access_token)
+    if (!res.ok) {
+      const text = await res.text()
+      // Martwy token (wygasły / już zrotowany). Ten z Redisa usuwamy — inaczej
+      // miałby pierwszeństwo przed świeżym FURGONETKA_REFRESH_TOKEN z .env
+      // i blokował integrację na zawsze. Próbujemy następnego źródła.
+      if (res.status === 400 && text.includes('invalid_grant')) {
+        if (source === 'redis') await redis.del(REDIS_REFRESH_TOKEN)
+        continue
+      }
+      throw new Error(`Furgonetka token refresh failed: ${res.status} ${text}`)
+    }
 
-  // if provider rotates refresh token, persist the new one
-  if (data.refresh_token) {
-    await redis.set(REDIS_REFRESH_TOKEN, data.refresh_token)
+    const data: { access_token: string; refresh_token?: string; expires_in: number } =
+      await res.json()
+
+    // cache new access token
+    await redis.setEx(REDIS_ACCESS_TOKEN, data.expires_in - 60, data.access_token)
+
+    // Furgonetka rotuje refresh token — stary przestaje działać, więc nowy
+    // MUSI trafić do Redisa (z .env po pierwszym użyciu nie da się korzystać).
+    if (data.refresh_token) {
+      await redis.set(REDIS_REFRESH_TOKEN, data.refresh_token)
+    }
+
+    return data.access_token
   }
 
-  return data.access_token
+  throw new Error(FURGONETKA_REAUTH_MESSAGE)
 }
 
 async function getAccessToken(): Promise<string> {
