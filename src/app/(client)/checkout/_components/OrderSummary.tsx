@@ -8,18 +8,29 @@ import PriceFormatter from '@/components/PriceFormatter'
 import { urlFor } from '@/sanity/lib/image'
 import useStore from 'store'
 import { buildVariantLabel } from './utils'
+import { applyDiscount } from '@/lib/discounts'
+import type { DiscountPreview } from '@/actions/discounts'
 
 interface Props {
-  shippingCents?: number
-  deliveryName?:  string | null
+  shippingCents?:   number
+  deliveryName?:    string | null
+  /** podgląd kodu z koszyka (liczy serwer); kwotę w zamówieniu i tak ustala kasa */
+  discount?:        Extract<DiscountPreview, { ok: true }> | null
+  discountLoading?: boolean
 }
 
-export default function OrderSummary({ shippingCents, deliveryName }: Props) {
+export default function OrderSummary({ shippingCents, deliveryName, discount, discountLoading }: Props) {
   const cartItems     = useStore(s => s.cartItems)
   const getTotalPrice = useStore(s => s.getTotalPrice)
   const subtotalPLN   = getTotalPrice()
   const subtotalCents = Math.round(subtotalPLN * 100)
-  const totalCents    = subtotalCents + (shippingCents || 0)
+  const hasShipping   = Boolean(deliveryName && shippingCents)
+  const applied       = discount?.applicable ? discount : null
+  const { discountCents, totalCents } = applyDiscount(
+    applied ? { ok: true, productDiscountCents: applied.productDiscountCents, freeShipping: applied.freeShipping } : null,
+    subtotalCents,
+    hasShipping ? shippingCents! : 0,
+  )
 
   return (
     <div className="sticky top-6 overflow-hidden md:mt-10 sm:mt-8 mt-5 lg:min-w-[360px] min-w-[320px]">
@@ -39,12 +50,29 @@ export default function OrderSummary({ shippingCents, deliveryName }: Props) {
         </div>
         <div className="flex justify-between text-black">
           <span>Dostawa</span>
-          {deliveryName && shippingCents ? (
-            <PriceFormatter amount={shippingCents / 100} className="font-normal text-black text-[clamp(14px,1.2vw,16px)]" />
+          {hasShipping ? (
+            applied?.freeShipping ? (
+              <span className="flex items-center gap-2">
+                <PriceFormatter amount={shippingCents! / 100} className="font-normal line-through text-[#8E8E8E] text-[clamp(14px,1.2vw,16px)]" />
+                <span className="text-[#3F8F84] font-medium">Gratis</span>
+              </span>
+            ) : (
+              <PriceFormatter amount={shippingCents! / 100} className="font-normal text-black text-[clamp(14px,1.2vw,16px)]" />
+            )
           ) : (
             <span>~</span>
           )}
         </div>
+        {applied && discountCents > 0 && !applied.freeShipping && (
+          <div className="flex justify-between text-[#3F8F84]">
+            <span>Rabat <span className="font-medium">({applied.code})</span></span>
+            <PriceFormatter amount={-discountCents / 100} className="font-normal text-[clamp(14px,1.2vw,16px)]" />
+          </div>
+        )}
+        {discount && !discount.applicable && discount.message && (
+          <p className="text-[13px] text-[#6C6C6C]">Kod {discount.code}: {discount.message}</p>
+        )}
+        {discountLoading && <p className="text-[13px] text-[#8E8E8E]">Przeliczam rabat…</p>}
       </div>
 
       {/* item list */}

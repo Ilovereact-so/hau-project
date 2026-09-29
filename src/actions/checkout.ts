@@ -20,7 +20,8 @@ import {
 } from '@/lib/autopay'
 import { client } from '@/sanity/lib/client'
 import { upsertSavedAddress } from '@/actions/address'
-import { effectivePrice } from '@/lib/omnibus'
+import { fetchSanityPrices, resolveProductPrice } from '@/lib/cartPricing'
+import { DiscountError, redeemDiscount } from '@/lib/discountServer'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL!
 
@@ -91,25 +92,9 @@ export type CheckoutResult =
   | { ok: true;  redirectUrl: string;                autopayForm?: undefined; autopayInline?: undefined }
   | { ok: true;  autopayForm: AutopayFormPayload;    redirectUrl?: undefined; autopayInline?: undefined }
   | { ok: true;  autopayInline: AutopayInlinePayload; redirectUrl?: undefined; autopayForm?: undefined }
-  | { ok: false; error: string }
+  | { ok: false; error: string; discountRejected?: true }
 
 // ─── Sanity fetches ───────────────────────────────────────────────────────────
-
-interface SanityProduct {
-  _id:      string
-  title:    string
-  price:    number | null
-  brand:    string | null
-  variants: Array<{ _key: string; price: number | null }> | null
-}
-
-async function fetchSanityPrices(productIds: string[]): Promise<Map<string, SanityProduct>> {
-  const data = await client.fetch<SanityProduct[]>(
-    `*[_type == "product" && _id in $ids]{ _id, title, price, brand, variants[]{ _key, price } }`,
-    { ids: productIds },
-  )
-  return new Map(data.map(p => [p._id, p]))
-}
 
 async function fetchShippingPriceCents(furgonetkaServiceId: string): Promise<number | null> {
   const result = await client.fetch<{ internal_price: number } | null>(
@@ -118,13 +103,6 @@ async function fetchShippingPriceCents(furgonetkaServiceId: string): Promise<num
   )
   if (!result) return null
   return Math.round((result.internal_price ?? 0) * 100)
-}
-
-// Ta sama reguła co koszyk i rejestr cen (lib/omnibus.ts): cena wariantu,
-// a gdy wariant jej nie ma — cena produktu. Wcześniej wariant bez ceny dawał
-// `undefined` → NaN w sumie zamówienia.
-function resolveProductPrice(product: SanityProduct, variantId: string): number | null {
-  return effectivePrice(product, variantId || null)
 }
 
 // ─── validation ───────────────────────────────────────────────────────────────
@@ -203,74 +181,99 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
     return { ...item, priceCents, name: product.title, brand: product.brand ?? '' }
   })
 
-  const discountCents = 0
-  const totalCents    = subtotalCents + shippingCents - discountCents
-
-  if (totalCents <= 0) return { ok: false, error: 'Nieprawidłowa kwota zamówienia' }
-
   // ── persist to DB ─────────────────────────────────────────────────────────
   const orderId   = crypto.randomUUID()
   const sessionId = orderId
 
-  await db.transaction(async tx => {
-    await tx.insert(orders).values({
-      id:             orderId,
-      userId:         ownerId,
-      guestEmail:     !userId ? input.address.email : null,
-      status:         'awaiting_payment',
-      paymentMethod:  input.paymentMethod,
-      shippingMethod: input.shippingMethod,
-      subtotalCents,
-      shippingCents,
-      discountCents,
-      totalCents,
-      discountCode:   input.discountCode ?? null,
-      notes:          input.notes ?? null,
-    })
+  // Kod rabatowy liczony i rezerwowany W TEJ SAMEJ transakcji co zamówienie
+  // (lib/discountServer.ts): wiersz kodu jest blokowany, limity sprawdzane
+  // ponownie — kwota z koszyka to tylko podgląd, decyduje serwer.
+  const discountInput = input.discountCode?.trim() ? input.discountCode : null
+  let discountCents = 0
+  let discountCode: string | null = null
+  let totalCents = subtotalCents + shippingCents
 
-    await tx.insert(orderItems).values(
-      lineItems.map(item => ({
-        id:           crypto.randomUUID(),
-        orderId,
-        productId:    item.productId,
-        variantId:    item.variantId,
-        qty:          item.qty,
-        priceCents:   item.priceCents,
-        name:         item.name,
-        brand:        item.brand,
-        variantLabel: item.variantLabel,
-        imageUrl:     item.imageUrl,
-      })),
-    )
+  if (totalCents <= 0) return { ok: false, error: 'Nieprawidłowa kwota zamówienia' }
 
-    await tx.insert(shippingAddresses).values({
-      id:              crypto.randomUUID(),
-      orderId,
-      firstName:       input.address.firstName,
-      lastName:        input.address.lastName,
-      email:           input.address.email,
-      phone:           input.address.phone,
-      street:           input.deliveryType === 'kurier' ? input.address.street            : null,
-      city:             input.deliveryType === 'kurier' ? input.address.city              : null,
-      apartment_number: input.deliveryType === 'kurier' ? input.address.apartment_number  : null,
-      postalCode:       input.deliveryType === 'kurier' ? input.address.postalCode        : null,
-      country:         input.address.country,
-      pickupPointCode: input.pickupPoint?.code ?? null,
-      pickupPointName: input.pickupPoint?.name ?? null,
-    })
+  try {
+    await db.transaction(async tx => {
+      if (discountInput) {
+        const redeemed = await redeemDiscount(tx, {
+          code:          discountInput,
+          orderId,
+          customer:      { key: ownerId, email: input.address.email.trim().toLowerCase() },
+          subtotalCents,
+          shippingCents,
+        })
+        discountCents = redeemed.discountCents
+        discountCode  = redeemed.code
+        totalCents    = redeemed.totalCents
+      }
 
-    if (input.paymentMethod !== 'cod') {
-      await tx.insert(paymentTransactions).values({
+      await tx.insert(orders).values({
+        id:             orderId,
+        userId:         ownerId,
+        guestEmail:     !userId ? input.address.email : null,
+        status:         'awaiting_payment',
+        paymentMethod:  input.paymentMethod,
+        shippingMethod: input.shippingMethod,
+        subtotalCents,
+        shippingCents,
+        discountCents,
+        totalCents,
+        discountCode,
+        notes:          input.notes ?? null,
+      })
+
+      await tx.insert(orderItems).values(
+        lineItems.map(item => ({
+          id:           crypto.randomUUID(),
+          orderId,
+          productId:    item.productId,
+          variantId:    item.variantId,
+          qty:          item.qty,
+          priceCents:   item.priceCents,
+          name:         item.name,
+          brand:        item.brand,
+          variantLabel: item.variantLabel,
+          imageUrl:     item.imageUrl,
+        })),
+      )
+
+      await tx.insert(shippingAddresses).values({
         id:              crypto.randomUUID(),
         orderId,
-        provider:        input.paymentMethod,
-        sessionId,
-        status:          'pending',
-        amountCents:     totalCents,
-        saveCardConsent: input.saveCard ?? false,
+        firstName:       input.address.firstName,
+        lastName:        input.address.lastName,
+        email:           input.address.email,
+        phone:           input.address.phone,
+        street:           input.deliveryType === 'kurier' ? input.address.street            : null,
+        city:             input.deliveryType === 'kurier' ? input.address.city              : null,
+        apartment_number: input.deliveryType === 'kurier' ? input.address.apartment_number  : null,
+        postalCode:       input.deliveryType === 'kurier' ? input.address.postalCode        : null,
+        country:         input.address.country,
+        pickupPointCode: input.pickupPoint?.code ?? null,
+        pickupPointName: input.pickupPoint?.name ?? null,
       })
-    }
-  })
+
+      if (input.paymentMethod !== 'cod') {
+        await tx.insert(paymentTransactions).values({
+          id:              crypto.randomUUID(),
+          orderId,
+          provider:        input.paymentMethod,
+          sessionId,
+          status:          'pending',
+          amountCents:     totalCents,
+          saveCardConsent: input.saveCard ?? false,
+        })
+      }
+    })
+  } catch (err) {
+    // Kod przestał spełniać warunki (wygasł, limit, próg) — zamówienie się
+    // wycofało; klient zobaczy powód i może złożyć je bez kodu.
+    if (err instanceof DiscountError) return { ok: false, error: err.message, discountRejected: true }
+    throw err
+  }
 
   // ── save address for logged-in user ───────────────────────────────────────
   if (userId && input.deliveryType === 'kurier') {

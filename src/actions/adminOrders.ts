@@ -8,6 +8,7 @@ import { orders, shipments, shippingAddresses, SHIPMENT_STATUSES, type OrderStat
 import { createShipment, getShipmentLabel, type FurgonetkaAddress, type FurgonetkaParcel } from '@/lib/furgonetka'
 import { runAdminAction, type ActionResult } from '@/lib/admin/guard'
 import { ORDER_TRANSITIONS } from '@/lib/admin/labels'
+import { releaseDiscountForOrder } from '@/lib/discountServer'
 
 /*
  * Akcje zamówień w panelu admina.
@@ -40,7 +41,12 @@ export async function adminUpdateOrderStatus(orderId: string, status: OrderStatu
     if (!allowed.includes(status)) {
       throw new Error(`Nie można zmienić statusu z „${order.status}” na „${status}”.`)
     }
-    await db.update(orders).set({ status }).where(eq(orders.id, orderId))
+    await db.transaction(async (tx) => {
+      await tx.update(orders).set({ status }).where(eq(orders.id, orderId))
+      // Anulowane zamówienie oddaje użycie kodu rabatowego (limity).
+      // Zwrot („refunded”) NIE oddaje — rabat został wykorzystany.
+      if (status === 'cancelled') await releaseDiscountForOrder(tx, orderId)
+    })
     refresh(orderId)
     return null
   }, 'Nie udało się zmienić statusu.')

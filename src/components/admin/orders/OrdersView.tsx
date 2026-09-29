@@ -161,7 +161,14 @@ export function OrdersView({
                           {order.trackingNumber || order.shippingMethod}
                         </span>
                       </Td>
-                      <Td className="text-right font-medium whitespace-nowrap">{formatCentsPrecise(order.totalCents)}</Td>
+                      <Td className="text-right whitespace-nowrap">
+                        <span className="block font-medium">{formatCentsPrecise(order.totalCents)}</span>
+                        {order.discountCode && (
+                          <span className="mt-0.5 inline-block rounded-full bg-success/10 px-1.5 py-px font-mono text-[10px] font-semibold text-success" title="Użyty kod rabatowy">
+                            {order.discountCode}
+                          </span>
+                        )}
+                      </Td>
                       <Td className="whitespace-nowrap text-text-2">{formatDate(order.createdAt)}</Td>
                     </Tr>
                   ))}

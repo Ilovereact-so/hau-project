@@ -1,0 +1,49 @@
+import 'server-only'
+import { client } from '@/sanity/lib/client'
+import { effectivePrice } from '@/lib/omnibus'
+
+/*
+ * Ceny pozycji koszyka liczone po stronie serwera z Sanity — jedno źródło dla
+ * kasy (`actions/checkout.ts`) i podglądu kodu rabatowego w koszyku, żeby
+ * rabat w koszyku i w zamówieniu wychodził z tych samych kwot.
+ */
+
+export interface SanityPricedProduct {
+  _id:      string
+  title:    string
+  price:    number | null
+  brand:    string | null
+  variants: Array<{ _key: string; price: number | null }> | null
+}
+
+export async function fetchSanityPrices(productIds: string[]): Promise<Map<string, SanityPricedProduct>> {
+  if (!productIds.length) return new Map()
+  const data = await client.fetch<SanityPricedProduct[]>(
+    `*[_type == "product" && _id in $ids]{ _id, title, price, brand, variants[]{ _key, price } }`,
+    { ids: productIds },
+  )
+  return new Map(data.map(p => [p._id, p]))
+}
+
+// Ta sama reguła co koszyk i rejestr cen (lib/omnibus.ts): cena wariantu,
+// a gdy wariant jej nie ma — cena produktu.
+export function resolveProductPrice(product: SanityPricedProduct, variantId: string): number | null {
+  return effectivePrice(product, variantId || null)
+}
+
+/** Wartość produktów w groszach; pozycje bez ceny/nieistniejące są pomijane. */
+export async function cartSubtotalCents(
+  items: Array<{ productId: string; variantId: string; qty: number }>,
+): Promise<number> {
+  const prices = await fetchSanityPrices([...new Set(items.map(i => i.productId))])
+  let total = 0
+  for (const item of items) {
+    const product = prices.get(item.productId)
+    if (!product) continue
+    const price = resolveProductPrice(product, item.variantId)
+    if (price === null) continue
+    const qty = Math.max(0, Math.min(99, Math.floor(item.qty)))
+    total += Math.round(price * 100) * qty
+  }
+  return total
+}

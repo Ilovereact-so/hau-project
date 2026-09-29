@@ -83,7 +83,15 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Opinie', icon: MessageSquareText, href: '/admin/reviews' },
   { label: 'Płatności', icon: WalletCards, href: '/admin/payments', badgeKey: 'failedPayments' },
   { label: 'Dostawy', icon: Truck, href: '/admin/shipping' },
-  { label: 'Marketing', icon: Megaphone, href: '/admin/marketing' },
+  {
+    label: 'Marketing',
+    icon: Megaphone,
+    href: '/admin/marketing',
+    children: [
+      { label: 'Newsletter', href: '/admin/marketing' },
+      { label: 'Kody rabatowe', href: '/admin/discounts' },
+    ],
+  },
   { label: 'Analityka', icon: ChartNoAxesCombined, href: '/admin/insights' },
   { label: 'Integracje', icon: PlugZap, href: '/admin/settings' },
   { label: 'Sanity Studio', icon: Database, href: '/studio', external: true },
@@ -98,7 +106,7 @@ export function activeLabelFor(pathname: string, search: URLSearchParams): strin
   if (pathname === '/admin/products' && search.get('filter') === 'low') return 'Magazyn'
   if (pathname === '/admin' || pathname === '/admin/') return 'Dashboard'
   if (pathname.startsWith('/admin/categories') || pathname.startsWith('/admin/collections') || pathname.startsWith('/admin/import')) return 'Produkty'
-  if (pathname.startsWith('/admin/newsletter')) return 'Marketing'
+  if (pathname.startsWith('/admin/newsletter') || pathname.startsWith('/admin/discounts')) return 'Marketing'
 
   let best: NavItem | undefined
   for (const item of NAV_ITEMS) {
@@ -143,6 +151,7 @@ const HEADINGS: Array<[prefix: string, heading: Heading]> = [
   ['/admin/payments', { title: 'Płatności', subtitle: 'Transakcje Autopay i Przelewy24 — nieudane i oczekujące wymagają uwagi.' }],
   ['/admin/shipping', { title: 'Dostawy', subtitle: 'Metody dostawy z Furgonetki — ceny, aktywność i kolejność w checkoucie.' }],
   ['/admin/marketing', { title: 'Marketing', subtitle: 'Newsletter: subskrybenci i szablon maila powitalnego.' }],
+  ['/admin/discounts', { title: 'Kody rabatowe', subtitle: 'Rabaty procentowe, kwotowe i darmowa dostawa — warunki, limity i użycia w zamówieniach.' }],
   ['/admin/newsletter', { title: 'Marketing', subtitle: 'Newsletter: subskrybenci i szablon maila powitalnego.' }],
   ['/admin/insights', { title: 'Analityka', subtitle: 'Popyt, aktywność klientów, porzucone koszyki i porównanie miesięcy.' }],
   ['/admin/settings', { title: 'Integracje', subtitle: 'Stan połączeń sklepu: Sanity, baza, Redis, płatności, wysyłka i poczta.' }],

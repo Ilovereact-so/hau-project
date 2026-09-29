@@ -25,6 +25,8 @@ import Step3SummaryCards from './_components/Step3SummaryCards'
 import AutopayInlinePayment from './_components/AutopayInlinePayment'
 import { buildVariantLabel, type Step } from './_components/utils'
 import type { PaymentMethod } from './_components/Step2PaymentForm'
+import { useDiscountPreview } from '@/hooks/useDiscountPreview'
+import { useDiscountStore } from '@/store/discountStore'
 
 /**
  * Autopay wymaga startu transakcji POST-em (application/x-www-form-urlencoded),
@@ -82,6 +84,9 @@ export default function CheckoutClient({ services, savedAddress, userSlot }: Pro
   const cartItems = useStore(s => s.cartItems)
   const cartReady = useStore(s => s.cartReady)
   const resetCart = useStore(s => s.resetCart)
+  const discountCode    = useDiscountStore(s => s.code)
+  const setDiscountCode = useDiscountStore(s => s.setCode)
+  const discount        = useDiscountPreview()
 
   useEffect(() => {
     setServiceCode('')
@@ -147,10 +152,22 @@ export default function CheckoutClient({ services, savedAddress, userSlot }: Pro
         gatewayId,
         saveCard:  saveCard ? true : undefined,
         blikCode:  blik0 ? blikCode.replace(/\D/g, '') : undefined,
+        discountCode: discountCode ?? undefined,
       })
 
-      if (!result.ok) { toast.error(result.error); return }
+      if (!result.ok) {
+        // Kod przestał działać między koszykiem a zamówieniem — zdejmujemy go,
+        // podsumowanie przelicza się bez rabatu, klient decyduje, czy zamawia.
+        if (result.discountRejected) {
+          setDiscountCode(null)
+          toast.error(`${result.error} Sprawdź podsumowanie i złóż zamówienie bez kodu.`, { duration: 6000 })
+          return
+        }
+        toast.error(result.error)
+        return
+      }
       resetCart()
+      setDiscountCode(null)
 
       // BLIK-0 i formularz karty w ramce zostają na tej stronie.
       if (result.autopayInline) {
@@ -240,7 +257,12 @@ export default function CheckoutClient({ services, savedAddress, userSlot }: Pro
           </AnimatePresence>
           </div>
           <div className="top-10 sticky">
-            <OrderSummary shippingCents={shippingCents} deliveryName={selectedService?.name ?? null} />
+            <OrderSummary
+              shippingCents={shippingCents}
+              deliveryName={selectedService?.name ?? null}
+              discount={discount.state.status === 'ready' ? discount.state.preview : null}
+              discountLoading={discount.state.status === 'loading'}
+            />
           </div>
 
       </Container>

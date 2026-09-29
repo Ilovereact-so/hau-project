@@ -309,6 +309,18 @@ Każdy produkt z katalogu może mieć opinie (ocena 1–5 w łapkach, opcjonalny
 - **Front**: kafelki (`ProductItem2`, `WishlistProduct`) używają `components/reviews/ProductRatingBadge` → `hooks/useReviewSummary` zbiera id z całej strony w jedno żądanie. Strona produktu liczy podsumowanie i pierwszą porcję na serwerze i renderuje `ProductReviews` (sekcja `#opinie`; `#napisz-opinie` otwiera formularz) + JSON-LD `aggregateRating`. Po zapisie `primeReviewSummary` odświeża oceny w nagłówku i kafelkach bez przeładowania.
 - `components/reviews/PawRating` rysuje ułamkowe łapki przycinaniem (bez gradientów z `id`) — używaj go zamiast `Paw_Half`.
 
+## Kody rabatowe
+
+Klient wpisuje kod w koszyku („Masz kod promocyjny?” rozwija pole), rabat widać w koszyku i w podsumowaniu kasy, a zamówienie zapisuje kod i kwotę (`orders.discount_code`, `discount_cents`). Admin zarządza kodami w **Marketing → Kody rabatowe** (`/admin/discounts`).
+
+- **Dane**: MySQL `discount_codes` (typ `percent` | `fixed` | `free_shipping`, próg wartości produktów, maks. rabat dla procentu, daty ważności, limit łączny, limit na klienta, `times_used`, `is_active`) i `discount_redemptions` (jedno użycie = jedno zamówienie, `customer_key` = userId/guestId, `customer_email`). Migracja `drizzle/0002_discount_codes.sql` — **uruchamiana ręcznie na bazie** (deploy nie robi migracji); zakłada też kod `NEWSLETTER10` z maila powitalnego.
+- **Reguły** (`lib/discounts.ts`, czyste, wspólne dla przeglądarki i serwera): procent/kwota od WARTOŚCI PRODUKTÓW (bez dostawy), procent zaokrąglany w dół, darmowa dostawa zeruje dostawę, jeden kod na zamówienie, do zapłaty zostaje min. 1 zł (bramki nie przyjmują 0 zł). Kody zapisywane WIELKIMI literami, klient może wpisać małymi.
+- **Serwer jest źródłem prawdy.** Koszyk trzyma tylko KOD (`store/discountStore.ts`, sessionStorage); kwotę liczy `previewDiscountCode` (`actions/discounts.ts`) na cenach z Sanity (`lib/cartPricing.ts` — te same funkcje co kasa). Kasa (`actions/checkout.ts`) liczy rabat jeszcze raz w TRANSAKCJI zamówienia: `redeemDiscount` (`lib/discountServer.ts`) blokuje wiersz kodu (`FOR UPDATE`), sprawdza limity, zapisuje użycie i zwiększa licznik — równoczesne zamówienia nie przekroczą limitu, a wycofana transakcja nie zostawia użycia. Odrzucony kod → `discountRejected`, kasa zdejmuje kod i nic nie zamawia.
+- **Limit na klienta** liczony po koncie ORAZ po e-mailu z zamówienia. **Anulowanie** zamówienia w panelu (`adminUpdateOrderStatus` → `cancelled`) oddaje użycie (`releaseDiscountForOrder`); zwrot (`refunded`) nie.
+- **Zgadywanie kodów**: 12 nieudanych prób (nieistniejący kod) na 15 min na konto/gościa/IP — Redis `discount:failed:v1:*`.
+- **Panel**: tabela kodów (korzyść, warunki, użycia, udzielone rabaty i przychód, status), okno tworzenia/edycji, włącz/wyłącz; kod użyty w zamówieniu można tylko wyłączyć (historia rozliczeń). Lista zamówień pokazuje pigułkę z kodem, szczegóły — linię „Rabat (KOD)”, eksport CSV — kolumnę kodu.
+- **Testy** (przy wdrożeniu, MariaDB 10.11 + Redis): wyliczenia (procent w dół, limit maks., kwota > wartości, minimum 1 zł, darmowa dostawa, próg, daty, wyłączony), limit na klienta po koncie i e-mailu, zwolnienie po anulowaniu, rollback zamówienia, 10 równoczesnych zamówień przy limicie 3 → dokładnie 3 użycia, duplikat i walidacja w panelu.
+
 ## Kolekcje produktów
 
 Kolekcja (`collection` w Sanity) to tematyczny zbiór produktów ze stroną `/kolekcje/[slug]` (lista: `/kolekcje`). Baner strony głównej może wskazywać kolekcję — przycisk prowadzi na jej stronę.

@@ -8,7 +8,6 @@ import EmptyCart from '@/components/EmptyCart'
 import Loading from '@/components/Loading'
 import { urlFor } from '@/sanity/lib/image'
 import { useAuth } from '@clerk/nextjs'
-import { ChevronDown } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
@@ -19,6 +18,8 @@ import useStore from 'store'
 import { WishlistButton } from '@/components/WishlistButton'
 import { useAuthModalStore } from '@/store/authModalStore'
 import { effectivePrice } from '@/lib/omnibus'
+import DiscountCodePanel from '@/components/cart/DiscountCodePanel'
+import { useDiscountPreview } from '@/hooks/useDiscountPreview'
 
 export default function CartPage() {
   const [isClient, setIsClient] = useState(false)
@@ -32,12 +33,18 @@ export default function CartPage() {
   const getSubTotal    = useStore(s => s.getSubTotalPrice)
   const cartReady      = useStore(s => s.cartReady)
   const openModal      = useAuthModalStore(s => s.openModal)
+  const discount       = useDiscountPreview()
 
   useEffect(() => { setIsClient(true) }, [])
   // Koszyk działa bez logowania. Czekamy tylko, aż StoreHydration ustali
   // właściciela koszyka (np. scalenie koszyka gościa zaraz po zalogowaniu),
   // żeby nie pokazać na chwilę nieaktualnej zawartości.
   if (!isClient || !cartReady) return <Loading />
+
+  // Podgląd liczy serwer na cenach z Sanity; tu tylko go pokazujemy.
+  const appliedPreview       = discount.state.status === 'ready' && discount.state.preview.applicable ? discount.state.preview : null
+  const productDiscountCents = appliedPreview?.productDiscountCents ?? 0
+  const freeShipping         = appliedPreview?.freeShipping ?? false
 
   const handleResetCart = () => {
     if (!window.confirm('Czy na pewno chcesz wyczyścić koszyk?')) return
@@ -133,22 +140,33 @@ export default function CartPage() {
                   Podsumowanie
                 </h2>
 
-                {/* kod rabatowy — TODO: podpiąć logikę */}
-                <div className="text-black bg-[#E1E1E1] rounded-full flex flex-col py-3 px-6 lg:mt-6 mt-4">
-                  <div className="flex justify-between items-center text-black text-[clamp(14px,1.4vw,16px)] font-medium">
-                    <p>Masz kod promocyjny?</p>
-                    <ChevronDown className="text-black lg:w-6 lg:h-6 w-5 h-5" />
-                  </div>
-                </div>
+                <DiscountCodePanel
+                  state={discount.state}
+                  droppedMessage={discount.droppedMessage}
+                  onDroppedSeen={discount.clearDropped}
+                />
 
                 <div className="text-black text-[clamp(14px,1.4vw,16px)] lg:mt-6 mt-4">
                   <div className="flex justify-between">
                     <span>Wartość produktów</span>
                     <PriceFormatter amount={getSubTotal()} className="font-normal" />
                   </div>
+                  {productDiscountCents > 0 && appliedPreview && (
+                    <div className="flex justify-between text-[#3F8F84]">
+                      <span>Rabat <span className="font-medium">({appliedPreview.code})</span></span>
+                      <PriceFormatter amount={-productDiscountCents / 100} className="font-normal" />
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span>Dostawa od</span>
-                    <PriceFormatter amount={10.49} className="font-normal" />
+                    {freeShipping ? (
+                      <span className="flex items-center gap-2">
+                        <span className="line-through text-[#8E8E8E]"><PriceFormatter amount={10.49} className="font-normal" /></span>
+                        <span className="text-[#3F8F84] font-medium">Gratis</span>
+                      </span>
+                    ) : (
+                      <PriceFormatter amount={10.49} className="font-normal" />
+                    )}
                   </div>
 
                   <Separator />
@@ -159,7 +177,7 @@ export default function CartPage() {
                       <span className="font-normal">w tym VAT</span>
                     </p>
                     <PriceFormatter
-                      amount={getTotalPrice()}
+                      amount={Math.max(0, getTotalPrice() - productDiscountCents / 100)}
                       className="text-[clamp(14px,1.4vw,18px)] font-bold text-black"
                     />
                   </div>

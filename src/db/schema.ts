@@ -316,3 +316,60 @@ export const productPriceHistory = mysqlTable('product_price_history', {
   uniqueIndex('price_history_one_open').on(t.productId, t.variantKey, t.openMarker),
   index('price_history_lookup').on(t.productId, t.variantKey, t.validFrom),
 ])
+
+// ─── discount codes ───────────────────────────────────────────────────────────
+
+export const DISCOUNT_TYPES = ['percent', 'fixed', 'free_shipping'] as const
+export type DiscountType = (typeof DISCOUNT_TYPES)[number]
+
+/*
+ * Kody rabatowe definiowane w panelu (/admin/discounts). `code` zapisujemy
+ * WIELKIMI literami — klient może wpisać dowolną wielkość liter.
+ * `value`: procent (1–100) dla `percent`, grosze dla `fixed`, 0 dla
+ * `free_shipping`. Daty w UTC (DATETIME — patrz uwaga przy rejestrze cen).
+ */
+export const discountCodes = mysqlTable('discount_codes', {
+  id:                 varchar('id', { length: 36 }).primaryKey(),
+  code:               varchar('code', { length: 64 }).notNull(),
+  description:        varchar('description', { length: 255 }),
+  type:               mysqlEnum('type', DISCOUNT_TYPES).notNull(),
+  value:              int('value').notNull().default(0),
+  // próg wartości produktów (bez dostawy), 0 = bez progu
+  minSubtotalCents:   int('min_subtotal_cents').notNull().default(0),
+  // górna granica rabatu procentowego, NULL = bez limitu
+  maxDiscountCents:   int('max_discount_cents'),
+  startsAt:           datetime('starts_at', { mode: 'date' }),
+  endsAt:             datetime('ends_at', { mode: 'date' }),
+  // NULL = bez limitu
+  usageLimit:         int('usage_limit'),
+  usageLimitPerUser:  int('usage_limit_per_user'),
+  // licznik użyć (zamówienia z kodem, bez anulowanych) — zmieniany w transakcji
+  timesUsed:          int('times_used').notNull().default(0),
+  isActive:           boolean('is_active').notNull().default(true),
+  createdAt:          datetime('created_at', { mode: 'date', fsp: 3 }).notNull().default(sql`(now(3))`),
+  updatedAt:          datetime('updated_at', { mode: 'date', fsp: 3 }).notNull().default(sql`(now(3))`),
+}, t => [
+  uniqueIndex('discount_codes_code').on(t.code),
+])
+
+/*
+ * Jedno użycie kodu = jedno zamówienie. Wiersz powstaje w tej samej transakcji
+ * co zamówienie; anulowanie zamówienia usuwa go i zmniejsza `times_used`.
+ * `customer_key` = userId z Clerka (albo id gościa) — do limitu na klienta.
+ */
+export const discountRedemptions = mysqlTable('discount_redemptions', {
+  id:              varchar('id', { length: 36 }).primaryKey(),
+  discountCodeId:  varchar('discount_code_id', { length: 36 }).notNull(),
+  orderId:         varchar('order_id', { length: 36 }).notNull(),
+  customerKey:     varchar('customer_key', { length: 256 }).notNull(),
+  // e-mail z zamówienia (małe litery) — limit na klienta liczy się po koncie
+  // ORAZ po adresie, żeby drugie konto na ten sam e-mail nie dawało drugiego rabatu
+  customerEmail:   varchar('customer_email', { length: 256 }).notNull(),
+  code:            varchar('code', { length: 64 }).notNull(),
+  discountCents:   int('discount_cents').notNull(),
+  createdAt:       datetime('created_at', { mode: 'date', fsp: 3 }).notNull().default(sql`(now(3))`),
+}, t => [
+  uniqueIndex('discount_redemptions_order').on(t.orderId),
+  index('discount_redemptions_code_customer').on(t.discountCodeId, t.customerKey),
+  index('discount_redemptions_code_email').on(t.discountCodeId, t.customerEmail),
+])
