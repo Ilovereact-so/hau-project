@@ -58,6 +58,55 @@ export async function exchangeCodeForTokens(code: string): Promise<{
   return res.json()
 }
 
+/** Zapisuje tokeny z autoryzacji — aplikacja korzysta z nich od razu. */
+export async function saveFurgonetkaTokens(tokens: { access_token: string; refresh_token: string; expires_in: number }) {
+  await Promise.all([
+    redis.setEx(REDIS_ACCESS_TOKEN, tokens.expires_in - 60, tokens.access_token),
+    redis.set(REDIS_REFRESH_TOKEN, tokens.refresh_token),
+  ])
+}
+
+/**
+ * Kończy autoryzację z WKLEJONEGO adresu (albo samego kodu). Aplikacja OAuth
+ * w Furgonetce ma zarejestrowany adres przekierowania `localhost` — Furgonetka
+ * nie przyjmie innego (`invalid_client`), więc na serwerze po zatwierdzeniu
+ * przeglądarka ląduje na niedziałającym `localhost…?code=…`. Admin wkleja ten
+ * adres w /admin/settings, a serwer wymienia kod (ważny kilka minut).
+ */
+export async function connectWithPastedCode(input: string): Promise<void> {
+  const raw = input.trim()
+  if (!raw) throw new Error('Wklej adres z paska przeglądarki albo sam kod.')
+
+  let code = raw
+  if (/^https?:\/\//i.test(raw) || raw.includes('code=')) {
+    let params: URLSearchParams
+    try {
+      params = /^https?:\/\//i.test(raw) ? new URL(raw).searchParams : new URLSearchParams(raw.split('?').pop())
+    } catch {
+      throw new Error('To nie wygląda na poprawny adres.')
+    }
+    const error = params.get('error')
+    if (error) throw new Error(`Furgonetka odrzuciła autoryzację: ${params.get('error_description') || error}`)
+    code = params.get('code') ?? ''
+    if (!code) throw new Error('W adresie nie ma parametru code — wklej adres, na który przekierowała Furgonetka.')
+  }
+
+  let tokens: Awaited<ReturnType<typeof exchangeCodeForTokens>>
+  try {
+    tokens = await exchangeCodeForTokens(code)
+  } catch (err) {
+    const text = err instanceof Error ? err.message : String(err)
+    if (text.includes('invalid_grant')) {
+      throw new Error('Kod wygasł albo został już użyty — kliknij „Autoryzuj konto” jeszcze raz i wklej nowy adres od razu.')
+    }
+    if (text.includes('invalid_client')) {
+      throw new Error('Furgonetka odrzuciła dane aplikacji — FURGONETKA_REDIRECT_URI w .env musi być identyczny z adresem użytym przy autoryzacji.')
+    }
+    throw err
+  }
+  await saveFurgonetkaTokens(tokens)
+}
+
 // ─── access token (via refresh token) ────────────────────────────────────────
 
 // Źródła refresh tokena w kolejności: Redis (po autoryzacji w panelu i po

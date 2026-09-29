@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import {
@@ -9,12 +9,13 @@ import {
 } from 'lucide-react'
 import type { CheckState, IntegrationCheck } from '@/lib/admin/integrations'
 import type { EnvIssue } from '@/lib/env'
-import { adminTestIntegration } from '@/actions/adminIntegrations'
+import { adminFurgonetkaConnect, adminTestIntegration } from '@/actions/adminIntegrations'
 import { Badge, type BadgeTone } from '../kit/Badge'
 import { Button, buttonClass } from '../kit/Button'
 import { Card, CardHeader } from '../kit/Card'
 import { CopyField } from '../kit/CopyField'
 import { PillButton } from '../kit/Pill'
+import { TextField } from '../kit/TextField'
 import { cn } from '../kit/utils'
 
 const ICONS: Record<string, typeof Database> = {
@@ -192,6 +193,7 @@ export function IntegrationsView({
                       <Button size="sm" variant="ghost" onClick={() => void disconnectFurgonetka()}>
                         Rozłącz
                       </Button>
+                      <FurgonetkaPasteCode onConnected={() => router.refresh()} />
                     </>
                   )}
                   {check.id === 'autopay' && !isProduction && (
@@ -224,5 +226,51 @@ export function IntegrationsView({
         </div>
       </Card>
     </section>
+  )
+}
+
+/**
+ * Aplikacja OAuth w Furgonetce ma zarejestrowany adres przekierowania
+ * `localhost` — po „Autoryzuj konto” przeglądarka wraca na niedziałający
+ * `localhost…?code=…`. Ten adres wkleja się tutaj, serwer wymienia kod.
+ */
+function FurgonetkaPasteCode({ onConnected }: { onConnected: () => void }) {
+  const [value, setValue] = useState('')
+  const [error, setError] = useState<string | undefined>()
+  const [pending, startTransition] = useTransition()
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    setError(undefined)
+    startTransition(async () => {
+      const result = await adminFurgonetkaConnect(value)
+      if (!result.ok) {
+        setError(result.error)
+        return
+      }
+      setValue('')
+      toast.success('Konto Furgonetki połączone')
+      onConnected()
+    })
+  }
+
+  return (
+    <form onSubmit={submit} className="mt-1 flex w-full flex-col gap-2 border-t border-border pt-3">
+      <TextField
+        label="Adres po autoryzacji"
+        placeholder="http://localhost:3000/api/furgonetka/callback?code=…"
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        error={error}
+        hint="Po „Autoryzuj konto” Furgonetka wraca na zarejestrowany adres. Jeśli to localhost i strona się nie otworzy — skopiuj adres z paska i wklej tutaj (kod jest ważny kilka minut)."
+        autoComplete="off"
+        spellCheck={false}
+      />
+      <div>
+        <Button size="sm" type="submit" disabled={pending || !value.trim()}>
+          {pending ? 'Łączę…' : 'Połącz'}
+        </Button>
+      </div>
+    </form>
   )
 }
