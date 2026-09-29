@@ -9,7 +9,7 @@ import {
   getEmailTemplate,
   renderTemplate,
 } from '@/lib/emailTemplates'
-import { sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -19,7 +19,9 @@ export interface SubscribeNewsletterInput {
 }
 
 export type SubscribeNewsletterResult =
-  | { ok: true; alreadySubscribed: boolean }
+  // mailSent: czy mail powitalny z kodem faktycznie wyszedł (front mówi prawdę
+  // zamiast zawsze obiecywać „kod już leci”).
+  | { ok: true; alreadySubscribed: boolean; mailSent: boolean }
   | { ok: false; error: string }
 
 export async function subscribeToNewsletter(
@@ -38,6 +40,13 @@ export async function subscribeToNewsletter(
   }
 
   const unsubToken = crypto.randomUUID()
+
+  const [existing] = await db
+    .select({ isActive: newsletterSubscribers.isActive })
+    .from(newsletterSubscribers)
+    .where(eq(newsletterSubscribers.email, email))
+    .limit(1)
+  const alreadySubscribed = !!existing?.isActive
 
   // Upsert: ponowny zapis tego samego e-maila nie tworzy duplikatu —
   // reaktywuje subskrypcję, odświeża zgodę i zachowuje dotychczasowy token.
@@ -67,8 +76,9 @@ export async function subscribeToNewsletter(
     email
   )
 
+  let mailSent = false
   try {
-    await sendMail({
+    mailSent = await sendMail({
       to:      email,
       subject: template.subject,
       html:    template.html,
@@ -77,5 +87,5 @@ export async function subscribeToNewsletter(
     console.error('❌ Newsletter — błąd wysyłki maila powitalnego:', err)
   }
 
-  return { ok: true, alreadySubscribed: false }
+  return { ok: true, alreadySubscribed, mailSent }
 }

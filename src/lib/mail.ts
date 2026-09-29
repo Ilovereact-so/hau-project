@@ -39,10 +39,11 @@ export interface SendMailOptions {
   html:    string
 }
 
-export async function sendMail({ to, subject, html }: SendMailOptions): Promise<void> {
+/** Zwraca `false`, gdy SMTP nie jest skonfigurowany (mail nie wyszedł). Błąd wysyłki rzuca. */
+export async function sendMail({ to, subject, html }: SendMailOptions): Promise<boolean> {
   if (!smtpTransporter) {
     console.warn('⚠️ Mail — brak konfiguracji SMTP (SMTP_HOST/SMTP_PORT), mail nie został wysłany.')
-    return
+    return false
   }
 
   try {
@@ -52,6 +53,7 @@ export async function sendMail({ to, subject, html }: SendMailOptions): Promise<
       subject,
       html,
     })
+    return true
   } catch (err) {
     console.error('❌ Mail — błąd wysyłki przez SMTP:', err)
     throw err
