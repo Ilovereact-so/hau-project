@@ -124,11 +124,10 @@ const Newsletter = () => {
 }
 
 // ─── Potwierdzenie wysłania ─────────────────────────────────────────────────
-
-const MINT = '#6EB0A6'
-const MINT_BG = '#e2f3f0'
-const AMBER = '#C98A2B'
-const AMBER_BG = '#fbf0dc'
+//
+// Ten sam szklany panel co formularz (rozmiar, zaokrąglenie, rozmycie), żeby
+// sekcja nie „skakała”: nagłówek jak w formularzu, jedna linijka treści,
+// akcje w stylu sklepu (czarna pigułka jak „Wyślij”, link z podkreśleniem).
 
 function NewsletterSent({
   sent,
@@ -145,130 +144,84 @@ function NewsletterSent({
   const headingRef = useRef<HTMLHeadingElement>(null)
   const failed = !sent.mailSent
 
-  // Fokus na nagłówek — czytnik ekranu od razu ogłasza wynik, a klawiatura
-  // nie ląduje na znikniętym przycisku „Wyślij”.
+  // Fokus na nagłówek — czytnik ekranu ogłasza wynik, a klawiatura nie
+  // zostaje na przycisku „Wyślij”, który właśnie zniknął.
   useEffect(() => {
     headingRef.current?.focus({ preventScroll: true })
   }, [sent])
 
-  const accent = failed ? AMBER : MINT
-  const accentBg = failed ? AMBER_BG : MINT_BG
-
-  const title = failed
-    ? 'Zapisaliśmy Cię, ale…'
-    : sent.alreadySubscribed
-      ? 'Już jesteś z nami!'
-      : 'Jesteś na liście!'
-
-  const spring = reduceMotion
-    ? { duration: 0 }
-    : { type: 'spring' as const, stiffness: 320, damping: 18 }
+  const title = failed ? 'Zapisaliśmy Cię' : sent.alreadySubscribed ? 'Już jesteś z nami' : 'Sprawdź skrzynkę'
 
   return (
     <motion.div
       role='status'
       aria-live='polite'
-      initial={{ opacity: 0, y: 12, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
-      transition={{ duration: reduceMotion ? 0 : 0.28, ease: 'easeOut' }}
-      className='flex sm:flex-row flex-col sm:items-center items-start gap-5 w-full h-full bg-[#ffffff5d] p-6 rounded-[40px] backdrop-blur-[10px] sm:max-w-[520px]'
+      transition={{ duration: reduceMotion ? 0 : 0.2 }}
+      className='flex flex-col justify-center w-full h-full min-h-[190px] bg-[#ffffff5d] p-6 rounded-[40px] backdrop-blur-[10px]'
     >
-      {/* Koperta w kółku + odznaka ✓ / ↻ */}
-      <div className='relative shrink-0 w-[72px] h-[72px]'>
-        {!reduceMotion && !failed && (
-          <motion.span
-            aria-hidden
-            className='absolute inset-0 rounded-full'
-            style={{ backgroundColor: accentBg }}
-            initial={{ scale: 1, opacity: 0.8 }}
-            animate={{ scale: 1.6, opacity: 0 }}
-            transition={{ duration: 1.1, ease: 'easeOut', delay: 0.35 }}
-          />
-        )}
-        <motion.div
-          aria-hidden
-          className='relative w-full h-full rounded-full flex items-center justify-center'
-          style={{ backgroundColor: accentBg }}
-          initial={{ scale: 0.6 }}
-          animate={{ scale: 1 }}
-          transition={spring}
-        >
-          <motion.span
-            initial={reduceMotion ? false : { y: 10, opacity: 0, rotate: -12 }}
-            animate={{ y: 0, opacity: 1, rotate: 0 }}
-            transition={{ ...spring, delay: reduceMotion ? 0 : 0.1 }}
-          >
-            <Mail size={30} strokeWidth={1.8} style={{ color: accent }} />
-          </motion.span>
-        </motion.div>
+      <div className='flex items-center gap-2'>
         <motion.span
           aria-hidden
-          className='absolute -right-1 -bottom-1 w-7 h-7 rounded-full flex items-center justify-center border-[3px] border-white'
-          style={{ backgroundColor: accent }}
+          className={`grid size-6 place-items-center rounded-full ${failed ? 'bg-black/10 text-black' : 'bg-[#6EB0A6] text-white'}`}
           initial={reduceMotion ? false : { scale: 0 }}
           animate={{ scale: 1 }}
-          transition={{ ...spring, delay: reduceMotion ? 0 : 0.3 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 22, delay: 0.1 }}
         >
-          {failed
-            ? <RotateCw size={13} strokeWidth={3} className='text-white' />
-            : <Check size={14} strokeWidth={3.5} className='text-white' />}
+          {failed ? <Mail size={13} strokeWidth={2.2} /> : <Check size={14} strokeWidth={3} />}
         </motion.span>
+        <p className='text-black/60 text-[clamp(12px,1.1vw,14px)] font-medium'>
+          {failed ? 'Zapis przyjęty' : 'Zapisano do newslettera'}
+        </p>
       </div>
 
-      <div className='flex flex-col min-w-0'>
-        <h2
-          ref={headingRef}
-          tabIndex={-1}
-          className='text-black font-poppins font-semibold text-[clamp(18px,1.6vw,24px)] leading-tight outline-none'
-        >
-          {title}{!failed && <span aria-hidden> 🐾</span>}
-        </h2>
+      <h2
+        ref={headingRef}
+        tabIndex={-1}
+        className='mt-3 text-black font-poppins font-medium text-[clamp(18px,1.6vw,26px)] leading-tight outline-none'
+      >
+        {title}
+      </h2>
 
-        <p className='mt-1.5 text-black/80 text-[clamp(13px,1.1vw,15px)] leading-snug'>
-          {failed ? (
-            <>Adres <Address email={sent.email} /> jest na liście, ale wiadomość z&nbsp;kodem −10% nie wyszła.</>
-          ) : sent.alreadySubscribed ? (
-            <>Ten adres był już zapisany — kod −10% wysłaliśmy jeszcze raz na <Address email={sent.email} />.</>
-          ) : (
-            <>Kod rabatowy −10% wysłaliśmy na <Address email={sent.email} />.</>
-          )}
-        </p>
-
-        {!failed && (
-          <p className='mt-1 text-black/55 text-[13px] leading-snug'>
-            Nie widzisz wiadomości? Zajrzyj do folderu Spam lub Oferty.
-          </p>
+      <p className='mt-1.5 text-black/70 text-[clamp(13px,1.1vw,15px)] leading-snug max-w-[440px]'>
+        {failed ? (
+          <>Adres <Address email={sent.email} /> jest na liście, ale nie udało się wysłać wiadomości z kodem −10%.</>
+        ) : sent.alreadySubscribed ? (
+          <>Kod −10% wysłaliśmy ponownie na <Address email={sent.email} />.</>
+        ) : (
+          <>Kod −10% na pierwsze zamówienie wysłaliśmy na <Address email={sent.email} />. Nie widzisz go? Zajrzyj do Spamu lub Ofert.</>
         )}
+      </p>
 
-        <div className='mt-4 flex flex-wrap items-center gap-2'>
-          {failed && (
-            <button
-              type='button'
-              onClick={onRetry}
-              disabled={isPending}
-              className='text-white font-medium text-[14px] px-5 h-10 inline-flex items-center gap-2 bg-fancy-black rounded-[18px] cursor-pointer hover:opacity-90 ease-in-out duration-200 disabled:opacity-60 disabled:cursor-not-allowed'
-            >
-              <RotateCw size={15} className={isPending ? 'animate-spin' : ''} />
-              {isPending ? 'Wysyłanie…' : 'Wyślij ponownie'}
-            </button>
-          )}
+      <div className='mt-4 flex flex-wrap items-center gap-x-4 gap-y-2'>
+        {failed && (
           <button
             type='button'
-            onClick={onReset}
+            onClick={onRetry}
             disabled={isPending}
-            className='text-black font-medium text-[14px] px-5 h-10 inline-flex items-center bg-white/80 hover:bg-white rounded-[18px] cursor-pointer ease-in-out duration-200 disabled:opacity-60'
+            className='text-white font-medium text-[clamp(12px,1.2vw,15px)] px-6 h-[clamp(36px,3.2vw,46px)] inline-flex items-center gap-2 bg-fancy-black rounded-[22px] cursor-pointer hover:opacity-90 ease-in-out duration-200 disabled:opacity-60 disabled:cursor-not-allowed'
           >
-            {failed ? 'Zmień adres' : 'Zapisz inny adres'}
+            {isPending && <RotateCw size={14} className='animate-spin' aria-hidden />}
+            {isPending ? 'Wysyłanie…' : 'Wyślij ponownie'}
           </button>
-        </div>
+        )}
+        <button
+          type='button'
+          onClick={onReset}
+          disabled={isPending}
+          className='text-black text-[clamp(12px,1.1vw,14px)] underline underline-offset-4 decoration-black/30 hover:decoration-black cursor-pointer disabled:opacity-60'
+        >
+          {failed ? 'Zmień adres' : 'Zapisz inny adres'}
+        </button>
       </div>
     </motion.div>
   )
 }
 
 function Address({ email }: { email: string }) {
-  return <strong className='font-semibold text-black break-all'>{email}</strong>
+  return <strong className='font-medium text-black break-words'>{email}</strong>
 }
 
 export default Newsletter

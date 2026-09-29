@@ -3,6 +3,7 @@ import { MailCheck, MailX, UserPlus } from 'lucide-react'
 import { getNewsletterStats } from '@/lib/admin/ordersQueries'
 import { DEFAULT_NEWSLETTER_WELCOME, NEWSLETTER_WELCOME_KEY, getEmailTemplate } from '@/lib/emailTemplates'
 import { requireAdmin } from '@/lib/admin/guard'
+import { SITE_URL } from '@/lib/site'
 import { StatCard } from '@/components/admin/kit/StatCard'
 import { ErrorBox } from '@/components/admin/kit/EmptyState'
 import { NewsletterTemplateEditor } from '@/components/admin/marketing/NewsletterTemplateEditor'
@@ -32,6 +33,7 @@ export default async function AdminMarketingPage() {
       <NewsletterTemplateEditor
         initial={template}
         defaults={{ subject: DEFAULT_NEWSLETTER_WELCOME.subject, html: DEFAULT_NEWSLETTER_WELCOME.html }}
+        shopUrl={SITE_URL}
       />
 
       <SubscribersCard subscribers={stats?.recent ?? []} />

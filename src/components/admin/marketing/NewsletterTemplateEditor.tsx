@@ -18,9 +18,11 @@ import { cn } from '../kit/utils'
 export function NewsletterTemplateEditor({
   initial,
   defaults,
+  shopUrl,
 }: {
   initial: { subject: string; html: string }
   defaults: { subject: string; html: string }
+  shopUrl: string
 }) {
   const [subject, setSubject] = useState(initial.subject)
   const [html, setHtml] = useState(initial.html)
@@ -42,7 +44,7 @@ export function NewsletterTemplateEditor({
       toast.success('Szablon maila zapisany')
     })
 
-  const preview = html.replaceAll('{{email}}', previewEmail)
+  const preview = html.replaceAll('{{email}}', previewEmail).replaceAll('{{shopUrl}}', shopUrl)
 
   return (
     <Card className="flex flex-col">
@@ -51,7 +53,8 @@ export function NewsletterTemplateEditor({
         title="Mail powitalny newslettera"
         subtitle={
           <>
-            Wysyłany po zapisie do newslettera. Placeholder <code className="font-mono">{'{{email}}'}</code> zostanie zastąpiony adresem subskrybenta.
+            Wysyłany po zapisie do newslettera. <code className="font-mono">{'{{email}}'}</code> — adres subskrybenta,{' '}
+            <code className="font-mono">{'{{shopUrl}}'}</code> — adres sklepu. Zapisany szablon ma pierwszeństwo przed domyślnym.
           </>
         }
         actions={
