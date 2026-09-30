@@ -30,3 +30,4 @@ postępy.json
 .env.production
 !.env.example
 .env
+dump.rdb
