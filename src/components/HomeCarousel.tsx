@@ -76,20 +76,28 @@ const HomeCarousel = ({ collections }: Props) => {
                     key={index} className='w-full h-full overflow-hidden flex justify-center items-center top-0 left-0 z-[9] absolute '> {/**style={{backgroundImage:`url('${item.baner}')`}} */}
                     <div className="relative w-full h-full overflow-hidden z-1">
                       {/* FOREGROUND IMAGE */}
+                      {/* `fill` = obraz absolutny na 100% x 100% kontenera. Wcześniej miał
+                          width/height i tylko `w-full` — wysokość brał z rozciągania
+                          elementu flex, czego Safari (iOS) nie robi dla <img>: liczył
+                          wysokość z proporcji 1648×912 i zdjęcie nie wypełniało banera. */}
                       {image &&
-                      <div className="absolute top-0 left-1/2 -translate-x-1/2 z-[2] h-full w-full max-w-[120vw] overflow-hidden flex justify-center">
+                      <div className="absolute inset-0 z-[2] overflow-hidden">
                         <Image
                           src={image}
                           alt={item.image?.alt || item.title}
-                          width={1648}
-                          height={912}
-                          className=" object-cover sm:object-top w-full object-[65%] relative ease-in-out duration-300"
-                          priority
+                          fill
+                          sizes="100vw"
+                          className="object-cover object-[65%] sm:object-top ease-in-out duration-300"
+                          priority={index === 0}
                         />
                       </div>
                       }
                     </div>
-                    <Container className="absolute w-full h-full z-2">
+                    {/* Gradient pod tekstem (telefon). pointer-events-none: wcześniej
+                        leżał NAD przyciskiem i przejmował dotknięcia — „Sprawdź ofertę”
+                        był na telefonach nieklikalny. */}
+                    <div aria-hidden className="absolute sm:hidden block w-full h-full top-0 left-0 z-[2] pointer-events-none bg-gradient-to-t from-black/30 from-30% to-50% to-transparent"></div>
+                    <Container className="absolute w-full h-full z-[3]">
                       <div className='absolute w-full flex flex-col z-[4] xl:pl-30 lg:pl-22 pl-[7%] lg:pr-10 pr-[7%] sm:bottom-[18%] bottom-[14%]'>
                           <h1 className='text-white sm:text-[clamp(40px,5vw,96px)] text-[25px] font-poppins sm:font-bold font-medium 1xl:leading-[110px] sm:leading-[90px] leading-[40px]'>{item.title}</h1>
                           <div className='text-white sm:text-[clamp(16px,1.5vw,22px)] font-poppins text-[13.7px] mb-5 max-w-[600px]'>
@@ -111,7 +119,6 @@ const HomeCarousel = ({ collections }: Props) => {
                           )}
                       </div>
                     </Container>
-                    <div className="absolute sm:hidden block w-full h-full top-0 left-0 z-2 bg-gradient-to-t from-black/30 from-30% to-50% to-transparent"></div>
                 </motion.div>
             )})}
             {collections &&
