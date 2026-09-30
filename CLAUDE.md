@@ -15,7 +15,7 @@ npm run typegen   # Regenerate TypeScript types from Sanity schema
 
 This is a Next.js 15 e-commerce app using the App Router. The three main data systems are:
 
-- **Sanity CMS** — product catalog (products, categories, subcategories, collections, banners). Queried via GROQ from `src/sanity/helpers/`. The Sanity Studio is mounted at `/studio` via `src/app/studio/`.
+- **Sanity CMS** — product catalog (products, categories, subcategories, collections, banners). Queried via GROQ from `src/sanity/helpers/`. The Sanity Studio is mounted at `/studio` via `src/app/studio/` — **tylko dla adminów** (middleware: `/studio(.*)` jest w `isAdminRoute`; niezalogowany → `/sign-in?redirect_url=…`, bez roli → `/403`). Studio w przeglądarce rozmawia wprost z API Sanity, więc domena sklepu musi być w sanity.io/manage → API → CORS origins z „Allow credentials”.
 - **MySQL via Drizzle ORM** — transactional data: cart items, wishlist, orders, product reviews, price history. Schema in `src/db/`. Config in `drizzle.config.ts`. Migracje SQL w `drizzle/` (`0001_product_price_history.sql` — rejestr cen).
 - **Redis** — caching layer for cart and wishlist with TTL-based expiry. Client in `src/lib/`.
 

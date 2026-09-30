@@ -10,7 +10,6 @@ const isPublicRoute = createRouteMatcher([
   '/sso-callback(.*)',
   '/403',
   '/404',
-  '/studio(.*)',
   '/api/sanity/(.*)',
   '/api/webhooks/(.*)',
   '/api/furgonetka/(.*)',
@@ -49,7 +48,10 @@ const isPublicRoute = createRouteMatcher([
 
 // `/upload` to dawny uploader CSV z grupy (admin) — dziś tylko przekierowuje
 // do /admin/import, ale nie może być dostępny bez roli admina.
-const isAdminRoute = createRouteMatcher(['/admin(.*)', '/upload(.*)'])
+// `/studio` — Sanity Studio (redakcja katalogu) tylko dla adminów sklepu.
+// Wcześniej było na liście publicznych: otwierał je każdy, a jedyną ochroną
+// było logowanie do Sanity.
+const isAdminRoute = createRouteMatcher(['/admin(.*)', '/upload(.*)', '/studio(.*)'])
 
 // Sekcje konta w /profile (dane, zamówienia, płatności) wymagają logowania.
 // /profile/wishlist jest publiczne (patrz wyżej) — publiczne trasy są
@@ -90,6 +92,12 @@ export default clerkMiddleware(async (auth, req) => {
 
   // admin routes — require admin role
   if (isAdminRoute(req)) {
+    // Niezalogowany → logowanie z powrotem pod żądany adres (zamiast 403).
+    if (!userId) {
+      const url = new URL('/sign-in', req.url)
+      url.searchParams.set('redirect_url', req.nextUrl.pathname + req.nextUrl.search)
+      return NextResponse.redirect(url)
+    }
     const role = (sessionClaims?.metadata as { role?: string })?.role
     if (role !== 'admin') {
       return NextResponse.redirect(new URL('/403', req.url))
