@@ -55,7 +55,7 @@ const ProfileMenu = ({ selected }: { selected: number }) => {
                 className={`group flex items-center gap-1.5 text-[#6C6C6C] hover:text-black/60 transition-colors cursor-pointer ${textClass}`}
               >
                 {item.text}
-                <Lock stroke-width={2.4} className='w-[14px] h-[14px] group-hover:opacity-100 text-[#6C6C6C]' aria-hidden />
+                <Lock strokeWidth={2.4} className='w-[14px] h-[14px] group-hover:opacity-100 text-[#6C6C6C]' aria-hidden />
               </button>
             ) : (
               <Link

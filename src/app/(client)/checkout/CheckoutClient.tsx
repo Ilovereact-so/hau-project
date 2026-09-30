@@ -94,8 +94,11 @@ export default function CheckoutClient({ services, savedAddress, userSlot }: Pro
 
   useEffect(() => { 
     try{
-      if(savedAddress){
-        setAddress(savedAddress)
+      // Krok adresu pomijamy tylko przy KOMPLETNYCH danych — z profilu da się
+      // zapisać same dane odbiorcy bez adresu; wtedy tylko wypełniają formularz.
+      const a = savedAddress
+      if(a && a.firstName && a.lastName && a.email && a.phone && a.street && a.city && a.postalCode){
+        setAddress(a)
         setStep(1)
       }
     }finally{
