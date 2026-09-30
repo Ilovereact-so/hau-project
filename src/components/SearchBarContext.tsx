@@ -49,7 +49,6 @@ const SearchBarContext = ({mode, isChangeMode, mobile, showSearchBar, focusChang
     const { results, loading } = useProductSearch(query)
     const md = useMediaQuery('(max-width: 920px)')
     const anchorRef = useRef<HTMLDivElement>(null)
-    const counts: Record<string, number> = {}
 
     const { recentTerms, recentProducts, addTerm, addProduct } = useRecentSearches()
     // Fallback gdy nie ma jeszcze żadnej historii — patrz Context niżej (displayTerms).
@@ -154,11 +153,25 @@ const SearchBarContext = ({mode, isChangeMode, mobile, showSearchBar, focusChang
         commitSearch(trimmed);
     };
 
-    results.forEach((item) => {
-    const key = item.path
+    // Podpowiedzi = podkategorie trafionych produktów („Kategoria / Typ” + liczba),
+    // każda prowadzi na swoją listę produktów (/subcategory/[slug]).
+    const suggestions: Suggestion[] = []
+    for (const item of results) {
+        const slug = item.type?.slug
+        if (!slug) continue
+        const existing = suggestions.find((s) => s.slug === slug)
+        if (existing) existing.count++
+        else suggestions.push({ slug, label: item.path, count: 1 })
+    }
 
-    counts[key] = (counts[key] || 0) + 1
-    })
+    // Klik w podpowiedź: jak klik w kartę produktu — zapis frazy, zamknięcie
+    // panelu (bez history.back, patrz onCommitSearch) i nawigacja.
+    const handleSuggestionClick = (href: string) => {
+        if (query.trim().length >= 2) addTerm(query.trim());
+        handleChange("");
+        onCommitSearch?.();
+        router.push(href);
+    };
 
     const resultsMask = mode === 0 && mobile
         ? { WebkitMaskImage: RESULTS_TOP_FADE, maskImage: RESULTS_TOP_FADE }
@@ -251,10 +264,10 @@ const SearchBarContext = ({mode, isChangeMode, mobile, showSearchBar, focusChang
                     mode===1 zawsze idzie przez portal, żeby to była jedna, stabilna instancja
                     przez cały cykl otwórz → pisz → zamknij. */}
                 {mode === 0 ? (
-                    <Context loading={loading} mode={mode} mobile={mobile} showSearchBar={showSearchBar} results={results} query={query} counts={counts} handleChange={handleChange} recentTerms={recentTerms} recentProducts={recentProducts} popularTerms={popularTerms} onTermClick={handleTermClick} onProductClick={handleProductClick} onClose={handleClose} />
+                    <Context loading={loading} mode={mode} mobile={mobile} showSearchBar={showSearchBar} results={results} query={query} suggestions={suggestions} onSuggestionClick={handleSuggestionClick} handleChange={handleChange} recentTerms={recentTerms} recentProducts={recentProducts} popularTerms={popularTerms} onTermClick={handleTermClick} onProductClick={handleProductClick} onClose={handleClose} />
                 ):(
                     <SearchPortal anchorRef={anchorRef} query={query} results={results} loading={loading} showSearchBar={showSearchBar}>
-                        <Context loading={loading} mode={mode} mobile={mobile} showSearchBar={showSearchBar} results={results} query={query} counts={counts} handleChange={handleChange} recentTerms={recentTerms} recentProducts={recentProducts} popularTerms={popularTerms} onTermClick={handleTermClick} onProductClick={handleProductClick} onClose={handleClose} />
+                        <Context loading={loading} mode={mode} mobile={mobile} showSearchBar={showSearchBar} results={results} query={query} suggestions={suggestions} onSuggestionClick={handleSuggestionClick} handleChange={handleChange} recentTerms={recentTerms} recentProducts={recentProducts} popularTerms={popularTerms} onTermClick={handleTermClick} onProductClick={handleProductClick} onClose={handleClose} />
                     </SearchPortal>
 
                 )}
@@ -355,6 +368,8 @@ const ProductCard = ({ product, mode, onClick }: { product: RecentProduct & { va
     )
 }
 
+type Suggestion = { slug: string; label: string; count: number }
+
 type contextProps = {
     loading: boolean,
     mode: number,
@@ -362,7 +377,8 @@ type contextProps = {
     showSearchBar?: boolean,
     results: any[],
     query: string,
-    counts: Record<string, number>,
+    suggestions: Suggestion[],
+    onSuggestionClick: (href: string) => void,
     handleChange: (e:string) => void,
     recentTerms: string[],
     recentProducts: RecentProduct[],
@@ -371,7 +387,7 @@ type contextProps = {
     onProductClick: (product: RecentProduct) => void,
     onClose?: VoidFunction,
 }
-const Context = ({loading, mode, mobile, showSearchBar, results, query, counts, handleChange, recentTerms, recentProducts, popularTerms, onTermClick, onProductClick, onClose}:contextProps)=>{
+const Context = ({loading, mode, mobile, showSearchBar, results, query, suggestions, onSuggestionClick, handleChange, recentTerms, recentProducts, popularTerms, onTermClick, onProductClick, onClose}:contextProps)=>{
 
     const [startContentDelay,setStartContentDelay] = useState(false)
     const showRecentProducts =  showSearchBar && recentProducts.length > 0
@@ -466,16 +482,33 @@ const Context = ({loading, mode, mobile, showSearchBar, results, query, counts, 
                                         <div className='flex flex-col p-2 pt-4 font-poppins w-full'>
                                             <h1 className={` text-black font-medium ${
                                                 mode === 1 ? "text-[clamp(12px,1.6vw,14px)]":"text-[clamp(14px,1.6vw,16px)]"
-                                            }`}>Podpowiedz wyszukiwania:</h1>
+                                            }`}>Podpowiedzi wyszukiwania:</h1>
                                             <div className='flex flex-col mt-2 px-4 w-full 2md:text-nowrap 2md:space-y-1 space-y-2'>
-                                                {Object.entries(counts).map(([key, count]) => (
-                                                    <div key={key} className={`text-black space-x-4 flex justify-start items-center ${
-                                                        mode === 1 ? "text-[clamp(12px,1.6vw,14px)]":"text-[clamp(14px,1.6vw,16px)]"
-                                                    }`}>
-                                                        <p>{count}</p>
-                                                        <p>{key}</p>
-                                                    </div>
-                                                ))}
+                                                {suggestions.map((suggestion) => {
+                                                    const href = `/subcategory/${encodeURIComponent(suggestion.slug)}`
+                                                    return (
+                                                        <Link
+                                                            key={suggestion.slug}
+                                                            href={href}
+                                                            onClick={(e) => {
+                                                                // Jak w ProductCard: modyfikatory = natywne „nowa karta”,
+                                                                // lewy klik — sprzątanie panelu i nawigacja u rodzica.
+                                                                // stopPropagation: bez tego klik bąbelkuje do
+                                                                // onClick={openSearchBar} w NavRMenu i otwiera search od nowa.
+                                                                if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                                                                e.preventDefault();
+                                                                e.stopPropagation();
+                                                                onSuggestionClick(href);
+                                                            }}
+                                                            className={`group text-black gap-x-4 flex justify-start items-center rounded-full -mx-2 px-2 py-0.5 hover:bg-black/5 transition-colors ${
+                                                                mode === 1 ? "text-[clamp(12px,1.6vw,14px)]":"text-[clamp(14px,1.6vw,16px)]"
+                                                            }`}
+                                                        >
+                                                            <span className='min-w-[1.5ch] text-[#6C6C6C] tabular-nums'>{suggestion.count}</span>
+                                                            <span className='group-hover:underline underline-offset-2'>{suggestion.label}</span>
+                                                        </Link>
+                                                    )
+                                                })}
                                             </div>
                                         </div>
                                     </motion.div>
