@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState, useTransition, type FormEvent } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { ChevronDown, Info, Loader2, TicketPercent, X } from 'lucide-react'
+import { Check, ChevronDown, Info, Loader2, TicketPercent, X } from 'lucide-react'
 import useStore from 'store'
 import { cn } from '@/lib/utils'
 import { previewDiscountCode } from '@/actions/discounts'
@@ -121,7 +121,7 @@ export default function DiscountCodePanel({
                   onRemove={remove}
                 />
               ) : (
-                <form onSubmit={apply} noValidate className="flex flex-col gap-1.5">
+                <form onSubmit={apply} noValidate className="flex flex-col gap-1.5 w-auto">
                   <label htmlFor={`${panelId}-input`} className="sr-only">Kod rabatowy</label>
                   <div className="flex gap-2">
                     <input
@@ -137,7 +137,7 @@ export default function DiscountCodePanel({
                       aria-invalid={Boolean(error) || undefined}
                       aria-describedby={error ? `${panelId}-error` : undefined}
                       className={cn(
-                        'w-full min-w-0 bg-white border text-black rounded-full px-4 sm:py-2.5 py-2',
+                        'w-auto min-w-0 bg-white border text-black rounded-full px-4 sm:py-2.5 py-2',
                         'text-[clamp(14px,1.4vw,15px)] font-poppins uppercase placeholder:normal-case placeholder:text-[#BBBBBB]',
                         'focus:outline-none transition-colors',
                         error ? 'border-red-400' : 'border-black',
@@ -146,14 +146,14 @@ export default function DiscountCodePanel({
                     <button
                       type="submit"
                       disabled={pending}
-                      className="shrink-0 inline-flex items-center justify-center gap-1.5 rounded-full bg-fancy-black text-white px-5 text-[clamp(13px,1.3vw,15px)] font-medium cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-wait"
+                      className="shrink-0 inline-flex items-center justify-center rounded-[15px] bg-fancy-black text-white p-2 font-medium cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-wait h-fit"
                     >
-                      {pending && <Loader2 size={15} className="animate-spin" aria-hidden />}
-                      {pending ? 'Sprawdzam' : 'Zastosuj'}
+                      
+                      {pending ? <Loader2 size={15} className="animate-spin" aria-hidden /> : <Check size={18} className='text-white'/>}
                     </button>
                   </div>
                   {error && (
-                    <p id={`${panelId}-error`} role="alert" className="px-4 text-[13px] text-red-600">
+                    <p id={`${panelId}-error`} role="alert" className="px-4 text-[13px] text-red-600 text-wrap max-w-[250px]">
                       {error}
                     </p>
                   )}
