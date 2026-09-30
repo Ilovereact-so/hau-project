@@ -188,6 +188,17 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
     // "Zastosuj" i kosz w drawerze (Portal), zamiast każdy z nich osobno sprawdzał
     // tylko isSelectedList i ignorował priceValue.
     const hasAnySelection = isSelectedList.some(item => item.selected.length > 0) || !isPriceDefault
+    // Czy stan w panelu różni się od zastosowanego (z adresu). Bez tego „Zastosuj”
+    // znikał po odznaczeniu OSTATNIEGO filtra: nic nie było zaznaczone, więc
+    // przycisk był zablokowany, a zmiana (wyczyszczenie filtrów) nie dała się
+    // zastosować — lista zostawała przefiltrowana.
+    const selectionKey = (entries: Array<[string, string[]]>) =>
+        JSON.stringify(entries.filter(([, ids]) => ids.length).map(([id, ids]) => [id, [...ids].sort()]).sort())
+    const hasPendingChanges =
+        selectionKey(hydrated.map(h => [h.parent_id, h.filters.map(f => f._id)])) !==
+            selectionKey(isSelectedList.map(item => [item._id, item.selected.map(v => v._id)])) ||
+        priceValue !== isPriceFilter
+    const canApply = hasAnySelection || hasPendingChanges
 
     const [isOpenMenu, setOpenMenu] = useState(false)
     const router = useRouter()
@@ -431,7 +442,13 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
                                 <div className='w-full text-[clamp(13px,1.1vw,15px)] text-white pb-2 flex-1 min-h-0 filterOutscroll overflow-auto max-h-[200px]'>
                                     <AnimatePresence key={hasAnySelection ? "selected":"empty"}>
                                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                                            {hasAnySelection ? <h1 className='px-6'>Wybrano:</h1> : <h1 className='px-6 text-white/80'>Brak wybranych filtrów</h1>}
+                                            {hasAnySelection ? (
+                                                <h1 className='px-6'>Wybrano:</h1>
+                                            ) : hasPendingChanges ? (
+                                                <h1 className='px-6 text-white/80'>Brak wybranych filtrów — kliknij „Zastosuj”, aby je wyczyścić</h1>
+                                            ) : (
+                                                <h1 className='px-6 text-white/80'>Brak wybranych filtrów</h1>
+                                            )}
                                             {!isPriceDefault && (
                                                 <div>
                                                     <h1 className='ml-3 md:mt-3 mt-1 px-7'>Cena:</h1>
@@ -474,7 +491,7 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
                                 <hr className='mx-4 my-2'/>
                                 <div className='w-full flex justify-start space-x-5 px-5 items-center shrink-0 '>
                                     <div onClick={()=>{changeFilter(isSelectedList, priceValue);setOpenMenu(false)}} className={`bg-black rounded-full cursor-pointer px-6 py-2 w-fit text-white font-medium text-[clamp(13px,1.4vw,15px)] ${
-                                        hasAnySelection ? "bg-black text-white cursor-pointer":"bg-[#00000031] text-white/50 cursor-not-allowed pointer-events-none"
+                                        canApply ? "bg-black text-white cursor-pointer":"bg-[#00000031] text-white/50 cursor-not-allowed pointer-events-none"
                                     }`}>Zastosuj</div>
                                     <Trash
                                     onClick={() => {
