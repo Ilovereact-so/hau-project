@@ -160,10 +160,41 @@ const components: PortableTextComponents = {
  */
 export const portableTextBaseComponents = components
 
+// Word/Docs przy wklejaniu potrafi skleić całe zdania twardymi spacjami (U+00A0).
+// Taki ciąg nie łamie się na końcu linii i na telefonie wychodzi poza ekran
+// (przeglądarka rozszerza wtedy całą stronę). Łańcuch 3+ słów połączonych
+// twardymi spacjami zamieniamy na zwykłe spacje; pojedyncze twarde spacje
+// (np. „w Tarnowie” — polska typografia) zostają.
+const NBSP_CHAIN = /(?:[^\s\u00A0]+\u00A0){3,}[^\s\u00A0]+/g
+
+function relaxNbspChains(value: any[]): any[] {
+    return value.map((block) => {
+        if (block?._type !== 'block' || !Array.isArray(block.children)) return block
+        let changed = false
+        const children = block.children.map((child: any) => {
+            if (typeof child?.text !== 'string' || !child.text.includes('\u00A0')) return child
+            const text = child.text.replace(NBSP_CHAIN, (m: string) => m.replace(/\u00A0/g, ' '))
+            if (text === child.text) return child
+            changed = true
+            return { ...child, text }
+        })
+        return changed ? { ...block, children } : block
+    })
+}
+
+/**
+ * `overflow-wrap:anywhere` — siatka bezpieczeństwa dla ciągów bez miejsca na
+ * złamanie (długi e-mail, adres, sklejony tekst): łamią się w środku zamiast
+ * wypychać treść poza ekran telefonu. Zwykłe słowa łamią się normalnie.
+ */
 const PortableTextContent = ({ value, anchors }: { value?: any[]; anchors?: HeadingAnchors }) => {
     if (!value || value.length === 0) return null
     const withAnchors = anchors?.size ? { ...components, block: buildBlockComponents(anchors) } : components
-    return <PortableText value={value} components={withAnchors} />
+    return (
+        <div className="min-w-0 [overflow-wrap:anywhere]">
+            <PortableText value={relaxNbspChains(value)} components={withAnchors} />
+        </div>
+    )
 }
 
 export default PortableTextContent

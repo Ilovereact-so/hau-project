@@ -135,11 +135,11 @@ const HelpDocumentPage = async ({ params }: PageProps) => {
               <span className="grid size-14 place-items-center rounded-full bg-[#e2f3f0] text-[#6EB0A6]" aria-hidden>
                 <Icon className="size-[26px]" />
               </span>
-              <h1 className="mt-5 text-fancy-black font-semibold text-[clamp(26px,3.4vw,40px)] leading-[1.15] tracking-[-0.02em]">
+              <h1 className="mt-5 text-fancy-black font-semibold text-[clamp(26px,3.4vw,40px)] leading-[1.15] tracking-[-0.02em] [overflow-wrap:anywhere]">
                 {title}
               </h1>
               {lead && (
-                <p className="mt-4 text-[#555555] text-[clamp(15px,1.6vw,18px)] leading-[1.6]">{lead}</p>
+                <p className="mt-4 text-[#555555] text-[clamp(15px,1.6vw,18px)] leading-[1.6] [overflow-wrap:anywhere]">{lead}</p>
               )}
               {(updatedAt || readingTime) && (
                 <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-[#EAEAEA] pt-5 text-[14px] text-[#5A5A5A]">
