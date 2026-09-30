@@ -517,11 +517,31 @@ export async function uploadImageAsset(file: File) {
   if (!file.type.startsWith('image/')) throw new Error('Plik musi być obrazem (JPG, PNG, WebP…).')
   if (file.size > MAX_IMAGE_BYTES) throw new Error('Zdjęcie jest większe niż 10 MB.')
   const buffer = Buffer.from(await file.arrayBuffer())
-  const asset = await sanityClient.assets.upload('image', buffer, {
-    filename: file.name || 'zdjecie',
-    contentType: file.type,
-  })
+  // Bez limitu czasu zawieszone połączenie z Sanity wisiało w nieskończoność,
+  // a panel pokazywał „Wysyłam…” bez końca.
+  const started = Date.now()
+  const asset = await withTimeout(
+    sanityClient.assets.upload('image', buffer, {
+      filename: file.name || 'zdjecie',
+      contentType: file.type,
+    }),
+    UPLOAD_TIMEOUT_MS,
+    'Sanity nie odpowiedziało na wysyłkę zdjęcia w ciągu 90 s.',
+  )
+  console.info(`[images] upload ${file.name} ${(buffer.length / 1024).toFixed(0)} kB → ${asset._id} (${Date.now() - started} ms)`)
   return asset
+}
+
+const UPLOAD_TIMEOUT_MS = 90_000
+
+export function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(message)), ms)
+    }),
+  ]).finally(() => clearTimeout(timer))
 }
 
 export async function addProductImage(id: string, file: File, alt: string, variantKeys: string[] = []) {

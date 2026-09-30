@@ -1,5 +1,6 @@
 'use client'
 
+import { uploadAdminImage } from '@/lib/adminImageUpload'
 import { useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
@@ -8,7 +9,7 @@ import {
 } from 'lucide-react'
 import type { AdminCategory, AdminSubcategory } from '@/lib/admin/catalog'
 import {
-  adminRemoveSubcategoryImage, adminRenameTaxonomy, adminUploadSubcategoryImage,
+  adminRemoveSubcategoryImage, adminRenameTaxonomy,
 } from '@/actions/adminProducts'
 import { Badge } from '../kit/Badge'
 import { ButtonLink, IconButton } from '../kit/Button'
@@ -242,11 +243,7 @@ function SubcategoryCard({ sub }: { sub: AdminSubcategory }) {
   const upload = async (file: File) => {
     setBusy(true)
     setError('')
-    const form = new FormData()
-    form.set('subcategoryId', sub.id)
-    form.set('alt', sub.title)
-    form.set('file', file)
-    const result = await adminUploadSubcategoryImage(form)
+    const result = await uploadAdminImage<string>({ target: 'subcategory', id: sub.id, alt: sub.title, file })
     setBusy(false)
     if (fileRef.current) fileRef.current.value = ''
     if (!result.ok) {

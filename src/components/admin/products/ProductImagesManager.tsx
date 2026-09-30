@@ -1,5 +1,6 @@
 'use client'
 
+import { uploadAdminImage } from '@/lib/adminImageUpload'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { Check, ImagePlus, Loader2, Star, Trash2, X } from 'lucide-react'
@@ -8,7 +9,6 @@ import {
   adminMakeImagePrimary,
   adminRemoveProductImage,
   adminSetImagesVariants,
-  adminUploadProductImage,
 } from '@/actions/adminProducts'
 import { matchFileToProduct, variantKeysForValues } from '@/lib/variantImages'
 import { prepareImageForUpload } from '@/lib/imageUpload'
@@ -149,12 +149,13 @@ export function ProductImagesManager({ product, alt, onChanged, onError, onBusyC
         const file = await prepareImageForUpload(original)
         const match = matchFileToProduct(original.name, [product.slug ?? '', product.sku ?? ''], knownValues)
         const keys = match ? variantKeysForValues(variantLikes, match.values) : []
-        const form = new FormData()
-        form.set('productId', product.id)
-        form.set('alt', alt || product.title)
-        form.set('file', file)
-        for (const key of keys) form.append('variantKeys', key)
-        const result = await adminUploadProductImage(form)
+        const result = await uploadAdminImage<{ key: string; url: string; variantKeys: string[] }>({
+          target: 'product',
+          id: product.id,
+          alt: alt || product.title,
+          file,
+          variantKeys: keys,
+        })
         if (!result.ok) {
           onError(`${original.name}: ${result.error}`)
           continue

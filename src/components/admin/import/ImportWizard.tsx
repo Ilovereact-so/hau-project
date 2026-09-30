@@ -1,5 +1,6 @@
 'use client'
 
+import { uploadAdminImage } from '@/lib/adminImageUpload'
 import { useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
@@ -9,7 +10,6 @@ import {
   CheckCircle2, Download, FileArchive, FileSpreadsheet, Images, ListChecks, Upload, X,
 } from 'lucide-react'
 import { adminImageMatchCatalog, adminValidateProductsCsv } from '@/actions/adminImport'
-import { adminUploadProductImage } from '@/actions/adminProducts'
 import {
   generateVariants, mapCsvRowToProductPartial, parseCollectionNames, slugifyTitle, splitList,
 } from '@/sanity/helpers/productImportHelpers'
@@ -360,12 +360,13 @@ export function ImportWizard() {
               continue
             }
             const file = await prepareImageForUpload(original)
-            const form = new FormData()
-            form.set('productId', productId)
-            form.set('alt', product?.title ?? '')
-            form.set('file', file)
-            for (const key of entry.variantKeys) form.append('variantKeys', key)
-            const result = await adminUploadProductImage(form)
+            const result = await uploadAdminImage<{ key: string; url: string; variantKeys: string[] }>({
+              target: 'product',
+              id: productId,
+              alt: product?.title ?? '',
+              file,
+              variantKeys: entry.variantKeys,
+            })
             if (result.ok) {
               stats.uploaded += 1
               hashes.add(hash)

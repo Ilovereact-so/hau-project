@@ -1,5 +1,6 @@
 'use client'
 
+import { uploadAdminImage } from '@/lib/adminImageUpload'
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
@@ -16,7 +17,6 @@ import {
   adminRemoveProductFromCollection,
   adminSetCollectionPublished,
   adminUpdateCollection,
-  adminUploadCollectionImage,
 } from '@/actions/adminCollections'
 import { COLLECTION_SORTS, COLLECTION_SORT_LABELS, slugifyCollection } from '@/sanity/lib/collectionRefs'
 import { PublishStateLabel } from '@/lib/admin/labels'
@@ -263,11 +263,7 @@ function CollectionModal({
     setUploading(true)
     setError('')
     try {
-      const form = new FormData()
-      form.set('collectionId', collection.id)
-      form.set('alt', title || collection.title)
-      form.set('file', file)
-      const result = await adminUploadCollectionImage(form)
+      const result = await uploadAdminImage<string>({ target: 'collection', id: collection.id, alt: title || collection.title, file })
       if (!result.ok) return setError(result.error)
       setImageUrl(result.data)
       setDirty(true)

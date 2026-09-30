@@ -138,6 +138,7 @@ Autopay/Przelewy24, Furgonetka, SMTP).
 - `/api/sanity/import-csv` wymaga roli admina (middleware przepuszcza `/api/sanity/*`),
   ZIP ze zdjęciami jest opcjonalny. `/upload` przekierowuje do `/admin/import`.
 - `next.config.ts`: `serverActions.bodySizeLimit = 12mb` (zdjęcia produktów i CSV).
+- **Zdjęcia z panelu idą przez `POST /api/admin/images`** (`target`: `product` | `collection` | `subcategory`), NIE przez server action: na hostingu akcja z plikiem potrafiła zawisnąć bez odpowiedzi („Wysyłam…” w nieskończoność, pusta konsola). Klient (`lib/adminImageUpload.ts` → `uploadAdminImage`) ma limit 150 s, serwer — 30 s na odbiór pliku i 90 s na wysyłkę do Sanity (`withTimeout` w `catalog.ts`); błąd wraca z nazwą etapu, a log serwera ma linie `[images]` z czasami. Nowe miejsca z uploadem zdjęć podpinaj pod tę trasę.
 
 ## Blog (poradniki) w panelu (`/admin/blog`)
 
