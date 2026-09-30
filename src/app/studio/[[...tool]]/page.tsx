@@ -10,7 +10,10 @@
 import { NextStudio } from 'next-sanity/studio'
 import config from '../../../../sanity.config'
 
-export const dynamic = 'force-static'
+// Dynamicznie, a nie `force-static`: Studio jest tylko dla adminów (middleware),
+// a statyczny render nie widzi kontekstu clerkMiddleware — Clerk rzucał wtedy
+// wyjątkiem i /studio kończyło się błędem 500.
+export const dynamic = 'force-dynamic'
 
 // Studio bierze swoje metadane z next-sanity, ale dokładamy `noindex` —
 // panel redakcyjny nie ma czego szukać w wynikach wyszukiwania.

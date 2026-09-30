@@ -1,11 +1,12 @@
 'server-only'
 import React from 'react'
 import { currentUser } from '@clerk/nextjs/server'
+import { unstable_rethrow } from 'next/navigation'
 import CartIcon from './CartIcon'
 import UserIcon from './UserIcon'
 
 const ServerUser = async({style = {}, mode, cart = false}: {style?: React.CSSProperties, mode:number, cart?: boolean}) => {
-    const user = await currentUser()
+    const user = await safeCurrentUser()
     //console.log(user?.imageUrl)
     const avatarUrl = user ? (user.imageUrl || "/default-avatar.png") : null;
     //mode 0 = główny look, mode 1 = produktowy itd
@@ -22,6 +23,19 @@ const ServerUser = async({style = {}, mode, cart = false}: {style?: React.CSSPro
       </div>
     </div>
   )
+}
+
+// Navbar siedzi też w głównym not-found.tsx, który Next renderuje w drzewie
+// KAŻDEJ strony — również statycznej (np. /studio), gdzie nie ma nagłówków
+// z clerkMiddleware i currentUser() rzuca. Wtedy pokazujemy wersję gościa
+// zamiast wywracać całą stronę błędem 500.
+async function safeCurrentUser() {
+  try {
+    return await currentUser()
+  } catch (err) {
+    unstable_rethrow(err)
+    return null
+  }
 }
 
 export default ServerUser

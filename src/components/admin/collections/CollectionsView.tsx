@@ -252,17 +252,30 @@ function CollectionModal({
 
   const upload = async (files: FileList | null) => {
     if (!collection || !files?.[0]) return
+    const file = files[0]
+    // Limit serwera to 10 MB — większy plik odrzuciłby już Next (limit ciała
+    // akcji) twardym błędem 500, zanim akcja zdąży zwrócić komunikat.
+    if (file.size > 10 * 1024 * 1024) {
+      setError('Zdjęcie jest większe niż 10 MB — zmniejsz je i spróbuj ponownie.')
+      if (fileRef.current) fileRef.current.value = ''
+      return
+    }
     setUploading(true)
     setError('')
     try {
       const form = new FormData()
       form.set('collectionId', collection.id)
       form.set('alt', title || collection.title)
-      form.set('file', files[0])
+      form.set('file', file)
       const result = await adminUploadCollectionImage(form)
       if (!result.ok) return setError(result.error)
       setImageUrl(result.data)
       setDirty(true)
+    } catch (err) {
+      // Błąd sieci / serwera (np. limit rozmiaru na hostingu) — bez tego
+      // przycisk wracał do stanu początkowego bez żadnej informacji.
+      console.error('[collections] upload', err)
+      setError('Nie udało się wysłać zdjęcia (błąd serwera). Spróbuj mniejszego pliku albo odśwież stronę.')
     } finally {
       setUploading(false)
       if (fileRef.current) fileRef.current.value = ''
