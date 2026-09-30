@@ -8,6 +8,7 @@ import EmptyCart from '@/components/EmptyCart'
 import Loading from '@/components/Loading'
 import FurgonetkaMap from '@/components/FurgonetkaMap'
 import { urlFor } from '@/sanity/lib/image'
+import { primaryImageForVariant } from '@/lib/variantImages'
 import { checkout } from '@/actions/checkout'
 import useStore from 'store'
 import toast from 'react-hot-toast'
@@ -145,7 +146,7 @@ export default function CheckoutClient({ services, savedAddress, userSlot }: Pro
         qty:          quantity,
         name:         product.title ?? '',
         variantLabel: buildVariantLabel(product, variant),
-        imageUrl:     product.images?.[0] ? urlFor(product.images[0]).width(200).url() : '',
+        imageUrl:     product.images?.[0] ? urlFor(primaryImageForVariant(product.images, variant) ?? product.images[0]).width(200).url() : '',
       }))
 
       const result = await checkout({

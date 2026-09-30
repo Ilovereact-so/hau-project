@@ -249,7 +249,8 @@ export function mapCsvRowToProductPartial(row: Record<string, string | undefined
     metaTitle: row.metaTitle || undefined,
     metaDescription: row.metaDescription || undefined,
   };
-  product.slug = ensureSlug(product.slug || row.slug || product.title?.toLowerCase().replace(/[^a-z0-9]+/g,'-'));
+  // Slug z tytułu bez gubienia polskich znaków („Piłka” → „pilka”, nie „pi-ka”).
+  product.slug = ensureSlug(product.slug || row.slug || slugifyTitle(product.title));
   product.description = ensureBlockContent(product.description || row.description || row.shortDescription);
   product.options = ensureArrayKeys(product.options);
   product.variants = ensureArrayKeys(product.variants);
@@ -259,6 +260,16 @@ export function mapCsvRowToProductPartial(row: Record<string, string | undefined
   if (indexed.length) product.indexedOptions = indexed;
 
   return product;
+}
+
+export function slugifyTitle(title?: string) {
+  return String(title ?? '')
+    .normalize('NFKD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/[łŁ]/g, 'l')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
 }
 
 export function parseBoolean(val?: string) {

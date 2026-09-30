@@ -76,7 +76,14 @@ type optionProps={
 const OptionByVariant = ({option, product, setValue}:optionProps) => {
   const filterValues = product?.filterValues
   const productValues = filterValues?.filter(fv => option?.name?._id === fv?.filter?._ref)
-  const images = product.images; //tesotwy image bo w variantach nie dodałem :()
+  const images = product.images;
+  // Opcje wybranego wariantu (np. rozmiar) — próbki koloru pokazują zdjęcie
+  // wariantu w tym samym rozmiarze, jeśli ma własne.
+  const current = Object.fromEntries(
+    product?.variants
+      ?.find(v => v.optionValues?.some(ov => ov?._key === option?._key))
+      ?.optionValues?.map(ov => [ov?.name?.key ?? '', ov?.value?.slug?.current ?? '']) ?? []
+  )
 
   const handleChange = (value: string) => {
     if(value === option?.value?.slug?.current) return;
@@ -85,7 +92,7 @@ const OptionByVariant = ({option, product, setValue}:optionProps) => {
 
   return(
       option?.name?.UX_type === "with-image-from-variant" ? (
-        <OptionWidthImageFromVariant option={option} images={images} setValue={handleChange} filterValues={productValues} />
+        <OptionWidthImageFromVariant option={option} images={images} variants={product.variants} current={current} setValue={handleChange} filterValues={productValues} />
       ) : (
         option?.name?.UX_type === "only-value-list" && (
         <SizeSelect filterValues={productValues} option={option} setValue={handleChange} />

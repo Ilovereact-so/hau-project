@@ -4,6 +4,7 @@ import React from 'react'
 import { GetSlugProduct } from '../../sanity.types'
 import Image from 'next/image'
 import { urlFor } from '@/sanity/lib/image'
+import { primaryImageForVariant } from '@/lib/variantImages'
 import Link from 'next/link'
 import { DiscountBadge, OmnibusNote, PriceRow, useProductPrice } from './price/ProductPrice'
 import { WishlistButton } from './WishlistButton'
@@ -11,11 +12,14 @@ import { ProductRatingBadge } from './reviews/ProductRatingBadge'
 
 const ProductItemWithoutBTN = ({product}:{product: GetSlugProduct & { defaultVariant?: string }}) => {
   const priceState = useProductPrice(product)
+  // Wariant wybrany filtrami listingu (np. kolor) — jego zdjęcie i link.
+  const variantKey = product.defaultVariant || product?.variants?.[0]?._key
+  const image = primaryImageForVariant(product?.images, variantKey) ?? product?.images?.[0]
   return (
     <div className='relative w-max flex flex-col justify-between h-fit'>
       {product?.images && 
-        <Link href={`/product/${product?.slug?.current}?variant=${product?.variants?.[0]?._key}`} className='' >
-          <Image src={urlFor(product?.images[0]).url()} alt={String(product?.title)} width={290} height={290} className='max-sm:w-[calc((100vw-66px)/2))] max-md:w-[calc((100vw-110px)/3))] max-lg:w-[calc((100vw-156px)/3))] max-1.5xl:w-[calc((100vw-156px)/4))] w-[calc((100vw-156px)/5))] 4xl:w-[calc((1900px-156px)/5))] max-sm:h-[calc((100vw-100px)/2))] max-md:h-[calc((100vw-110px)/3))] max-lg:h-[calc((100vw-156px)/3))] max-1.5xl:h-[calc((100vw-156px)/4))] h-[calc((100vw-156px)/5))] 4xl:h-[calc((1900px-156px)/5))] brightness-92'/>
+        <Link href={`/product/${product?.slug?.current}?variant=${variantKey}`} className='' >
+          <Image src={urlFor(image!).url()} alt={String(product?.title)} width={290} height={290} className='max-sm:w-[calc((100vw-66px)/2))] max-md:w-[calc((100vw-110px)/3))] max-lg:w-[calc((100vw-156px)/3))] max-1.5xl:w-[calc((100vw-156px)/4))] w-[calc((100vw-156px)/5))] 4xl:w-[calc((1900px-156px)/5))] max-sm:h-[calc((100vw-100px)/2))] max-md:h-[calc((100vw-110px)/3))] max-lg:h-[calc((100vw-156px)/3))] max-1.5xl:h-[calc((100vw-156px)/4))] h-[calc((100vw-156px)/5))] 4xl:h-[calc((1900px-156px)/5))] brightness-92'/>
         </Link>
       }
       <WishlistButton productId={product._id} product={product} className='absolute top-4 right-4'/>

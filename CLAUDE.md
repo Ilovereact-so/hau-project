@@ -351,6 +351,25 @@ Sklep sam rejestruje historię cen i z niej wylicza „najniższą cenę z 30 dn
 - **Konfiguracja webhooka** (sanity.io/manage → API → Webhooks): URL `https://<sklep>/api/webhooks/sanity-prices`, dataset `production`, trigger Create/Update/Delete, filtr `_type == "product"`, projekcja `{_id}`, bez draftów, secret = `SANITY_PRICE_WEBHOOK_SECRET`.
 - **Testy**: logika Omnibus (przypadki brzegowe), rejestr na MariaDB + Redis (współbieżność, strefy czasowe, cache, wycofanie produktu) i podpis webhooka zgodny z `@sanity/webhook`.
 
+## Zdjęcia wariantów i import produktów
+
+### Zdjęcia per wariant
+
+- **Model**: zdjęcia produktu to jedna lista `images[]`; każde może mieć `variantKeys` (`_key` wariantów, może być kilka). Puste = zdjęcie WSPÓLNE. Logika w `src/lib/variantImages.ts` (czysta): `imagesForVariant` (własne wariantu → wspólne; brak obu → wszystkie), `primaryImageForVariant`, `swatchImageFor` (próbka koloru = zdjęcie wariantu w tej wartości, preferuje ten sam rozmiar), `isOrphanImage`.
+- **Sklep**: strona produktu liczy galerię dla `?variant=` (`ImageView key={variant}` resetuje aktywne zdjęcie), próbki kolorów (`OptionWidthImageFromVariant`) pokazują zdjęcia wariantów, koszyk/kasa/kafelek listingu (`defaultVariant`) — zdjęcie wybranego wariantu.
+- **Zdjęcie tylko usuniętych wariantów** („osierocone”) NIE jest wspólne — sklep go nie pokazuje, panel oznacza je na czerwono „ukryte”.
+- **Studio**: pole „Warianty” przy zdjęciu (`sanity/components/ImageVariantsInput.tsx`) — checkboxy + skróty po wartości opcji.
+- **Panel** (okno produktu, `ProductImagesManager`): wrzucenie wielu zdjęć naraz (przeciągnij/„Dodaj”), zaznaczenie jednego lub kilku i klik w wartość opcji („Kolor: mint” = wszystkie rozmiary) albo w konkretny wariant. Zapis zbiorczy z opóźnieniem 0,7 s (`adminSetImagesVariants` → `setImagesVariants`, jedna transakcja, nieistniejące warianty odrzucane). Pliki nazwane `slug-mint.jpg` przypisują się same. Zdjęcia > 10 MB zmniejsza przeglądarka (`lib/imageUpload.ts`).
+
+### Import CSV + ZIP (`/admin/import`)
+
+- **Dane** idą partiami po 10 wierszy (`/api/sanity/import-csv`, maks. 50/żądanie, `jobId` skleja partie w jeden wpis `import_jobs`). Logika wiersza: `src/lib/admin/productImport.ts`.
+- **Warianty** = iloczyn kolumn `filter_<opcja>` dla opcji z `productOptions`. Przy aktualizacji (po SKU) istniejąca kombinacja wartości zachowuje `_key`, SKU, własną cenę i stan (koszyki, rejestr cen i przypisania zdjęć przeżywają import). Cena wariantu równa starej cenie produktu (kopia ze starego importu) jest usuwana, żeby wariant dziedziczył nową. Pusta kolumna `stock` nie zmienia stanów. Usunięte kombinacje znikają (log).
+- **Wartości filtrów** tworzą się same (`filterValue-<filtr>-<slug>`), gdy istnieje filtr; dopasowanie po slugu/nazwie bez wielkości liter i polskich znaków. Brak filtra = ostrzeżenie.
+- Istniejącemu produktowi import NIE zmienia sluga, chyba że kolumna `slug` jest wypełniona. Patchowane są obie wersje (opublikowana i szkic).
+- **Zdjęcia NIE idą przez serwer paczką** — przeglądarka rozpakowuje ZIP (JSZip), dopasowuje pliki (`src/lib/zipImageMatching.ts`) i wysyła je po jednym (`adminUploadProductImage`, 3 równolegle, w obrębie produktu po kolei). Reguły: kolumna `images` (`front.jpg; zielona.jpg=mint; zielona-m.jpg=mint+m`) → prefiks slug/SKU w nazwie (najdłuższy wygrywa; `slug.jpg`, `slug-2.jpg` wspólne, `slug-mint-2.jpg` warianty z mint) → ręczny wybór w podglądzie. Kolejność: wspólne przed wariantowymi, potem numer z nazwy. Już wgrane zdjęcia (SHA-1 = hash w adresie Sanity) są pomijane, więc ZIP można wysłać ponownie. Sam ZIP (bez CSV) dogrywa zdjęcia do istniejących produktów.
+- Testy przy wdrożeniu: logika dopasowań (`tsx`), pełny cykl na buildzie produkcyjnym z atrapą Sanity opartą o `groq-js` (import, reimport z usuniętym wariantem, duplikaty zdjęć, strona produktu, okno panelu).
+
 ## Sortowanie listingów
 
 Listy produktów (`/subcategory/[slug]`, `/search`, `/kolekcje/[slug]`) mają wspólny mechanizm sortowania sterowany parametrem `?sort=`.

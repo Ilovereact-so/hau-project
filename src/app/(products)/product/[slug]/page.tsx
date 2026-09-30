@@ -22,6 +22,7 @@ import { effectivePrice } from "@/lib/omnibus";
 import { breadcrumbJsonLd, jsonLdScript, pageMetadata } from "@/lib/seo/metadata";
 import { absoluteUrl } from "@/lib/site";
 import { urlFor } from "@/sanity/lib/image";
+import { imagesForVariant } from "@/lib/variantImages";
 
 /**
  * Najniższa cena z 30 dni dla wszystkich wariantów. Przy okazji uzgadnia
@@ -114,6 +115,7 @@ const ProductPage = async ({
   const selectedVariant = variant && variantKeys.includes(variant) ? variant : variantKeys[0];
   if (!selectedVariant) return notFound();
   const maxW = 'md:max-w-[450px]'
+  const galleryImages = imagesForVariant(product.images, selectedVariant)
 
   const { userId } = await auth();
   const [reviewData, omnibus] = await Promise.all([
@@ -192,7 +194,9 @@ const ProductPage = async ({
                 {product?.type?.title}  /  <span className="text-black">{product?.title}</span> 
               </p>
             </div>
-            {product?.images && <ImageView images={product?.images} />}
+            {/* Galeria wybranego wariantu (jego zdjęcia + wspólne). `key` resetuje
+                aktywne zdjęcie przy zmianie wariantu — pierwsze = zdjęcie wariantu. */}
+            {galleryImages.length > 0 && <ImageView key={selectedVariant} images={galleryImages} />}
           </div>
           <div className="w-auto flex flex-col font-poppins max-md:px-10 max-sm:px-7 max-md:mt-5 relative z-1">
             <div className="2lg:mb-2">

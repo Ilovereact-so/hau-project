@@ -12,6 +12,7 @@ import {
   makeImagePrimary,
   publishDocument,
   removeProductImage,
+  setImagesVariants,
   removeSubcategoryImage,
   renameTaxonomy,
   setProductFlag,
@@ -144,16 +145,38 @@ export async function adminToggleProductFlag(
   }, 'Nie udało się zapisać flagi.')
 }
 
-export async function adminUploadProductImage(formData: FormData): Promise<ActionResult<{ key: string; url: string }>> {
+export async function adminUploadProductImage(
+  formData: FormData,
+): Promise<ActionResult<{ key: string; url: string; variantKeys: string[] }>> {
   return runAdminAction(async () => {
     const id = String(formData.get('productId') ?? '')
     const alt = String(formData.get('alt') ?? '')
     const file = formData.get('file')
     if (!(file instanceof File)) throw new Error('Nie wybrano pliku.')
-    const image = await addProductImage(id, file, alt)
+    // Opcjonalnie od razu przypisane warianty (np. dopasowane po nazwie pliku).
+    const variantKeys = formData.getAll('variantKeys').map(String).filter(Boolean).slice(0, 200)
+    const image = await addProductImage(id, file, alt, variantKeys)
     refreshCatalogViews()
     return image
   }, 'Nie udało się wgrać zdjęcia.')
+}
+
+export async function adminSetImagesVariants(
+  id: string,
+  updates: Array<{ imageKey: string; variantKeys: string[] }>,
+): Promise<ActionResult> {
+  return runAdminAction(async () => {
+    if (!Array.isArray(updates)) throw new Error('Nieprawidłowe dane.')
+    await setImagesVariants(
+      id,
+      updates.map((update) => ({
+        imageKey: String(update?.imageKey ?? ''),
+        variantKeys: Array.isArray(update?.variantKeys) ? update.variantKeys.map(String) : [],
+      })),
+    )
+    refreshCatalogViews()
+    return null
+  }, 'Nie udało się zapisać przypisania zdjęć.')
 }
 
 export async function adminRemoveProductImage(id: string, imageKey: string): Promise<ActionResult> {

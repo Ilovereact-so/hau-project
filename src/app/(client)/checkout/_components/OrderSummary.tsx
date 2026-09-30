@@ -6,6 +6,7 @@ import { SquarePen } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import PriceFormatter from '@/components/PriceFormatter'
 import { urlFor } from '@/sanity/lib/image'
+import { primaryImageForVariant } from '@/lib/variantImages'
 import useStore from 'store'
 import { buildVariantLabel } from './utils'
 import { applyDiscount } from '@/lib/discounts'
@@ -87,7 +88,7 @@ export default function OrderSummary({ shippingCents, deliveryName, discount, di
               {product.images?.[0] && (
                 <div className="min-w-25 min-h-25 h-[100px]">
                   <Image
-                    src={urlFor(product.images[0]).width(112).url()}
+                    src={urlFor(primaryImageForVariant(product.images, variant) ?? product.images[0]).width(112).url()}
                     alt={product.title ?? ''}
                     width={100}
                     height={100}

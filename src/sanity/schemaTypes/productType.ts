@@ -4,6 +4,7 @@
 // Dodatkowo dołączone kilka przydatnych skryptów/utility (eksportowane) do generowania wariantów, normalizacji wartości i parsowania CSV.
 
 import { TrolleyIcon } from "@sanity/icons";
+import { ImageVariantsInput } from "../components/ImageVariantsInput";
 
 const productType = {
   name: "product",
@@ -82,8 +83,28 @@ const productType = {
           type: "image",
           fields: [
             { name: "alt", type: "string", title: "Alt text" },
-            { name: "position", type: "number", title: "Position" }
-          ]
+            { name: "position", type: "number", title: "Position" },
+            {
+              // `_key` wariantów, do których należy zdjęcie (może być kilka).
+              // Puste = zdjęcie wspólne. Logika: src/lib/variantImages.ts.
+              name: "variantKeys",
+              title: "Warianty",
+              description: "Zaznacz warianty, przy których ma się pokazywać to zdjęcie. Nic nie zaznaczone = zdjęcie wspólne.",
+              type: "array",
+              of: [{ type: "string" }],
+              components: { input: ImageVariantsInput },
+            },
+          ],
+          preview: {
+            select: { media: "asset", alt: "alt", keys: "variantKeys" },
+            prepare({ media, alt, keys }: { media?: unknown; alt?: string; keys?: string[] }) {
+              return {
+                media: media as never,
+                title: alt || "Zdjęcie",
+                subtitle: keys?.length ? `Warianty: ${keys.length}` : "Wspólne",
+              }
+            },
+          },
         }
       ]
     },

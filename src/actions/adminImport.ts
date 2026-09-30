@@ -3,6 +3,7 @@
 import { auth } from '@clerk/nextjs/server'
 import Papa from 'papaparse'
 import { sanityClient } from '@/sanity/sanityClient.server'
+import { hashFromSanityUrl, type CatalogProduct } from '@/lib/zipImageMatching'
 
 export async function requireAdmin() {
   const { sessionClaims } = await auth()
@@ -90,4 +91,42 @@ export async function adminValidateProductsCsv(csvText: string) {
       return { row: n, ok: errs.length === 0 && d.length === 0, messages: [...errs.map((e: any) => e.message), ...d.map((x: any) => `${x.type} powtórzone`)] }
     }),
   }
+}
+/**
+ * Lekki katalog do dopasowania zdjęć z ZIP-a (slug, SKU, warianty z wartościami
+ * opcji, skróty już wgranych zdjęć). `ids` zawęża do produktów z importu.
+ */
+export async function adminImageMatchCatalog(ids?: string[]): Promise<CatalogProduct[]> {
+  await requireAdmin()
+  const list = Array.isArray(ids) ? ids.map(String).filter((id) => /^[A-Za-z0-9._-]{1,128}$/.test(id)).slice(0, 5000) : null
+  const raw = sanityClient.withConfig({ perspective: 'raw', useCdn: false })
+  const docs = await raw.fetch<Array<{
+    _id: string
+    sku?: string
+    slug?: string
+    title?: string
+    variants?: CatalogProduct['variants'] | null
+    urls?: Array<string | null> | null
+  }>>(
+    `*[_type == "product" && !(_id in path("versions.**")) && (!defined($ids) || _id in $ids || _id in $drafts)]{
+      _id, sku, "slug": slug.current, title,
+      "variants": variants[]{ _key, "optionValues": optionValues[]{ "name": name->{ key }, "value": value->{ slug } } },
+      "urls": images[].asset->url
+    }`,
+    { ids: list, drafts: (list ?? []).map((id) => `drafts.${id}`) },
+  )
+  // Opublikowana wersja ma pierwszeństwo przed szkicem.
+  const byId = new Map<string, CatalogProduct>()
+  for (const doc of docs.sort((a, b) => Number(b._id.startsWith('drafts.')) - Number(a._id.startsWith('drafts.')))) {
+    const id = doc._id.replace(/^drafts\./, '')
+    byId.set(id, {
+      id,
+      sku: doc.sku ?? '',
+      slug: doc.slug ?? '',
+      title: doc.title ?? '',
+      variants: doc.variants ?? [],
+      imageHashes: (doc.urls ?? []).map(hashFromSanityUrl).filter((hash): hash is string => Boolean(hash)),
+    })
+  }
+  return [...byId.values()]
 }

@@ -422,6 +422,7 @@ export type Product = {
     crop?: SanityImageCrop;
     alt?: string;
     position?: number;
+    variantKeys?: Array<string>;
     _type: "image";
     _key: string;
   }>;
@@ -817,6 +818,7 @@ export type PRODUCTS_QUERYResult = Array<{
     crop?: SanityImageCrop;
     alt?: string;
     position?: number;
+    variantKeys?: Array<string>;
     _type: "image";
     _key: string;
   }>;
@@ -999,6 +1001,7 @@ export type PRODUCT_BY_ID_QUERYResult = {
     crop?: SanityImageCrop;
     alt?: string;
     position?: number;
+    variantKeys?: Array<string>;
     _type: "image";
     _key: string;
   }>;
@@ -1145,6 +1148,7 @@ export type PRODUCT_BY_SUBCATEGORY_QUERYResult = Array<{
     crop?: SanityImageCrop;
     alt?: string;
     position?: number;
+    variantKeys?: Array<string>;
     _type: "image";
     _key: string;
   }>;
@@ -1291,6 +1295,7 @@ export type PRODUCT_SEARCH_QUERYResult = Array<{
     crop?: SanityImageCrop;
     alt?: string;
     position?: number;
+    variantKeys?: Array<string>;
     _type: "image";
     _key: string;
   }>;

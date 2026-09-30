@@ -22,7 +22,7 @@ import { LOW_STOCK_THRESHOLD, invalidateLowStockCounter } from '@/lib/admin/coun
 const raw = sanityClient.withConfig({ perspective: 'raw', useCdn: false })
 
 const DRAFT_PREFIX = 'drafts.'
-const PRODUCTS_CACHE_KEY = 'admin:products:list:v3'
+const PRODUCTS_CACHE_KEY = 'admin:products:list:v4'
 const PRODUCTS_CACHE_TTL = 60
 
 export const baseId = (id: string) => (id.startsWith(DRAFT_PREFIX) ? id.slice(DRAFT_PREFIX.length) : id)
@@ -47,6 +47,16 @@ export type AdminVariant = {
   label: string
   price: number | null
   stock: number | null
+  /** opcje wariantu (np. Kolor: mint) — skróty przypisywania zdjęć w panelu */
+  options: Array<{ key: string; label: string; value: string; slug: string }>
+}
+
+export type AdminProductImage = {
+  key: string
+  url: string
+  alt: string | null
+  /** `_key` wariantów, do których należy zdjęcie; puste = wspólne (src/lib/variantImages.ts) */
+  variantKeys: string[]
 }
 
 export type AdminProduct = {
@@ -68,7 +78,7 @@ export type AdminProduct = {
   subcategory: { id: string; title: string; slug: string | null } | null
   /** Identyfikatory kolekcji (bazowe `_id`, także szkiców) — nazwy dokleja widok z listy kolekcji. */
   collectionIds: string[]
-  images: Array<{ key: string; url: string; alt: string | null }>
+  images: AdminProductImage[]
   variants: AdminVariant[]
   /** Warianty (albo sam produkt bez wariantów) poniżej progu stanu. */
   lowStock: Array<{ key: string | null; sku: string | null; stock: number }>
@@ -94,8 +104,11 @@ type RawProduct = {
   category?: { _id: string; title?: string } | null
   subcategory?: { _id: string; title?: string; slug?: string } | null
   collectionIds?: Array<string | null> | null
-  images?: Array<{ _key?: string; url?: string; alt?: string }> | null
-  variants?: Array<{ _key?: string; sku?: string; price?: number; stock?: number; label?: string }> | null
+  images?: Array<{ _key?: string; url?: string; alt?: string; variantKeys?: string[] | null }> | null
+  variants?: Array<{
+    _key?: string; sku?: string; price?: number; stock?: number; label?: string
+    options?: Array<{ key?: string; label?: string; value?: string; slug?: string } | null> | null
+  }> | null
 }
 
 const PRODUCT_PROJECTION = `{
@@ -104,8 +117,11 @@ const PRODUCT_PROJECTION = `{
   "category": category->{ _id, title },
   "subcategory": type->{ _id, title, "slug": slug.current },
   "collectionIds": collections[]._ref,
-  "images": images[]{ _key, "url": asset->url, alt },
-  "variants": variants[]{ _key, sku, price, stock, "label": array::join(optionValues[].label, " · ") }
+  "images": images[]{ _key, "url": asset->url, alt, variantKeys },
+  "variants": variants[]{
+    _key, sku, price, stock, "label": array::join(optionValues[].label, " · "),
+    "options": optionValues[]{ "key": name->key, "label": name->label, "value": value->value, "slug": value->slug.current }
+  }
 }`
 
 function toAdminProduct(doc: RawProduct, status: PublishState): AdminProduct {
@@ -117,6 +133,14 @@ function toAdminProduct(doc: RawProduct, status: PublishState): AdminProduct {
       label: variant.label || variant.sku || 'Wariant',
       price: typeof variant.price === 'number' ? variant.price : null,
       stock: typeof variant.stock === 'number' ? variant.stock : null,
+      options: (variant.options ?? [])
+        .filter((option) => option?.key && option.slug)
+        .map((option) => ({
+          key: option!.key!,
+          label: option!.label || option!.key!,
+          value: option!.value || option!.slug!,
+          slug: option!.slug!,
+        })),
     }))
 
   const lowStock = variants.length
@@ -155,7 +179,12 @@ function toAdminProduct(doc: RawProduct, status: PublishState): AdminProduct {
     collectionIds: [...new Set((doc.collectionIds ?? []).filter((id): id is string => typeof id === 'string'))],
     images: (doc.images ?? [])
       .filter((image) => image?._key && image.url)
-      .map((image) => ({ key: image._key!, url: image.url!, alt: image.alt ?? null })),
+      .map((image) => ({
+        key: image._key!,
+        url: image.url!,
+        alt: image.alt ?? null,
+        variantKeys: Array.isArray(image.variantKeys) ? image.variantKeys.filter((k): k is string => typeof k === 'string') : [],
+      })),
     variants,
     lowStock,
     totalStock: stockValues.length ? stockValues.reduce((sum, value) => sum + value, 0) : null,
@@ -495,19 +524,52 @@ export async function uploadImageAsset(file: File) {
   return asset
 }
 
-export async function addProductImage(id: string, file: File, alt: string) {
+export async function addProductImage(id: string, file: File, alt: string, variantKeys: string[] = []) {
   const asset = await uploadImageAsset(file)
+  const keys = variantKeys.length ? await validVariantKeys(id, variantKeys) : []
   const image = {
     _type: 'image',
     _key: randomUUID().replace(/-/g, '').slice(0, 12),
     asset: { _type: 'reference', _ref: asset._id },
     alt: alt.slice(0, 200),
+    ...(keys.length ? { variantKeys: keys } : {}),
   }
   await patchAllVersions(id, {
     setIfMissing: { images: [] },
     insertAfter: { selector: 'images[-1]', items: [image] },
   })
-  return { key: image._key, url: asset.url }
+  return { key: image._key, url: asset.url, variantKeys: keys }
+}
+
+/** Klucze wariantów, które faktycznie istnieją w produkcie (szkic lub opublikowany). */
+async function validVariantKeys(id: string, keys: string[]): Promise<string[]> {
+  const safeId = assertDocId(id)
+  const existing = await raw.fetch<string[] | null>(
+    `array::unique(*[_id in [$id, $draft]].variants[]._key)`,
+    { id: safeId, draft: draftId(safeId) },
+  )
+  const valid = new Set(existing ?? [])
+  return [...new Set(keys.map(assertKey))].filter((key) => valid.has(key))
+}
+
+/**
+ * Przypisanie zdjęć do wariantów — wiele zdjęć w jednej transakcji.
+ * Pusta lista = zdjęcie wspólne. Nieistniejące warianty są pomijane.
+ */
+export async function setImagesVariants(id: string, updates: Array<{ imageKey: string; variantKeys: string[] }>) {
+  if (!updates.length) return
+  if (updates.length > 200) throw new Error('Za dużo zdjęć naraz.')
+  const allKeys = updates.flatMap((update) => update.variantKeys)
+  const valid = new Set(allKeys.length ? await validVariantKeys(id, allKeys) : [])
+  const set: Record<string, unknown> = {}
+  const unset: string[] = []
+  for (const update of updates) {
+    const path = `images[_key=="${assertKey(update.imageKey)}"].variantKeys`
+    const keys = [...new Set(update.variantKeys)].filter((key) => valid.has(key))
+    if (keys.length) set[path] = keys
+    else unset.push(path)
+  }
+  await patchAllVersions(id, { set, unset })
 }
 
 export async function removeProductImage(id: string, imageKey: string) {

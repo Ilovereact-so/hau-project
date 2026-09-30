@@ -7,6 +7,7 @@ import QuantityButtons from '@/components/QuantityButtons'
 import EmptyCart from '@/components/EmptyCart'
 import Loading from '@/components/Loading'
 import { urlFor } from '@/sanity/lib/image'
+import { primaryImageForVariant } from '@/lib/variantImages'
 import { useAuth } from '@clerk/nextjs'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -77,7 +78,7 @@ export default function CartPage() {
                       {product?.images && (
                         <div style={{ gridArea: 'image' }} className="p-0.5 md:p-1 mr-2 rounded-md overflow-hidden group">
                           <Image
-                            src={urlFor(product.images[0]).url()}
+                            src={urlFor(primaryImageForVariant(product.images, variant) ?? product.images[0]).url()}
                             alt="productImage"
                             width={500}
                             height={500}

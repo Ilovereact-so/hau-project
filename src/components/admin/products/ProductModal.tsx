@@ -1,24 +1,18 @@
 'use client'
 
-import { useEffect, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useState, useTransition } from 'react'
 import toast from 'react-hot-toast'
-import { ExternalLink, ImageOff, ImagePlus, Save, Star, Trash2 } from 'lucide-react'
+import { ExternalLink, Save } from 'lucide-react'
 import type { AdminProduct } from '@/lib/admin/catalog'
-import {
-  adminCreateProduct,
-  adminMakeImagePrimary,
-  adminRemoveProductImage,
-  adminUpdateProduct,
-  adminUploadProductImage,
-} from '@/actions/adminProducts'
-import { Button, IconButton } from '../kit/Button'
+import { adminCreateProduct, adminUpdateProduct } from '@/actions/adminProducts'
+import { Button } from '../kit/Button'
 import { ErrorBox } from '../kit/EmptyState'
 import { Modal } from '../kit/Modal'
 import { SelectField, TextAreaField, TextField } from '../kit/TextField'
 import { Toggle } from '../kit/Toggle'
-import { cn } from '../kit/utils'
 import { CollectionPicker, type CollectionChoice, type CollectionSelection } from './CollectionPicker'
 import { PriceHistoryPanel } from './PriceHistoryPanel'
+import { ProductImagesManager } from './ProductImagesManager'
 
 export type CategoryOptions = {
   categories: Array<{ id: string; title: string }>
@@ -35,7 +29,7 @@ const numberOrNull = (value: string) => {
 
 /**
  * Dodawanie i edycja produktu w Sanity — najczęściej zmieniane pola.
- * Opis, filtry i warianty zostają w Studio (link na dole okna).
+ * Zdjęcia przypisuje się tu do wariantów. Opis, filtry i warianty zostają w Studio (link na dole okna).
  */
 export function ProductModal({
   product,
@@ -61,7 +55,6 @@ export function ProductModal({
   const [shortDescription, setShortDescription] = useState(product?.shortDescription ?? '')
   const [isFeatured, setIsFeatured] = useState(product?.isFeatured ?? false)
   const [isBestseller, setIsBestseller] = useState(product?.isBestseller ?? false)
-  const [images, setImages] = useState(product?.images ?? [])
   // Tylko kolekcje znane z listy — wisząca referencja (kolekcja usunięta w Studio)
   // nie może zablokować zapisu produktu; zniknie przy pierwszej zmianie kolekcji.
   const [collections, setCollections] = useState<CollectionSelection>(() => ({
@@ -73,7 +66,7 @@ export function ProductModal({
   const [saving, startSaving] = useTransition()
   const [uploading, setUploading] = useState(false)
   const [changed, setChanged] = useState(false)
-  const fileRef = useRef<HTMLInputElement>(null)
+  const markChanged = useCallback(() => setChanged(true), [])
 
   /* Podkategoria musi należeć do wybranej kategorii — po zmianie kategorii
      czyścimy niepasujący wybór zamiast zapisać niespójną parę. */
@@ -136,49 +129,6 @@ export function ProductModal({
       onSaved()
       onClose()
     })
-  }
-
-  const upload = async (files: FileList | null) => {
-    if (!product || !files?.length) return
-    setUploading(true)
-    setError('')
-    try {
-      for (const file of Array.from(files)) {
-        const form = new FormData()
-        form.set('productId', product.id)
-        form.set('alt', title || product.title)
-        form.set('file', file)
-        const result = await adminUploadProductImage(form)
-        if (!result.ok) {
-          setError(result.error)
-          break
-        }
-        setImages((current) => [...current, { key: result.data.key, url: result.data.url, alt: title }])
-        setChanged(true)
-      }
-    } finally {
-      setUploading(false)
-      if (fileRef.current) fileRef.current.value = ''
-    }
-  }
-
-  const removeImage = async (key: string) => {
-    if (!product || !window.confirm('Usunąć to zdjęcie z produktu?')) return
-    const result = await adminRemoveProductImage(product.id, key)
-    if (!result.ok) return setError(result.error)
-    setImages((current) => current.filter((image) => image.key !== key))
-    setChanged(true)
-  }
-
-  const makePrimary = async (key: string) => {
-    if (!product) return
-    const result = await adminMakeImagePrimary(product.id, key)
-    if (!result.ok) return setError(result.error)
-    setImages((current) => {
-      const picked = current.find((image) => image.key === key)
-      return picked ? [picked, ...current.filter((image) => image.key !== key)] : current
-    })
-    setChanged(true)
   }
 
   return (
@@ -283,64 +233,23 @@ export function ProductModal({
           <TextAreaField label="Intro (listing)" rows={3} value={intro} onChange={(e) => setIntro(e.target.value)} maxLength={1000} />
           <TextAreaField label="Krótki opis" rows={4} value={shortDescription} onChange={(e) => setShortDescription(e.target.value)} maxLength={2000} />
 
-          <div className="grid gap-1.5">
-            <span className="text-xs font-medium text-text-2">Zdjęcia</span>
-            {isNew ? (
-              <p className="m-0 rounded-xs border border-dashed border-border-strong bg-bg px-3 py-4 text-center text-xs leading-[1.6] text-text-2">
-                Zdjęcia dodasz po zapisaniu szkicu (albo zaimportujesz je paczką ZIP w „Import CSV”).
-              </p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {images.map((image, index) => (
-                  <span
-                    key={image.key}
-                    className={cn(
-                      'group relative grid size-20 place-items-center overflow-hidden rounded-xs border bg-surface-muted',
-                      index === 0 ? 'border-primary/50' : 'border-border'
-                    )}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={`${image.url}?w=160&h=160&fit=crop`} alt={image.alt ?? ''} className="size-full object-cover" />
-                    {index === 0 && (
-                      <span className="absolute top-1 left-1 rounded-full bg-primary px-1.5 py-px text-[9px] font-semibold text-white">główne</span>
-                    )}
-                    <span className="absolute inset-x-1 bottom-1 hidden justify-end gap-1 group-hover:flex group-focus-within:flex">
-                      {index > 0 && (
-                        <IconButton label="Ustaw jako główne" className="size-6" onClick={() => void makePrimary(image.key)}>
-                          <Star size={12} strokeWidth={1.5} />
-                        </IconButton>
-                      )}
-                      <IconButton label="Usuń zdjęcie" className="size-6 text-danger" onClick={() => void removeImage(image.key)}>
-                        <Trash2 size={12} strokeWidth={1.5} />
-                      </IconButton>
-                    </span>
-                  </span>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => fileRef.current?.click()}
-                  disabled={uploading}
-                  className="grid size-20 place-items-center rounded-xs border border-dashed border-border-strong bg-bg text-text-2 transition-colors hover:text-text disabled:opacity-60"
-                >
-                  <span className="flex flex-col items-center gap-1 text-[10px] font-medium">
-                    {uploading ? <ImageOff size={16} strokeWidth={1.5} /> : <ImagePlus size={16} strokeWidth={1.5} />}
-                    {uploading ? 'Wysyłam…' : 'Dodaj'}
-                  </span>
-                </button>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  onChange={(event) => void upload(event.target.files)}
-                />
-              </div>
-            )}
-            {!isNew && <span className="text-[11px] text-text-2">Pierwsze zdjęcie jest miniaturą w sklepie. Maks. 10 MB na plik.</span>}
-          </div>
+          {isNew && (
+            <p className="m-0 rounded-xs border border-dashed border-border-strong bg-bg px-3 py-4 text-center text-xs leading-[1.6] text-text-2">
+              Zdjęcia dodasz po zapisaniu szkicu (albo zaimportujesz je paczką ZIP w „Import CSV”).
+            </p>
+          )}
         </div>
       </div>
+
+      {product && (
+        <ProductImagesManager
+          product={product}
+          alt={title || product.title}
+          onChanged={markChanged}
+          onError={setError}
+          onBusyChange={setUploading}
+        />
+      )}
 
       {error && <ErrorBox>{error}</ErrorBox>}
     </Modal>
