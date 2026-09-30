@@ -165,7 +165,7 @@ export default function SignInForm({ isStandalone = false }: SignInFormProps) {
               value={email}
               autoComplete="username"
               onChange={handleEmailChange}
-              placeholder="Wpisz swój address email"
+              placeholder="Wpisz swój adres e-mail"
               required
               className="w-full rounded-full bg-[#282828] px-5 py-3 focus:outline-none focus:ring-2 focus:ring-main placeholder:text-[#737373] placeholder:text-[16px] text-white ease-in-out duration-300"
             />

@@ -128,7 +128,7 @@ export default function SignUpForm({ isStandalone = false }: SignUpFormProps) {
                   autoComplete="username"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Wpisz swój address email"
+                  placeholder="Wpisz swój adres e-mail"
                   className="w-full rounded-full bg-[#282828] px-5 py-3 focus:outline-none focus:ring-2 focus:ring-main placeholder:text-[#737373] placeholder:text-[16px] text-white"
               />
           </label>

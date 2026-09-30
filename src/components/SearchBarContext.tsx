@@ -500,7 +500,7 @@ const Context = ({loading, mode, mobile, showSearchBar, results, query, suggesti
                                                                 e.stopPropagation();
                                                                 onSuggestionClick(href);
                                                             }}
-                                                            className={`group text-black gap-x-4 flex justify-start items-center rounded-full -mx-2 px-2 py-0.5 hover:bg-black/5 transition-colors ${
+                                                            className={`group text-black gap-x-4 flex justify-start items-center py-0.5 ${
                                                                 mode === 1 ? "text-[clamp(12px,1.6vw,14px)]":"text-[clamp(14px,1.6vw,16px)]"
                                                             }`}
                                                         >
