@@ -24,6 +24,9 @@ import {
   validateProductInput,
   type AdminProduct,
   type ProductInput,
+  bulkProductAction,
+  type BulkProductAction,
+  type BulkResult,
 } from '@/lib/admin/catalog'
 import { runAdminAction, requireAdmin, type ActionResult } from '@/lib/admin/guard'
 import { listCollectionOptions, resolveProductCollections } from '@/lib/admin/collections'
@@ -43,6 +46,11 @@ import {
 
 function refreshCatalogViews() {
   revalidatePath('/admin', 'layout')
+}
+
+/** Zmiana widoczna w sklepie (publikacja, promowanie) — bez czekania na wygaśnięcie cache. */
+function refreshStorefront() {
+  revalidatePath('/', 'layout')
 }
 
 // Typ `AdminProduct` importuj z '@/lib/admin/catalog' — plik 'use server'
@@ -101,8 +109,24 @@ export async function adminSetPublished(id: string, published: boolean): Promise
     // Publikacja otwiera ceny w rejestrze, wycofanie je zamyka.
     await recordPriceChanges([id], 'admin')
     refreshCatalogViews()
+    refreshStorefront()
     return null
   }, published ? 'Nie udało się opublikować produktu.' : 'Nie udało się wycofać produktu.')
+}
+
+/** Hurtowo: publikacja, wycofanie, flagi, usuwanie. Wynik = co się udało i co nie. */
+export async function adminBulkProducts(ids: string[], action: BulkProductAction): Promise<ActionResult<BulkResult>> {
+  return runAdminAction(async () => {
+    if (!Array.isArray(ids)) throw new Error('Nieprawidłowa lista produktów.')
+    const result = await bulkProductAction(ids, action)
+    // Publikacja otwiera ceny w rejestrze, wycofanie i usunięcie je zamykają.
+    if (['publish', 'unpublish', 'delete'].includes(action) && result.done.length) {
+      await recordPriceChanges(result.done, 'admin')
+    }
+    refreshCatalogViews()
+    refreshStorefront()
+    return result
+  }, 'Nie udało się wykonać akcji hurtowej.')
 }
 
 export async function adminDeleteProduct(id: string): Promise<ActionResult> {
@@ -141,6 +165,7 @@ export async function adminToggleProductFlag(
     if (field !== 'isFeatured' && field !== 'isBestseller') throw new Error('Nieznana flaga.')
     await setProductFlag(id, field, value)
     refreshCatalogViews()
+    refreshStorefront()
     return null
   }, 'Nie udało się zapisać flagi.')
 }

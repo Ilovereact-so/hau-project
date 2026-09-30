@@ -72,7 +72,7 @@ export async function getPopularityScores(): Promise<Map<string, number>> {
 }
 
 /** Średnie ocen dla dowolnie długiej listy (API opinii liczy porcjami po 60). */
-async function getRatings(productIds: string[]): Promise<Map<string, { average: number; count: number }>> {
+export async function getRatings(productIds: string[]): Promise<Map<string, { average: number; count: number }>> {
   const result = new Map<string, { average: number; count: number }>()
   const ids = productIds.filter(isValidProductId)
   for (let i = 0; i < ids.length; i += REVIEW_SUMMARY_BATCH_MAX) {
@@ -86,7 +86,7 @@ async function getRatings(productIds: string[]): Promise<Map<string, { average: 
 }
 
 /** Procent obniżki (z rejestru cen) dla ceny widocznej na kafelku. */
-async function getDiscounts(products: SortableProduct[]): Promise<Map<string, number>> {
+export async function getDiscounts(products: SortableProduct[]): Promise<Map<string, number>> {
   const result = new Map<string, number>()
   const ids = products.map((product) => product._id).filter(isValidProductId)
   if (!ids.length) return result

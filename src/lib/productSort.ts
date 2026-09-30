@@ -39,7 +39,7 @@ export const PRODUCT_SORT_LABELS: Record<ProductSort, string> = {
 
 /** Krótszy opis pod etykietą w menu wyboru. */
 export const PRODUCT_SORT_HINTS: Record<ProductSort, string> = {
-  popular: 'Najczęściej kupowane w ostatnich 90 dniach',
+  popular: 'Polecane i najczęściej kupowane w ostatnich 90 dniach',
   'price-asc': 'Cena rosnąco',
   'price-desc': 'Cena malejąco',
   discount: 'Największy procent obniżki',
@@ -69,6 +69,9 @@ export type SortableProduct = {
   variants?: Array<{ _key?: string | null; price?: number | null } | null> | null
   /** Wariant wybrany przez filtry — to jego cenę widzi klient na kafelku. */
   defaultVariant?: string
+  /** Flagi z panelu (Katalog → Wyróżnienia) — podbijają produkt w „Popularne”. */
+  isFeatured?: boolean | null
+  isBestseller?: boolean | null
 }
 
 export type SortSignals = {
@@ -104,6 +107,11 @@ const collator = new Intl.Collator('pl', { sensitivity: 'base', numeric: true })
 
 const byTitle = (a: SortableProduct, b: SortableProduct) =>
   collator.compare(a.title ?? '', b.title ?? '') || (a._id < b._id ? -1 : a._id > b._id ? 1 : 0)
+
+/** 2 = promowany, 1 = bestseller, 0 = bez wyróżnienia. */
+export function promotionRank(product: SortableProduct): number {
+  return product.isFeatured ? 2 : product.isBestseller ? 1 : 0
+}
 
 const createdAt = (product: SortableProduct) => {
   const time = product._createdAt ? Date.parse(product._createdAt) : Number.NaN
@@ -167,6 +175,10 @@ export function sortProducts<T extends SortableProduct>(
     case 'popular':
     default:
       return list.sort((a, b) => {
+        // Wyróżnienia z panelu mają realny wpływ: „Promowany” na samą górę,
+        // „Bestseller” zaraz za nim, dopiero potem sprzedaż z 90 dni.
+        const promoted = promotionRank(b) - promotionRank(a)
+        if (promoted) return promoted
         const diff = popularity(b._id) - popularity(a._id)
         if (diff) return diff
         // Bez sprzedaży decyduje liczba opinii, a potem świeżość — dzięki temu

@@ -28,7 +28,7 @@ Poradniki są osobną gałęzią treści w Sanity, celowo odciętą od drzewa pr
 - Wpisy z `publishedAt` w przyszłości są ukryte na froncie — to mechanizm planowania publikacji.
 - Renderer treści (`components/guides/GuideBody.tsx`) rozszerza bazowy zestaw stylów Portable Text eksportowany z `components/PortableTextContent.tsx` — regulaminy i poradniki mają dzieloną typografię, więc nie kopiuj mapy komponentów, tylko ją rozszerzaj.
 - Filmy z YouTube/Vimeo ładują się dopiero po kliknięciu (fasada z miniaturą w `components/guides/VideoPlayer.tsx`) — osadzony odtwarzacz to ~1 MB skryptów na film. Miniatury lecą z `i.ytimg.com`, host jest w `next.config.ts`.
-- Moduł na stronie głównej (`components/guides/GuidesCarousel.tsx`, wstawiony w `ContentContainer` nad `AboutAs`) pobiera dane po stronie klienta przez `getLatestGuidesClient` — karuzele produktów, subkategorie i poradniki na stronie głównej są komponentami klienckimi (banery już NIE: patrz niżej), więc server-only `sanityFetch` tam nie działa.
+- Moduł na stronie głównej (`components/guides/GuidesCarousel.tsx`, sekcja „guides” w `HomeSections` — kolejność ustawia panel, patrz „Strona główna”) pobiera dane po stronie klienta przez `getLatestGuidesClient` — karuzele produktów, subkategorie i poradniki na stronie głównej są komponentami klienckimi (banery już NIE: patrz niżej), więc server-only `sanityFetch` tam nie działa.
 - Po dodaniu tych typów odpal `npm run typegen`, żeby wygenerowane typy Sanity objęły `guide`/`guideCategory`.
 - **Karta poradnika** (`components/guides/GuideCard.tsx`) układa się przez container queries (`@container`, próg 560 px SZEROKOŚCI KARTY): węższa = pionowa (okładka 16:9, kategoria na okładce), szersza = pozioma (okładka 40% / max 320 px). Ta sama karta działa w siatce `/poradniki` (`GuidesGrid`: 1 → 2 → 3 kolumny od `sm`/`2xl`, równe wysokości w rzędzie), w „Zobacz też”, na stronie głównej i w wyróżnionych. Rodzic musi dawać karcie szerokość z układu (`w-full`, `minmax(0,1fr)`), nie z treści — w kolumnie `auto` kontener zapada się do zera (stąd kolumny `#guides` w `globals.css`). Szkielet `GuideCardSkeleton` ma tę samą geometrię.
 - **Blog w panelu admina** — patrz sekcja „Blog (poradniki) w panelu” niżej. Tam też bloki treści `callout`, `productEmbed`, `divider` i pola `seoTitle`/`seoDescription`.
@@ -370,6 +370,29 @@ Sklep sam rejestruje historię cen i z niej wylicza „najniższą cenę z 30 dn
 - Istniejącemu produktowi import NIE zmienia sluga, chyba że kolumna `slug` jest wypełniona. Patchowane są obie wersje (opublikowana i szkic).
 - **Zdjęcia NIE idą przez serwer paczką** — przeglądarka rozpakowuje ZIP (JSZip), dopasowuje pliki (`src/lib/zipImageMatching.ts`) i wysyła je po jednym (`adminUploadProductImage`, 3 równolegle, w obrębie produktu po kolei). Reguły: kolumna `images` (`front.jpg; zielona.jpg=mint; zielona-m.jpg=mint+m`) → prefiks slug/SKU w nazwie (najdłuższy wygrywa; `slug.jpg`, `slug-2.jpg` wspólne, `slug-mint-2.jpg` warianty z mint) → ręczny wybór w podglądzie. Kolejność: wspólne przed wariantowymi, potem numer z nazwy. Już wgrane zdjęcia (SHA-1 = hash w adresie Sanity) są pomijane, więc ZIP można wysłać ponownie. Sam ZIP (bez CSV) dogrywa zdjęcia do istniejących produktów.
 - Testy przy wdrożeniu: logika dopasowań (`tsx`), pełny cykl na buildzie produkcyjnym z atrapą Sanity opartą o `groq-js` (import, reimport z usuniętym wariantem, duplikaty zdjęć, strona produktu, okno panelu).
+
+## Widoczność, promowanie i strona główna
+
+### Widoczność produktów = publikacja
+
+- O tym, czy klient widzi produkt, decyduje WYŁĄCZNIE publikacja dokumentu w Sanity (szkic `drafts.<id>` = niewidoczny). Stare pole `visibility` nigdy nie było czytane przez sklep — w Studio jest schowane, import go nie ustawia.
+- **Import CSV zakłada NOWE produkty jako szkice** (`drafts.<uuid>`); aktualizacja istniejącego SKU nie zmienia jego stanu publikacji. Kreator po imporcie linkuje do szkiców.
+- **Katalog** (`ProductsView`): zaznaczanie (także „wszystkie widoczne” w nagłówku, zaznaczenie przeżywa zmianę filtrów), pasek akcji hurtowych — Opublikuj / Wycofaj / Promuj / Bez promowania / Bestseller / Bez bestsellera / Usuń — oraz baner „N produktów czeka w szkicach → Opublikuj wszystkie”. `adminBulkProducts` → `bulkProductAction` (`lib/admin/catalog.ts`): każdy produkt osobno (4 równolegle, maks. 500), publikacja wymaga ceny i sluga, wynik `{ done, failed[] }` — nieudane zostają zaznaczone. Publikacja/wycofanie/usunięcie zapisuje rejestr cen.
+- Zmiany publikacji i flag odświeżają sklep od razu (`revalidatePath('/', 'layout')`).
+- **Podgląd szkicu dla admina**: `/product/<slug>` szkicu zwraca 404 klientom, a zalogowanemu adminowi pokazuje produkt z banerem „Podgląd szkicu” (`lib/productPreview.ts`, perspektywa `drafts`, ta sama projekcja `PRODUCT_BY_ID_QUERY`). Katalog linkuje podgląd także dla szkiców.
+
+### Promowanie (`isFeatured` / `isBestseller`)
+
+- Kafelki (`ProductItem2`, `ProductItemWithoutBTN`, `WishlistProduct`) pokazują plakietki „Bestseller” i „Polecamy” obok obniżki (`components/ProductBadges.tsx`).
+- Sortowanie „Popularne” na listingach: najpierw promowane, potem bestsellery, dalej sprzedaż z 90 dni (`promotionRank` w `lib/productSort.ts`).
+- Karuzele strony głównej mogą filtrować „tylko promowane/bestsellery” albo sortować „Promowane i bestsellery”.
+
+### Strona główna (`/admin/home`, Marketing → Strona główna)
+
+- Jeden dokument Sanity `homeLayout` (`_id: "homeLayout"`, schowany w Studio) z listą sekcji w kolejności wyświetlania: karuzele produktów (`products`) + stałe moduły (`valueBar`, `subcategories`, `guides`, `about`) — każdą można przestawiać i ukrywać. Brak dokumentu = `defaultHomeLayout()` (Najczęściej wybierane / Nowości / Polecamy).
+- **Karuzela = reguła**: źródło (cały sklep / kolekcja / kategoria / subkategoria / wybrane ręcznie) + kolejność (najczęściej zamawiane = sprzedaż 90 dni, promowane, nowości, oceny, obniżka, cena, ręczna) + filtry (dostępne, promowane, bestsellery, w promocji) + przypięte na początek + wykluczone + limit 4–24 + link „Zobacz wszystkie” (kolekcja/subkategoria). Typy i walidacja: `lib/homeLayout.ts` (czyste); wyliczanie: `lib/homeLayout.server.ts` (`resolveHomeSections`, GROQ + sygnały z `lib/productListing.ts`).
+- **Produkty liczy SERWER** i podaje do `ProductCarusel2` jako props (bez zapytań z przeglądarki). Błąd sekcji = sekcja znika, strona działa. Pusta karuzela się nie pokazuje. Szkice nigdy nie trafiają na stronę główną.
+- Panel: lista sekcji, edytor karuzeli, wybór produktów z wyszukiwarką, **podgląd na żywo** liczony tą samą funkcją co sklep (świeże dane, bez cache), ostrzeżenia (`sectionProblems`), zapis → `revalidatePath('/')`. `components/admin/marketing/HomeLayoutEditor.tsx`, `lib/admin/homeLayout.ts`, `actions/adminHome.ts`.
 
 ## Sortowanie listingów
 

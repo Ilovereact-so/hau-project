@@ -5,7 +5,8 @@ import { GetSlugProduct } from '../../sanity.types'
 import Image from 'next/image'
 import { urlFor } from '@/sanity/lib/image'
 import Link from 'next/link'
-import { DiscountBadge, OmnibusNote, PriceRow, useProductPrice } from './price/ProductPrice'
+import { OmnibusNote, PriceRow, useProductPrice } from './price/ProductPrice'
+import ProductBadges from './ProductBadges'
 import { WishlistButton } from './WishlistButton'
 import ProductRatingBadge from './reviews/ProductRatingBadge'
 import AddToCartButton from './AddToCardButton'
@@ -50,7 +51,7 @@ const ProductItem2 = memo(function ProductItem2({ product }: { product: GetSlugP
             priceClassName='2xl:text-[16px] sm:text-[15px] text-[13px]'
             referenceClassName='2xl:text-[15px] sm:text-[14px] text-[12px]'
           />
-          <DiscountBadge state={priceState} className='bg-[#e2f3f0] p-1 px-2 rounded-[10px] text-black absolute top-4 left-3' />
+          <ProductBadges state={priceState} isFeatured={product.isFeatured} isBestseller={product.isBestseller} />
         </div>
         <AddToCartButton
                 product={product}

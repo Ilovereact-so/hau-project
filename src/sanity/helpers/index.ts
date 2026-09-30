@@ -155,8 +155,9 @@ export const getSubCategoryBySlug = async(slug: string) => {
     return null;
   }
 };
-export const getProductBySlug = async (slug: string) => {
-  const PRODUCT_BY_ID_QUERY = defineQuery(
+// Na poziomie modułu, bo tej samej projekcji używa podgląd szkicu dla admina
+// (lib/productPreview.ts) — produkt w podglądzie wygląda 1:1 jak w sklepie.
+export const PRODUCT_BY_ID_QUERY = defineQuery(
     `*[_type == "product" && slug.current == $slug]{
   ...,
     category->{
@@ -206,6 +207,8 @@ export const getProductBySlug = async (slug: string) => {
     }
   }[0]`
   );
+
+export const getProductBySlug = async (slug: string) => {
 
   try {
     const product = await sanityFetch({

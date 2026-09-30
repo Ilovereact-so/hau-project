@@ -823,3 +823,82 @@ export async function updateShippingMethod(id: string, input: ShippingInput) {
 export async function setShippingActive(id: string, active: boolean) {
   await patchAllVersions(id, { set: { active } })
 }
+
+// ─── akcje hurtowe (katalog: zaznacz → wykonaj) ───────────────────────────────
+
+export const BULK_PRODUCT_ACTIONS = [
+  'publish',
+  'unpublish',
+  'feature',
+  'unfeature',
+  'bestseller',
+  'unbestseller',
+  'delete',
+] as const
+export type BulkProductAction = (typeof BULK_PRODUCT_ACTIONS)[number]
+
+export type BulkResult = {
+  done: string[]
+  failed: Array<{ id: string; title: string; error: string }>
+}
+
+const BULK_LIMIT = 500
+const BULK_CONCURRENCY = 4
+
+/**
+ * Ta sama operacja na wielu produktach. Każdy produkt osobno (błąd jednego
+ * nie zatrzymuje reszty) — wynik mówi, które się udały, a które nie i dlaczego.
+ * Publikacja sprawdza minimum, bez którego produkt w sklepie byłby zepsuty
+ * (nazwa, adres, cena).
+ */
+export async function bulkProductAction(ids: string[], action: BulkProductAction): Promise<BulkResult> {
+  if (!(BULK_PRODUCT_ACTIONS as readonly string[]).includes(action)) throw new Error('Nieznana akcja.')
+  const unique = [...new Set(ids.map((id) => assertDocId(String(id))))].slice(0, BULK_LIMIT)
+  if (!unique.length) return { done: [], failed: [] }
+
+  const docs = await raw.fetch<Array<{ _id: string; title?: string; price?: number; slug?: string }>>(
+    `*[_type == "product" && (_id in $ids || _id in $drafts)]{ _id, title, price, "slug": slug.current }`,
+    { ids: unique, drafts: unique.map(draftId) },
+  )
+  // Szkic ma pierwszeństwo — to on zostanie opublikowany.
+  const info = new Map<string, { title: string; price?: number; slug?: string }>()
+  for (const doc of docs.sort((a, b) => Number(a._id.startsWith(DRAFT_PREFIX)) - Number(b._id.startsWith(DRAFT_PREFIX)))) {
+    info.set(baseId(doc._id), { title: doc.title || '(bez nazwy)', price: doc.price, slug: doc.slug })
+  }
+
+  const result: BulkResult = { done: [], failed: [] }
+  const queue = [...unique]
+  const run = async (id: string) => {
+    const product = info.get(id)
+    if (!product) throw new Error('Produkt nie istnieje (mógł zostać usunięty).')
+    switch (action) {
+      case 'publish':
+        if (!(typeof product.price === 'number' && product.price > 0)) throw new Error('brak ceny')
+        if (!product.slug) throw new Error('brak adresu (slug)')
+        return publishDocument(id)
+      case 'unpublish':
+        return unpublishDocument(id)
+      case 'feature':
+      case 'unfeature':
+        return patchAllVersions(id, { set: { isFeatured: action === 'feature' } })
+      case 'bestseller':
+      case 'unbestseller':
+        return patchAllVersions(id, { set: { isBestseller: action === 'bestseller' } })
+      case 'delete':
+        return deleteDocument(id)
+    }
+  }
+  const worker = async () => {
+    for (let id = queue.shift(); id; id = queue.shift()) {
+      try {
+        await run(id)
+        result.done.push(id)
+      } catch (err) {
+        result.failed.push({ id, title: info.get(id)?.title ?? id, error: err instanceof Error ? err.message : String(err) })
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(BULK_CONCURRENCY, unique.length) }, worker))
+  await invalidateCatalogCache()
+  return result
+}

@@ -6,7 +6,8 @@ import Image from 'next/image'
 import { urlFor } from '@/sanity/lib/image'
 import { primaryImageForVariant } from '@/lib/variantImages'
 import Link from 'next/link'
-import { DiscountBadge, OmnibusNote, PriceRow, useProductPrice } from './price/ProductPrice'
+import { OmnibusNote, PriceRow, useProductPrice } from './price/ProductPrice'
+import ProductBadges from './ProductBadges'
 import { WishlistButton } from './WishlistButton'
 import { ProductRatingBadge } from './reviews/ProductRatingBadge'
 
@@ -23,9 +24,12 @@ const ProductItemWithoutBTN = ({product}:{product: GetSlugProduct & { defaultVar
         </Link>
       }
       <WishlistButton productId={product._id} product={product} className='absolute top-4 right-4'/>
-      <DiscountBadge
+      <ProductBadges
         state={priceState}
-        className='bg-[#e2f3f0] p-1 px-2 rounded-[10px] text-black absolute top-4 left-4 2xl:text-[16px] sm:text-[15px] text-[13px]'
+        isFeatured={product.isFeatured}
+        isBestseller={product.isBestseller}
+        className='left-4'
+        badgeClassName='2xl:text-[16px] sm:text-[15px] text-[13px]'
       />
       
       <div className='flex flex-col max-sm:w-[calc((100vw-66px)/2))] max-md:w-[calc((100vw-110px)/3))] max-lg:w-[calc((100vw-156px)/3))] max-1.5xl:w-[calc((100vw-156px)/4))]s w-[calc((100vw-156px)/5))] 4xl:w-[calc((1900px-156px)/5))]'>

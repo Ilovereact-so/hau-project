@@ -1,4 +1,5 @@
-import ContentContainer from "@/components/ContentContainer";
+import HomeSections from "@/components/HomeSections";
+import { resolveHomeSections } from "@/lib/homeLayout.server";
 import Footer from "@/components/Footer";
 import HomeCarousel from "@/components/HomeCarousel";
 import { getAllCollections } from "@/sanity/helpers";
@@ -26,13 +27,16 @@ export const metadata: Metadata = pageMetadata({
  */
 export default async function Home() {
 
-    const collections = (await getAllCollections()).filter((c) => c.productCount > 0);
+    // Sekcje pod banerem (kolejność, karuzele i ich produkty) ustawia panel:
+    // Marketing → Strona główna. Liczone na serwerze razem z banerami.
+    const [allCollections, sections] = await Promise.all([getAllCollections(), resolveHomeSections()]);
+    const collections = allCollections.filter((c) => c.productCount > 0);
     return (
         <div className="">
             {/* Dane firmy i wyszukiwarki dla Google — raz, na stronie głównej. */}
             <script {...jsonLdScript(organizationJsonLd())} />
             <HomeCarousel collections={collections} />
-            <ContentContainer/>
+            <HomeSections sections={sections} />
             <Footer/>
         </div>
     );

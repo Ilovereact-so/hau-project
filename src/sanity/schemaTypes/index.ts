@@ -14,6 +14,7 @@ import guideCategory from './guideCategory'
 import videoEmbed from './videoEmbed'
 import { calloutBlock, dividerBlock, productEmbedBlock } from './guideBlocks'
 import collection from './collection'
+import { homeLayoutType } from './homeLayout'
 
 
 export const schema: { types: SchemaTypeDefinition[] } = {
@@ -25,6 +26,8 @@ export const schema: { types: SchemaTypeDefinition[] } = {
     banerVariants,
     // Kolekcje produktów — przypisanie trzyma produkt (`collections`), baner linkuje do kolekcji.
     collection,
+    // Układ strony głównej (karuzele) — edytowany w panelu /admin/home.
+    homeLayoutType,
     filter,
     filterValue,
     shipping_methods,

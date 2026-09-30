@@ -44,7 +44,9 @@ const productType = {
 
     // Stock / visibility
     { name: "stock", title: "Stock", type: "number" },
-    { name: "visibility", title: "Visibility", type: "string", options: { list: ["draft", "published", "storefront"] }, initialValue: "published" },
+    // Wycofane: sklep nigdy tego pola nie czytał. O widoczności decyduje publikacja
+    // dokumentu (szkic = niewidoczny) — w panelu: Katalog → Opublikuj / Wycofaj.
+    { name: "visibility", title: "Visibility (nieużywane)", type: "string", options: { list: ["draft", "published", "storefront"] }, hidden: true },
 
     // Category as reference (tak jak w orginale) — załóżmy, że masz typ dokumentu `category`
     {

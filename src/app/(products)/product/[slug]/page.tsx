@@ -23,6 +23,7 @@ import { breadcrumbJsonLd, jsonLdScript, pageMetadata } from "@/lib/seo/metadata
 import { absoluteUrl } from "@/lib/site";
 import { urlFor } from "@/sanity/lib/image";
 import { imagesForVariant } from "@/lib/variantImages";
+import { getProductPreviewForAdmin } from "@/lib/productPreview";
 
 /**
  * Najniższa cena z 30 dni dla wszystkich wariantów. Przy okazji uzgadnia
@@ -78,7 +79,12 @@ function productOgImage(product: GetSlugProduct) {
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const product = (await getProductBySlug(slug)) as GetSlugProduct | null;
-  if (!product) return { title: "Nie znaleziono produktu" };
+  if (!product) {
+    const preview = await getProductPreviewForAdmin(slug);
+    return preview
+      ? { title: `Podgląd: ${preview.title ?? "szkic"}`, robots: { index: false, follow: false } }
+      : { title: "Nie znaleziono produktu" };
+  }
 
   const name = [product.brand, product.title].filter(Boolean).join(" ");
   return pageMetadata({
@@ -101,7 +107,13 @@ const ProductPage = async ({
   const { slug } = await params;
   const { variant } = await searchParams
 
-  const product = await getProductBySlug(slug) as GetSlugProduct;
+  // Klient widzi tylko opublikowane produkty; admin — także szkic (podgląd z banerem).
+  let product = (await getProductBySlug(slug)) as GetSlugProduct | null;
+  let isDraftPreview = false;
+  if (!product) {
+    product = await getProductPreviewForAdmin(slug);
+    isDraftPreview = Boolean(product);
+  }
 
   if (!product) {
     return notFound();
@@ -186,6 +198,13 @@ const ProductPage = async ({
           nie mogła zamknąć tagu <script>. */}
       <script {...jsonLdScript(jsonLd)} />
       <script {...jsonLdScript(breadcrumb)} />
+      {isDraftPreview && (
+        <div className="mx-auto mt-4 flex max-w-[1100px] flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-[20px] border border-[#f0c36d] bg-[#fff8e6] px-5 py-3 font-poppins text-[14px] text-black max-md:mx-5">
+          <strong>Podgląd szkicu</strong>
+          <span className="text-[#6C6C6C]">Ten produkt nie jest opublikowany — klienci go nie widzą. Widzisz go, bo jesteś zalogowany jako admin.</span>
+          <a href="/admin/products?status=draft" className="font-medium underline underline-offset-2">Opublikuj w panelu</a>
+        </div>
+      )}
       <div className="gap-10 md:py-10 max-md:pb-10 md:mt-2 sm:mt-8 mt-6">
         <div className="flex flex-col md:justify-center md:flex-row md:px-10 2lg:space-x-16 md:space-x-8 relative">
           <div className="md:sticky md:top-4 h-full flex flex-col z-2">

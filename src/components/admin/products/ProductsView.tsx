@@ -1,15 +1,16 @@
 'use client'
 
-import { Fragment, useMemo, useState, useTransition } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import {
-  Boxes, ChevronDown, ExternalLink, Eye, EyeOff, ImageOff, PackageOpen, Pencil, Plus, RefreshCw, Star, Trash2, Trophy,
+  Boxes, ChevronDown, ExternalLink, Eye, EyeOff, ImageOff, PackageOpen, Pencil, Plus, RefreshCw, Star, Trash2, Trophy, X,
 } from 'lucide-react'
 import type { AdminProduct } from '@/lib/admin/catalog'
 import {
-  adminDeleteProduct, adminRefreshProducts, adminSetPublished, adminToggleProductFlag,
+  adminBulkProducts, adminDeleteProduct, adminRefreshProducts, adminSetPublished, adminToggleProductFlag,
 } from '@/actions/adminProducts'
+import type { BulkProductAction } from '@/lib/admin/catalog'
 import { PublishStateLabel } from '@/lib/admin/labels'
 import { Badge, Dot, PUBLISH_TONES, toneFor } from '../kit/Badge'
 import { Button, IconButton } from '../kit/Button'
@@ -48,6 +49,9 @@ export function ProductsView({
   const [editing, setEditing] = useState<AdminProduct | 'new' | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState('')
+  // Zaznaczenie do akcji hurtowych — id produktów (przeżywa zmianę filtrów).
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkBusy, setBulkBusy] = useState<BulkProductAction | null>(null)
 
   const needle = (search || query).trim().toLowerCase()
   const filtered = useMemo(
@@ -73,6 +77,68 @@ export function ProductsView({
     }),
     [products]
   )
+
+  // Po odświeżeniu listy (np. usunięcie) zaznaczenie nie może wskazywać nieistniejących produktów.
+  useEffect(() => {
+    setSelected((current) => {
+      const ids = new Set(products.map((p) => p.id))
+      const next = new Set([...current].filter((id) => ids.has(id)))
+      return next.size === current.size ? current : next
+    })
+  }, [products])
+
+  const filteredIds = useMemo(() => filtered.map((p) => p.id), [filtered])
+  const allFilteredSelected = filteredIds.length > 0 && filteredIds.every((id) => selected.has(id))
+  const someFilteredSelected = filteredIds.some((id) => selected.has(id))
+  const toggleAll = () =>
+    setSelected((current) => {
+      const next = new Set(current)
+      if (allFilteredSelected) filteredIds.forEach((id) => next.delete(id))
+      else filteredIds.forEach((id) => next.add(id))
+      return next
+    })
+  const toggleOne = (id: string) =>
+    setSelected((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+
+  const selectedProducts = useMemo(() => products.filter((p) => selected.has(p.id)), [products, selected])
+  const draftProducts = useMemo(() => products.filter((p) => p.status === 'draft'), [products])
+
+  const runBulk = async (action: BulkProductAction, targets: AdminProduct[]) => {
+    if (!targets.length) return
+    const n = targets.length
+    const label = `${n} ${n === 1 ? 'produkt' : n < 5 ? 'produkty' : 'produktów'}`
+    if (action === 'unpublish' && !window.confirm(`Wycofać ze sklepu ${label}?\n\nWrócą do szkiców — klienci przestaną je widzieć.`)) return
+    if (action === 'delete' && !window.confirm(`Usunąć TRWALE ${label}?\n\nZnikną z Sanity razem ze szkicami. Historia zamówień zostaje.`)) return
+    if (action === 'publish') {
+      const noImage = targets.filter((p) => !p.images.length).length
+      if (noImage && !window.confirm(`${noImage} z zaznaczonych nie ma zdjęcia. Opublikować mimo to?`)) return
+    }
+    setBulkBusy(action)
+    setError('')
+    const result = await adminBulkProducts(targets.map((p) => p.id), action)
+    setBulkBusy(null)
+    if (!result.ok) {
+      setError(result.error)
+      return
+    }
+    const { done, failed } = result.data
+    if (done.length) toast.success(`${BULK_DONE[action]}: ${done.length}`)
+    if (failed.length) {
+      setError(
+        `Nie udało się dla ${failed.length}: ` +
+          failed.slice(0, 8).map((f) => `„${f.title}” (${f.error})`).join(', ') +
+          (failed.length > 8 ? ` i ${failed.length - 8} więcej` : ''),
+      )
+    }
+    // Zostają zaznaczone tylko te, którym się nie udało — łatwo poprawić i ponowić.
+    setSelected(new Set(failed.map((f) => f.id)))
+    startTransition(() => router.refresh())
+  }
 
   const act = async (key: string, fn: () => Promise<{ ok: boolean; error?: string }>, success: string) => {
     setBusy(key)
@@ -195,10 +261,74 @@ export function ProductsView({
             </p>
           )}
 
+          {draftProducts.length > 0 && statusFilter !== 'draft' && !lowOnly && (
+            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xs border border-primary/25 bg-primary/5 px-3 py-2 text-xs text-text-2">
+              <EyeOff size={14} strokeWidth={1.5} className="text-primary" />
+              <span>
+                <b className="text-text">{draftProducts.length}</b> {draftProducts.length === 1 ? 'produkt czeka' : 'produktów czeka'} w szkicach
+                (np. z importu) — klienci ich nie widzą.
+              </span>
+              <span className="ml-auto flex gap-1.5">
+                <Button size="sm" variant="secondary" onClick={() => nav.set({ status: 'draft' })}>
+                  Pokaż szkice
+                </Button>
+                <Button size="sm" disabled={Boolean(bulkBusy)} onClick={() => void runBulk('publish', draftProducts)}>
+                  <Eye size={14} strokeWidth={1.5} />
+                  Opublikuj wszystkie ({draftProducts.length})
+                </Button>
+              </span>
+            </div>
+          )}
+
+          {selected.size > 0 && (
+            <div className="sticky top-2 z-20 mb-3 flex flex-wrap items-center gap-1.5 rounded-xs border border-border-strong bg-surface px-3 py-2 shadow-1">
+              <strong className="mr-1 text-xs text-text">Zaznaczone: {selected.size}</strong>
+              <Button size="sm" disabled={Boolean(bulkBusy)} onClick={() => void runBulk('publish', selectedProducts)}>
+                <Eye size={14} strokeWidth={1.5} />
+                {bulkBusy === 'publish' ? 'Publikuję…' : 'Opublikuj'}
+              </Button>
+              <Button size="sm" variant="secondary" disabled={Boolean(bulkBusy)} onClick={() => void runBulk('unpublish', selectedProducts)}>
+                <EyeOff size={14} strokeWidth={1.5} />
+                Wycofaj
+              </Button>
+              <span className="mx-1 h-5 w-px bg-border" aria-hidden />
+              <Button size="sm" variant="secondary" disabled={Boolean(bulkBusy)} onClick={() => void runBulk('feature', selectedProducts)}>
+                <Star size={14} strokeWidth={1.5} />
+                Promuj
+              </Button>
+              <Button size="sm" variant="ghost" disabled={Boolean(bulkBusy)} onClick={() => void runBulk('unfeature', selectedProducts)}>
+                Bez promowania
+              </Button>
+              <Button size="sm" variant="secondary" disabled={Boolean(bulkBusy)} onClick={() => void runBulk('bestseller', selectedProducts)}>
+                <Trophy size={14} strokeWidth={1.5} />
+                Bestseller
+              </Button>
+              <Button size="sm" variant="ghost" disabled={Boolean(bulkBusy)} onClick={() => void runBulk('unbestseller', selectedProducts)}>
+                Bez bestsellera
+              </Button>
+              <span className="mx-1 h-5 w-px bg-border" aria-hidden />
+              <Button size="sm" variant="danger" disabled={Boolean(bulkBusy)} onClick={() => void runBulk('delete', selectedProducts)}>
+                <Trash2 size={14} strokeWidth={1.5} />
+                Usuń
+              </Button>
+              <IconButton label="Odznacz wszystkie" className="ml-auto size-7" onClick={() => setSelected(new Set())}>
+                <X size={14} strokeWidth={1.5} />
+              </IconButton>
+            </div>
+          )}
+
           {filtered.length ? (
             <DataTable>
               <thead>
                 <tr>
+                  <Th className="w-9">
+                    <SelectBox
+                      checked={allFilteredSelected}
+                      indeterminate={!allFilteredSelected && someFilteredSelected}
+                      label={allFilteredSelected ? 'Odznacz widoczne' : `Zaznacz widoczne (${filteredIds.length})`}
+                      onChange={toggleAll}
+                    />
+                  </Th>
                   <Th>Produkt</Th>
                   <Th>Status</Th>
                   <Th>W sklepie</Th>
@@ -214,7 +344,13 @@ export function ProductsView({
                   const low = product.lowStock.length > 0
                   return (
                     <Fragment key={product.id}>
-                      <Tr className={cn('cursor-pointer', isExpanded && 'bg-surface-muted/70')} onClick={() => setExpandedId(isExpanded ? null : product.id)}>
+                      <Tr
+                        className={cn('cursor-pointer', isExpanded && 'bg-surface-muted/70', selected.has(product.id) && 'bg-primary/5')}
+                        onClick={() => setExpandedId(isExpanded ? null : product.id)}
+                      >
+                        <Td className="w-9" onClick={(event) => event.stopPropagation()}>
+                          <SelectBox checked={selected.has(product.id)} label={`Zaznacz „${product.title}”`} onChange={() => toggleOne(product.id)} />
+                        </Td>
                         <Td className="min-w-[220px]">
                           <span className="flex items-center gap-3">
                             <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xs border border-border bg-surface-muted text-muted">
@@ -330,13 +466,13 @@ export function ProductsView({
                             <IconButton label="Edytuj produkt" onClick={() => setEditing(product)}>
                               <Pencil size={14} strokeWidth={1.5} />
                             </IconButton>
-                            {product.slug && product.status !== 'draft' && (
+                            {product.slug && (
                               <a
                                 href={`/product/${product.slug}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                aria-label="Zobacz w sklepie"
-                                title="Zobacz w sklepie"
+                                aria-label={product.status === 'draft' ? 'Podgląd szkicu (widzi go tylko admin)' : 'Zobacz w sklepie'}
+                                title={product.status === 'draft' ? 'Podgląd szkicu (widzi go tylko admin)' : 'Zobacz w sklepie'}
                                 className="grid size-8 place-items-center rounded-xs border border-border bg-bg text-text-2 transition-colors hover:border-border-strong hover:text-text"
                               >
                                 <ExternalLink size={14} strokeWidth={1.5} />
@@ -355,7 +491,7 @@ export function ProductsView({
                       </Tr>
                       {isExpanded && (
                         <tr>
-                          <td colSpan={7} className="border-b border-border bg-surface-muted/60 p-0">
+                          <td colSpan={8} className="border-b border-border bg-surface-muted/60 p-0">
                             <VariantStockTable product={product} threshold={LOW_STOCK} onError={setError} />
                           </td>
                         </tr>
@@ -421,5 +557,43 @@ function FlagButton({
       <Icon size={12} strokeWidth={1.8} />
       <span className="hidden 3xl:inline">{label}</span>
     </button>
+  )
+}
+
+const BULK_DONE: Record<BulkProductAction, string> = {
+  publish: 'Opublikowano',
+  unpublish: 'Wycofano do szkiców',
+  feature: 'Oznaczono jako promowane',
+  unfeature: 'Zdjęto promowanie',
+  bestseller: 'Oznaczono jako bestseller',
+  unbestseller: 'Zdjęto bestseller',
+  delete: 'Usunięto',
+}
+
+function SelectBox({
+  checked,
+  indeterminate,
+  label,
+  onChange,
+}: {
+  checked: boolean
+  indeterminate?: boolean
+  label: string
+  onChange: () => void
+}) {
+  const ref = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = Boolean(indeterminate)
+  }, [indeterminate])
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      checked={checked}
+      onChange={onChange}
+      aria-label={label}
+      title={label}
+      className="size-4 cursor-pointer accent-[var(--adm-primary,#ec3013)]"
+    />
   )
 }

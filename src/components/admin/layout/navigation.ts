@@ -90,6 +90,7 @@ export const NAV_ITEMS: NavItem[] = [
     children: [
       { label: 'Newsletter', href: '/admin/marketing' },
       { label: 'Kody rabatowe', href: '/admin/discounts' },
+      { label: 'Strona główna', href: '/admin/home' },
     ],
   },
   { label: 'Analityka', icon: ChartNoAxesCombined, href: '/admin/insights' },
@@ -106,7 +107,7 @@ export function activeLabelFor(pathname: string, search: URLSearchParams): strin
   if (pathname === '/admin/products' && search.get('filter') === 'low') return 'Magazyn'
   if (pathname === '/admin' || pathname === '/admin/') return 'Dashboard'
   if (pathname.startsWith('/admin/categories') || pathname.startsWith('/admin/collections') || pathname.startsWith('/admin/import')) return 'Produkty'
-  if (pathname.startsWith('/admin/newsletter') || pathname.startsWith('/admin/discounts')) return 'Marketing'
+  if (pathname.startsWith('/admin/newsletter') || pathname.startsWith('/admin/discounts') || pathname.startsWith('/admin/home')) return 'Marketing'
 
   let best: NavItem | undefined
   for (const item of NAV_ITEMS) {
@@ -152,6 +153,7 @@ const HEADINGS: Array<[prefix: string, heading: Heading]> = [
   ['/admin/shipping', { title: 'Dostawy', subtitle: 'Metody dostawy z Furgonetki — ceny, aktywność i kolejność w checkoucie.' }],
   ['/admin/marketing', { title: 'Marketing', subtitle: 'Newsletter: subskrybenci i szablon maila powitalnego.' }],
   ['/admin/discounts', { title: 'Kody rabatowe', subtitle: 'Rabaty procentowe, kwotowe i darmowa dostawa — warunki, limity i użycia w zamówieniach.' }],
+  ['/admin/home', { title: 'Strona główna', subtitle: 'Karuzele produktów i kolejność sekcji pod banerem — co i w jakiej kolejności widzi klient.' }],
   ['/admin/newsletter', { title: 'Marketing', subtitle: 'Newsletter: subskrybenci i szablon maila powitalnego.' }],
   ['/admin/insights', { title: 'Analityka', subtitle: 'Popyt, aktywność klientów, porzucone koszyki i porównanie miesięcy.' }],
   ['/admin/settings', { title: 'Integracje', subtitle: 'Stan połączeń sklepu: Sanity, baza, Redis, płatności, wysyłka i poczta.' }],

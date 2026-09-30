@@ -4,7 +4,8 @@ import { urlFor } from '@/sanity/lib/image'
 import Image from 'next/image'
 import { memo } from 'react'
 import { GetSlugProduct } from 'sanity.types'
-import { DiscountBadge, OmnibusNote, PriceRow, useProductPrice } from './price/ProductPrice'
+import { OmnibusNote, PriceRow, useProductPrice } from './price/ProductPrice'
+import ProductBadges from './ProductBadges'
 import { WishlistButton } from './WishlistButton'
 import AddToCartButton from './AddToCardButton'
 import { Edit } from 'lucide-react'
@@ -40,9 +41,12 @@ const WishlistProduct = memo(function WishlistProduct({ product }: Props) {
         textClassName='text-[#6C6C6C] sm:text-[14px] text-[12px]'
       />
 
-      <DiscountBadge
+      <ProductBadges
         state={priceState}
-        className='bg-[#e2f3f0] p-1 px-2 rounded-[10px] text-black absolute top-4 left-4 2xl:text-[16px] sm:text-[15px] text-[13px]'
+        isFeatured={product.isFeatured}
+        isBestseller={product.isBestseller}
+        className='left-4'
+        badgeClassName='2xl:text-[16px] sm:text-[15px] text-[13px]'
       />
       <div className='flex flex-col h-full justify-end'>
         <div className="flex justify-between w-full mt-1">

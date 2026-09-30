@@ -433,7 +433,7 @@ export function ImportWizard() {
       <CardHeader
         icon={Upload}
         title="Import produktów i zdjęć"
-        subtitle="CSV zakłada i aktualizuje produkty (po SKU). ZIP ze zdjęciami przypisuje je po nazwach plików: slug.jpg, slug-2.jpg (wspólne), slug-mint.jpg (wariant). Sam ZIP dogrywa zdjęcia do istniejących produktów."
+        subtitle="CSV zakłada (jako szkice) i aktualizuje produkty (po SKU). ZIP ze zdjęciami przypisuje je po nazwach plików: slug.jpg, slug-2.jpg (wspólne), slug-mint.jpg (wariant). Sam ZIP dogrywa zdjęcia do istniejących produktów."
         actions={
           <>
             <Button size="sm" variant="ghost" onClick={downloadSample}>
@@ -677,6 +677,17 @@ export function ImportWizard() {
               {summary.failed + (imageStats?.failed ?? 0) > 0 && <Badge tone="danger">{`${summary.failed + (imageStats?.failed ?? 0)} błędów`}</Badge>}
               {summary.warnings > 0 && <Badge tone="primary">{`${summary.warnings} ostrzeżeń (brakujące filtry/kategorie)`}</Badge>}
             </div>
+            {summary.created > 0 && (
+              <NoticeBox className="border-primary/30 bg-primary/5">
+                <strong className="text-text">Nowe produkty ({summary.created}) są w szkicach — klienci ich jeszcze nie widzą.</strong>
+                <p className="mt-1 mb-0">
+                  Sprawdź zdjęcia i ceny, a potem opublikuj je jednym przyciskiem w katalogu (zaznacz → „Opublikuj” albo „Opublikuj wszystkie”).{' '}
+                  <a href="/admin/products?status=draft" className="font-medium text-text underline underline-offset-2">
+                    Przejdź do szkiców
+                  </a>
+                </p>
+              </NoticeBox>
+            )}
             <details className="rounded-xs border border-border bg-surface px-3 py-2 text-[11px] text-text-2">
               <summary className="cursor-pointer font-medium text-text">Pełny raport ({logs.length} linii)</summary>
               <pre className="mt-2 max-h-[320px] overflow-auto font-mono whitespace-pre-wrap">

@@ -1,4 +1,5 @@
 import 'server-only'
+import { randomUUID } from 'crypto'
 import { customAlphabet } from 'nanoid'
 import { sanityClient } from '@/sanity/sanityClient.server'
 import {
@@ -173,6 +174,9 @@ export async function importProductRow(
   // `images` z CSV to NAZWY PLIKÓW z ZIP-a (obsługuje je przeglądarka), nie dane do zapisu.
   delete partial.images
   delete partial.options
+  // `visibility` to stare pole bez znaczenia w sklepie — o widoczności decyduje
+  // publikacja (szkic / opublikowany), więc import go nie ustawia.
+  delete partial.visibility
 
   if (!partial.sku) throw new Error('Brak SKU — po nim import rozpoznaje produkt.')
 
@@ -332,7 +336,11 @@ export async function importProductRow(
     return { ...result, action: 'update', id, slug: row.slug?.trim() ? slug : existing.slug }
   }
 
-  const saved = await sanityClient.create(partial as { _type: string })
-  session.log(`Created ${rowNumber}: ${saved._id} (SKU: ${partial.sku})`)
-  return { ...result, action: 'create', id: saved._id }
+  // Nowy produkt powstaje jako SZKIC (`drafts.<id>`) — sklep go nie widzi, dopóki
+  // admin nie opublikuje go w Katalogu (także hurtowo: zaznacz → „Opublikuj”).
+  // Dzięki temu import można sprawdzić (zdjęcia, ceny, warianty) przed wejściem do sklepu.
+  const id = randomUUID()
+  await raw.create({ ...(partial as Record<string, unknown>), _id: `${DRAFT}${id}`, _type: 'product' })
+  session.log(`Created ${rowNumber}: ${id} (SKU: ${partial.sku}, szkic)`)
+  return { ...result, action: 'create', id }
 }

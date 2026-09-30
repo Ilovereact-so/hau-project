@@ -4,7 +4,8 @@ import type {StructureResolver} from 'sanity/structure'
 // Typy obsługiwane przez własne pozycje niżej — nie mogą dublować się w
 // automatycznej liście "reszta", bo admin dostałby dwa wejścia do tego samego
 // zbioru dokumentów (jedno pogrupowane, jedno luzem).
-const HANDLED_TYPES = ['category', 'collection', 'guide', 'guideCategory', 'helpDocument']
+// `homeLayout` edytuje się wyłącznie w panelu (/admin/home) — reguły karuzel z podglądem.
+const HANDLED_TYPES = ['category', 'collection', 'guide', 'guideCategory', 'helpDocument', 'homeLayout']
 
 // https://www.sanity.io/docs/structure-builder-cheat-sheet
 export const structure: StructureResolver = (S) =>
