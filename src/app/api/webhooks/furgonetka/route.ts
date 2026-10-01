@@ -1,89 +1,97 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createHmac } from 'crypto'
+import { eq, or } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { shipments, orders } from '@/db/schema'
-import { eq } from 'drizzle-orm'
-import type { ShipmentStatus } from '@/db/schema'
+import {
+  TRACKING_STATE_MAP,
+  detectFormat,
+  parseNotification,
+  shouldApplyStatus,
+  verifyNotification,
+  webhookReply,
+  type WebhookFormat,
+} from '@/lib/furgonetkaWebhook'
 
-const WEBHOOK_SECRET = process.env.FURGONETKA_WEBHOOK_SECRET!
+/*
+ * Webhook statusów przesyłek Furgonetki (format i suma kontrolna — patrz
+ * lib/furgonetkaWebhook.ts). „Sól” wpisana w panelu Furgonetki = zmienna
+ * FURGONETKA_WEBHOOK_SECRET.
+ *
+ * Furgonetka uznaje dostarczenie TYLKO przy HTTP 200 + {"status":"OK"}
+ * (albo <status>OK</status> dla XML), więc nieznana przesyłka (np. testowe
+ * powiadomienie przy zapisie adresu w panelu) też dostaje OK — inaczej test
+ * adresu by nie przeszedł, a prawdziwe powiadomienia byłyby ponawiane.
+ */
 
-// Status mapping from Furgonetka events to our enum
-const STATUS_MAP: Record<string, ShipmentStatus> = {
-  'picked_up':        'picked_up',
-  'in_transit':       'in_transit',
-  'out_for_delivery': 'out_for_delivery',
-  'delivered':        'delivered',
-  'delivery_failed':  'failed',
-  'returned':         'returned',
+export const dynamic = 'force-dynamic'
+
+function reply(format: WebhookFormat, ok: boolean, status = 200) {
+  const { body, contentType } = webhookReply(format, ok)
+  return new NextResponse(body, { status, headers: { 'Content-Type': contentType } })
 }
 
-interface FurgonetkaWebhookPayload {
-  event:          string
-  package_id:     string
-  tracking_number?: string
-  status:         string
-  timestamp:      string
-}
-
-function verifySignature(body: string, signature: string | null): boolean {
-  if (!signature) return false
-  const expected = createHmac('sha256', WEBHOOK_SECRET).update(body).digest('hex')
-  return expected === signature
-}
+const ORDER_SHIPPED_FROM = ['paid', 'processing']
+const ORDER_DELIVERED_FROM = ['paid', 'processing', 'shipped']
 
 export async function POST(req: NextRequest) {
-  const rawBody  = await req.text()
-  const signature = req.headers.get('x-furgonetka-signature')
+  const rawBody = await req.text()
+  const format = detectFormat(rawBody, req.headers.get('content-type'))
+  const notification = parseNotification(rawBody, format)
+  if (!notification) return reply(format, false, 400)
 
-  if (!verifySignature(rawBody, signature)) {
-    console.warn('[Furgonetka] Invalid webhook signature')
-    return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+  const salt = process.env.FURGONETKA_WEBHOOK_SECRET ?? ''
+  if (!salt) {
+    console.error('[furgonetka] webhook: brak FURGONETKA_WEBHOOK_SECRET — powiadomienie odrzucone')
+    return reply(format, false)
+  }
+  if (!verifyNotification(notification, salt)) {
+    console.warn('[furgonetka] webhook: zła suma kontrolna', { packageId: notification.packageId })
+    return reply(format, false)
   }
 
-  let payload: FurgonetkaWebhookPayload
+  const next = TRACKING_STATE_MAP[notification.state]
+  if (!next || !notification.packageId) return reply(format, true)
+
   try {
-    payload = JSON.parse(rawBody)
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
-  }
+    const [shipment] = await db
+      .select({ id: shipments.id, orderId: shipments.orderId, status: shipments.status })
+      .from(shipments)
+      .where(
+        notification.packageNo
+          ? or(eq(shipments.furgonetkaId, notification.packageId), eq(shipments.trackingNumber, notification.packageNo))
+          : eq(shipments.furgonetkaId, notification.packageId),
+      )
 
-  const nextStatus = STATUS_MAP[payload.status]
-  if (!nextStatus) {
-    // unknown status — acknowledge but ignore
-    return NextResponse.json({ status: 'OK' })
-  }
-
-  const [shipment] = await db
-    .select({ id: shipments.id, orderId: shipments.orderId })
-    .from(shipments)
-    .where(eq(shipments.furgonetkaId, payload.package_id))
-
-  if (!shipment) {
-    console.error('[Furgonetka] Shipment not found', { furgonetkaId: payload.package_id })
-    return NextResponse.json({ error: 'Shipment not found' }, { status: 404 })
-  }
-
-  await db.transaction(async tx => {
-    await tx
-      .update(shipments)
-      .set({
-        status:         nextStatus,
-        trackingNumber: payload.tracking_number ?? undefined,
-      })
-      .where(eq(shipments.id, shipment.id))
-
-    if (nextStatus === 'delivered') {
-      await tx
-        .update(orders)
-        .set({ status: 'delivered' })
-        .where(eq(orders.id, shipment.orderId))
-    } else if (nextStatus === 'in_transit' || nextStatus === 'out_for_delivery') {
-      await tx
-        .update(orders)
-        .set({ status: 'shipped' })
-        .where(eq(orders.id, shipment.orderId))
+    if (!shipment) {
+      console.info('[furgonetka] webhook: nieznana przesyłka', { packageId: notification.packageId })
+      return reply(format, true)
     }
-  })
 
-  return NextResponse.json({ status: 'OK' })
+    await db.transaction(async (tx) => {
+      const patch: { status?: typeof next; trackingNumber?: string } = {}
+      if (shouldApplyStatus(shipment.status, next)) patch.status = next
+      if (notification.packageNo) patch.trackingNumber = notification.packageNo.slice(0, 128)
+      if (Object.keys(patch).length) {
+        await tx.update(shipments).set(patch).where(eq(shipments.id, shipment.id))
+      }
+      if (!patch.status) return
+
+      const [order] = await tx.select({ status: orders.status }).from(orders).where(eq(orders.id, shipment.orderId))
+      if (!order) return
+      if (next === 'delivered' && ORDER_DELIVERED_FROM.includes(order.status)) {
+        await tx.update(orders).set({ status: 'delivered' }).where(eq(orders.id, shipment.orderId))
+      } else if (
+        (next === 'picked_up' || next === 'in_transit' || next === 'out_for_delivery') &&
+        ORDER_SHIPPED_FROM.includes(order.status)
+      ) {
+        await tx.update(orders).set({ status: 'shipped' }).where(eq(orders.id, shipment.orderId))
+      }
+    })
+  } catch (err) {
+    // Błąd bazy → ERROR: Furgonetka zapisze nieudane dostarczenie i można je ponowić.
+    console.error('[furgonetka] webhook: zapis statusu nie powiódł się', err)
+    return reply(format, false, 500)
+  }
+
+  return reply(format, true)
 }

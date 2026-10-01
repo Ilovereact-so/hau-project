@@ -17,7 +17,7 @@ export default async function AdminSettingsPage() {
     { label: 'Autopay — adres ITN', value: `${base}/api/webhooks/autopay`, hint: 'Panel Autopay → konfiguracja serwisu → adres powiadomień.' },
     { label: 'Autopay — adres powrotu', value: `${base}/api/autopay/return`, hint: 'Panel Autopay → adres powrotu klienta.' },
     { label: 'Przelewy24 — urlStatus', value: `${base}/api/webhooks/przelewy24`, hint: 'Wysyłany automatycznie przy rejestracji transakcji.' },
-    { label: 'Furgonetka — webhook statusów', value: `${base}/api/webhooks/furgonetka`, hint: 'Panel Furgonetki → API → powiadomienia (podpis HMAC).' },
+    { label: 'Furgonetka — webhook statusów', value: `${base}/api/webhooks/furgonetka`, hint: 'Panel Furgonetki → Ustawienia → Powiadomienia → Webhook. Format: JSON (XML też działa). Sól = wartość FURGONETKA_WEBHOOK_SECRET z .env serwera (ta sama, znak w znak). Przed zapisem Furgonetka testuje adres — sklep musi już mieć tę zmienną i być zrestartowany.' },
     { label: 'Clerk — webhook użytkowników', value: `${base}/api/webhooks/clerk`, hint: 'Dashboard Clerk → Webhooks (user.created).' },
     { label: 'Sanity — webhook cen', value: `${base}/api/webhooks/sanity-prices`, hint: 'sanity.io/manage → API → Webhooks. Adres musi być PEŁNY (z https://), filtr _type == "product", projekcja {_id}, secret = SANITY_PRICE_WEBHOOK_SECRET.' },
     { label: 'Rejestr cen — zadanie cykliczne', value: `${base}/api/cron/price-history`, hint: 'Wywołuj co godzinę z nagłówkiem Authorization: Bearer $CRON_SECRET (GitHub Actions albo cron hostingu).' },
