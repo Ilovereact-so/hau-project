@@ -5,7 +5,16 @@ import { revalidatePath } from 'next/cache'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { orders, shipments, shippingAddresses, SHIPMENT_STATUSES, type OrderStatus, type ShipmentStatus } from '@/db/schema'
-import { createShipment, getShipmentLabel, type FurgonetkaAddress, type FurgonetkaParcel } from '@/lib/furgonetka'
+import {
+  createShipment,
+  getLatestTracking,
+  getShipment,
+  orderShipment,
+  type FurgonetkaAddress,
+  type FurgonetkaParcel,
+} from '@/lib/furgonetka'
+import { TRACKING_STATE_MAP } from '@/lib/furgonetkaWebhook'
+import { applyShipmentState } from '@/lib/shipmentStatus'
 import { runAdminAction, type ActionResult } from '@/lib/admin/guard'
 import { ORDER_TRANSITIONS } from '@/lib/admin/labels'
 import { releaseDiscountForOrder } from '@/lib/discountServer'
@@ -126,6 +135,18 @@ export async function adminCreateShipment(input: CreateShipmentInput): Promise<A
     })
 
     refresh(order.id)
+
+    // Utworzona przesyłka to dopiero szkic w Furgonetce — zamówienie zleca
+    // kuriera i tworzy etykietę. Gdy się nie uda, przesyłka zostaje zapisana
+    // i można ją zamówić ponownie przyciskiem „Zamów kuriera”.
+    try {
+      await orderAndSyncWaybill(shipmentId, result.id)
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err)
+      throw new Error(`Przesyłka utworzona w Furgonetce, ale nie zamówiona: ${reason} Popraw problem i kliknij „Zamów kuriera”.`)
+    } finally {
+      refresh(order.id)
+    }
     return { shipmentId }
   }, 'Nie udało się utworzyć przesyłki w Furgonetce.')
 }
@@ -197,21 +218,54 @@ export async function adminSetShipmentStatus(orderId: string, status: ShipmentSt
   }, 'Nie udało się zmienić statusu przesyłki.')
 }
 
-export async function adminGetShipmentLabel(orderId: string): Promise<ActionResult<string>> {
+async function orderAndSyncWaybill(shipmentId: string, furgonetkaId: string) {
+  await orderShipment(furgonetkaId)
+  const info = await getShipment(furgonetkaId).catch(() => null)
+  if (info?.waybills[0]) {
+    await db.update(shipments).set({ trackingNumber: info.waybills[0].slice(0, 128) }).where(eq(shipments.id, shipmentId))
+  }
+}
+
+async function loadFurgonetkaShipment(orderId: string) {
+  const order = await loadOrder(orderId)
+  const [shipment] = await db
+    .select({ id: shipments.id, orderId: shipments.orderId, status: shipments.status, furgonetkaId: shipments.furgonetkaId, trackingNumber: shipments.trackingNumber })
+    .from(shipments)
+    .where(eq(shipments.orderId, order.id))
+  if (!shipment) throw new Error('Zamówienie nie ma przesyłki.')
+  if (!shipment.furgonetkaId) throw new Error('Przesyłka nadana poza Furgonetką.')
+  return { ...shipment, furgonetkaId: shipment.furgonetkaId }
+}
+
+/** Ponowne zamówienie przesyłki, która powstała, ale nie została zamówiona. */
+export async function adminOrderShipment(orderId: string): Promise<ActionResult> {
   return runAdminAction(async () => {
-    const order = await loadOrder(orderId)
-    const [shipment] = await db
-      .select({ furgonetkaId: shipments.furgonetkaId, labelUrl: shipments.labelUrl })
-      .from(shipments)
-      .where(eq(shipments.orderId, order.id))
+    const shipment = await loadFurgonetkaShipment(orderId)
+    if (shipment.trackingNumber) throw new Error('Ta przesyłka jest już zamówiona.')
+    try {
+      await orderAndSyncWaybill(shipment.id, shipment.furgonetkaId)
+    } finally {
+      refresh(orderId)
+    }
+    return null
+  }, 'Nie udało się zamówić przesyłki.')
+}
 
-    if (!shipment) throw new Error('Zamówienie nie ma przesyłki.')
-    if (shipment.labelUrl) return shipment.labelUrl
-    if (!shipment.furgonetkaId) throw new Error('Przesyłka nadana poza Furgonetką — etykieta jest u przewoźnika.')
-
-    const labelUrl = await getShipmentLabel(shipment.furgonetkaId)
-    await db.update(shipments).set({ labelUrl }).where(eq(shipments.orderId, order.id))
-    refresh(order.id)
-    return labelUrl
-  }, 'Nie udało się pobrać etykiety.')
+/**
+ * Status z Furgonetki na żądanie (zapas, gdy webhook nie dotarł albo nie jest
+ * jeszcze ustawiony). Te same reguły co webhook.
+ */
+export async function adminRefreshShipment(orderId: string): Promise<ActionResult<string>> {
+  return runAdminAction(async () => {
+    const shipment = await loadFurgonetkaShipment(orderId)
+    const [info, latest] = await Promise.all([
+      getShipment(shipment.furgonetkaId).catch(() => null),
+      getLatestTracking(shipment.furgonetkaId),
+    ])
+    const next = latest ? TRACKING_STATE_MAP[latest.state] ?? null : null
+    const changed = await applyShipmentState(shipment, next, info?.waybills[0])
+    refresh(orderId)
+    if (!latest) return 'Furgonetka nie ma jeszcze zdarzeń śledzenia.'
+    return changed ? `Status zaktualizowany: ${latest.description || latest.state}` : `Bez zmian: ${latest.description || latest.state}`
+  }, 'Nie udało się pobrać statusu z Furgonetki.')
 }

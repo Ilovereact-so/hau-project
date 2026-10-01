@@ -2,7 +2,7 @@
 
 import { runAdminAction, type ActionResult } from '@/lib/admin/guard'
 import { runIntegrationTest } from '@/lib/admin/integrations'
-import { connectWithPastedCode, setSenderAddress, type FurgonetkaSender } from '@/lib/furgonetka'
+import { connectWithPastedCode, listAddressBook, senderProblems, setPickupAddressId } from '@/lib/furgonetka'
 
 export async function adminTestIntegration(id: string): Promise<ActionResult<string>> {
   return runAdminAction(() => runIntegrationTest(id), 'Test połączenia nie powiódł się.')
@@ -16,7 +16,18 @@ export async function adminFurgonetkaConnect(input: string): Promise<ActionResul
   }, 'Nie udało się połączyć konta Furgonetki.')
 }
 
-/** Adres nadawcy przesyłek (pole `pickup` w Furgonetce). */
-export async function adminSaveFurgonetkaSender(input: Partial<FurgonetkaSender>): Promise<ActionResult<FurgonetkaSender>> {
-  return runAdminAction(() => setSenderAddress(input ?? {}), 'Nie udało się zapisać adresu nadawcy.')
+/** Wybór adresu odbioru przesyłek z książki adresowej Furgonetki (`null` = domyślny z Furgonetki). */
+export async function adminSetFurgonetkaPickup(id: number | null): Promise<ActionResult<null>> {
+  return runAdminAction(async () => {
+    if (id !== null && (!Number.isInteger(id) || id <= 0)) throw new Error('Nieprawidłowy adres.')
+    if (id !== null) {
+      const book = await listAddressBook()
+      const entry = book.find((item) => item.id === id)
+      if (!entry) throw new Error('Tego adresu nie ma już w książce adresowej Furgonetki.')
+      const missing = senderProblems(entry)
+      if (missing.length) throw new Error(`Ten adres jest niepełny (${missing.join(', ')}) — uzupełnij go w Furgonetce.`)
+    }
+    await setPickupAddressId(id)
+    return null
+  }, 'Nie udało się zapisać adresu odbioru.')
 }

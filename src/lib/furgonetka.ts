@@ -231,25 +231,43 @@ async function getAccessToken(): Promise<string> {
 }
 
 // ─── base fetch ───────────────────────────────────────────────────────────────
+//
+// Furgonetka wybiera wersję operacji z typu mediów (`application/vnd.furgonetka.vN+json`)
+// w `Accept` i `Content-Type` — nieznana wersja jest po cichu ignorowana. Wersje
+// operacji (stan ze specyfikacji): POST /packages, GET /packages/{id}, tracking — v2;
+// reszta — v1.
 
-export async function furgonetkaFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+const mediaType = (version: number) => `application/vnd.furgonetka.v${version}+json`
+
+async function furgonetkaRequest(path: string, init: RequestInit & { version?: number; accept?: string } = {}): Promise<Response> {
   const token = await getAccessToken()
-
-  const isWrite = init.method === 'POST' || init.method === 'PUT' || init.method === 'PATCH'
-
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...init,
+  const { version = 1, accept, ...rest } = init
+  const hasBody = rest.body !== undefined && rest.body !== null
+  return fetch(`${BASE_URL}${path}`, {
+    ...rest,
+    cache: 'no-store',
     headers: {
-      ...(isWrite ? { 'Content-Type': 'application/json' } : {}),
-      'Accept':      'application/vnd.furgonetka.v1+json',
+      ...(hasBody ? { 'Content-Type': mediaType(version) } : {}),
+      Accept: accept ?? mediaType(version),
       Authorization: `Bearer ${token}`,
-      ...init.headers,
+      ...rest.headers,
     },
   })
+}
 
-  const body = await res.json()
+export async function furgonetkaFetch<T>(path: string, init: RequestInit & { version?: number } = {}): Promise<T> {
+  const res = await furgonetkaRequest(path, init)
+  const text = await res.text()
+  let body: unknown = null
+  if (text) {
+    try {
+      body = JSON.parse(text)
+    } catch {
+      body = text.slice(0, 500)
+    }
+  }
   if (!res.ok) {
-    throw new Error(`Furgonetka ${res.status} at ${path}: ${JSON.stringify(body)}`)
+    throw new Error(`Furgonetka ${res.status} at ${path}: ${typeof body === 'string' ? body : JSON.stringify(body)}`)
   }
   return body as T
 }
@@ -324,12 +342,14 @@ export async function getServicePrice(serviceCode: string): Promise<number> {
 
 // ─── shipment ─────────────────────────────────────────────────────────────────
 //
-// POST /packages wymaga: `service_id` (LICZBOWE id usługi z /account/services —
+// POST /packages (v2) wymaga: `service_id` (LICZBOWE id usługi z /account/services —
 // w Sanity `furgonetka_service_id` trzyma KOD, np. "dpd"), `type`, `pickup`
-// (adres nadawcy = sklepu), `receiver` z `name` i `postcode`, `parcels`.
-// Adres nadawcy ustawia się w /admin/settings (Redis), zapasowo z .env.
+// (skąd kurier odbiera), `receiver` z `name` i `postcode`, `parcels`.
+// Adres odbioru to wpis z KSIĄŻKI ADRESOWEJ Furgonetki wybrany w /admin/settings
+// (Redis `furgonetka:pickup_address_id`); bez wyboru — wpis oznaczony w Furgonetce
+// jako domyślny adres odbioru; na końcu zapas z .env (FURGONETKA_SENDER_*).
 
-const REDIS_SENDER = 'furgonetka:sender'
+const REDIS_PICKUP_ID = 'furgonetka:pickup_address_id'
 
 export interface FurgonetkaSender {
   name:     string
@@ -341,6 +361,11 @@ export interface FurgonetkaSender {
   phone:    string
 }
 
+export interface FurgonetkaAddressEntry extends FurgonetkaSender {
+  id:            number
+  defaultPickup: boolean
+}
+
 const SENDER_FIELDS = ['name', 'company', 'street', 'postcode', 'city', 'email', 'phone'] as const
 
 function senderFromEnv(): FurgonetkaSender {
@@ -348,15 +373,83 @@ function senderFromEnv(): FurgonetkaSender {
   return Object.fromEntries(SENDER_FIELDS.map((key) => [key, env(key)])) as unknown as FurgonetkaSender
 }
 
-/** Adres nadawcy z panelu (Redis), a gdy go nie ma — z .env. */
-export async function getSenderAddress(): Promise<FurgonetkaSender> {
-  try {
-    const saved = (await redis.get(REDIS_SENDER)) as string | null
-    if (saved) return { ...senderFromEnv(), ...JSON.parse(saved) }
-  } catch {
-    // Redis niedostępny — wartość z .env
+type RawAddressEntry = {
+  id?: number
+  full_name?: string | null
+  name?: string | null
+  surname?: string | null
+  company?: string | null
+  street?: string | null
+  building_number?: string | null
+  flat_number?: string | null
+  postcode?: string | null
+  city?: string | null
+  email?: string | null
+  phone?: string | null
+  point?: string | null
+  default_pickup?: boolean | null
+}
+
+function mapAddressEntry(raw: RawAddressEntry): FurgonetkaAddressEntry {
+  const str = (value: unknown) => (typeof value === 'string' ? value.trim() : '')
+  let street = str(raw.street)
+  const building = str(raw.building_number)
+  const flat = str(raw.flat_number)
+  if (building && !street.includes(building)) street = `${street} ${building}`.trim()
+  if (flat && !street.endsWith(flat)) street = `${street}/${flat}`
+  return {
+    id: Number(raw.id),
+    name: str(raw.full_name) || `${str(raw.name)} ${str(raw.surname)}`.trim(),
+    company: str(raw.company),
+    street,
+    postcode: str(raw.postcode),
+    city: str(raw.city),
+    email: str(raw.email),
+    phone: str(raw.phone),
+    defaultPickup: raw.default_pickup === true,
   }
-  return senderFromEnv()
+}
+
+/** Książka adresowa konta (bez adresów punktów odbioru — kurier nie odbierze z paczkomatu). */
+export async function listAddressBook(): Promise<FurgonetkaAddressEntry[]> {
+  const entries: FurgonetkaAddressEntry[] = []
+  for (let page = 1; page <= 10; page++) {
+    const data = await furgonetkaFetch<{ address_book_entries?: RawAddressEntry[]; total_pages?: number }>(
+      `/account/address-book?page=${page}`,
+    )
+    for (const raw of data?.address_book_entries ?? []) {
+      if (raw?.id && !raw.point) entries.push(mapAddressEntry(raw))
+    }
+    if (!data?.total_pages || page >= data.total_pages) break
+  }
+  return entries
+}
+
+export async function getPickupAddressId(): Promise<number | null> {
+  try {
+    const value = Number(await redis.get(REDIS_PICKUP_ID))
+    return Number.isInteger(value) && value > 0 ? value : null
+  } catch {
+    return null
+  }
+}
+
+export async function setPickupAddressId(id: number | null): Promise<void> {
+  if (id === null) await redis.del(REDIS_PICKUP_ID)
+  else await redis.set(REDIS_PICKUP_ID, String(id))
+}
+
+/** Adres odbioru przesyłek: wybrany wpis książki → domyślny adres odbioru z Furgonetki → .env. */
+export async function getSenderAddress(): Promise<FurgonetkaSender> {
+  const id = await getPickupAddressId()
+  if (id) {
+    const raw = await furgonetkaFetch<RawAddressEntry>(`/account/address-book/${id}`)
+    return mapAddressEntry(raw)
+  }
+  const fallback = senderFromEnv()
+  if (!senderProblems(fallback).length) return fallback
+  const book = await listAddressBook()
+  return book.find((entry) => entry.defaultPickup) ?? (book.length === 1 ? book[0] : fallback)
 }
 
 export function normalizePostcode(raw: string): string {
@@ -374,17 +467,6 @@ export function senderProblems(sender: FurgonetkaSender): string[] {
   if (!/^\S+@\S+\.\S+$/.test(sender.email)) missing.push('e-mail')
   if (sender.phone.replace(/\D/g, '').length < 9) missing.push('telefon')
   return missing
-}
-
-export async function setSenderAddress(input: Partial<FurgonetkaSender>): Promise<FurgonetkaSender> {
-  const sender = Object.fromEntries(
-    SENDER_FIELDS.map((key) => [key, String(input[key] ?? '').replace(/\s+/g, ' ').trim().slice(0, 120)]),
-  ) as unknown as FurgonetkaSender
-  sender.postcode = normalizePostcode(sender.postcode)
-  const missing = senderProblems(sender)
-  if (missing.length) throw new Error(`Uzupełnij adres nadawcy: ${missing.join(', ')}.`)
-  await redis.set(REDIS_SENDER, JSON.stringify(sender))
-  return sender
 }
 
 /**
@@ -420,7 +502,7 @@ export async function createShipment(params: CreateShipmentParams): Promise<Furg
   const sender = await getSenderAddress()
   const missing = senderProblems(sender)
   if (missing.length) {
-    throw new Error(`Brak adresu nadawcy (${missing.join(', ')}) — uzupełnij go w Ustawieniach → Integracje → Furgonetka.`)
+    throw new Error(`Adres odbioru przesyłek jest niepełny (${missing.join(', ')}) — wybierz adres z książki adresowej w Ustawieniach → Integracje → Furgonetka albo uzupełnij go w Furgonetce.`)
   }
   const service = await resolveServiceId(params.service)
   const receiverName = `${params.recipient.firstName} ${params.recipient.lastName}`.trim()
@@ -435,6 +517,7 @@ export async function createShipment(params: CreateShipmentParams): Promise<Furg
     tracking_number?: string | null
   }>('/packages', {
     method: 'POST',
+    version: 2,
     body: JSON.stringify({
       service_id: service.id,
       type:       'package',
@@ -477,23 +560,139 @@ export async function createShipment(params: CreateShipmentParams): Promise<Furg
   }
 }
 
-export async function getShipmentLabel(furgonetkaId: string): Promise<string> {
-  const result = await furgonetkaFetch<{ url: string }>(`/packages/${furgonetkaId}/waybills`)
-  return result.url
+// ─── zamówienie kuriera, etykieta, śledzenie ─────────────────────────────────
+
+type CommandStatus = 'queueing' | 'running' | 'successful' | 'partial_success' | 'error' | 'cancelled'
+type CommandResult = {
+  status?: CommandStatus
+  errors?: Array<{ path?: string; message?: string }>
+  successfully_ordered_packages?: Array<string | number>
 }
 
-export async function getShipment(furgonetkaId: string): Promise<FurgonetkaShipmentResult> {
-  const result = await furgonetkaFetch<{
-    id:              string
-    tracking_number: string | null
-    carrier:         string
-    status:          string
-  }>(`/packages/${furgonetkaId}`)
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-  return {
-    id:             result.id,
-    trackingNumber: result.tracking_number,
-    carrier:        result.carrier,
-    status:         result.status,
+/**
+ * Zamawia przesyłkę (= kurier + etykieta; Furgonetka pobiera opłatę z salda).
+ * Komenda jest asynchroniczna: PUT /order-commands/{uuid}, potem odpytywanie
+ * GET aż do stanu końcowego (zwykle 1–5 s). Bez zamówienia etykiety nie ma.
+ */
+export async function orderShipment(furgonetkaId: string): Promise<void> {
+  const uuid = crypto.randomUUID()
+  await furgonetkaFetch(`/order-commands/${uuid}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      packages: [{ id: furgonetkaId }],
+      label: { file_format: 'pdf', page_format: 'a6' },
+    }),
+  })
+  for (let attempt = 0; attempt < 20; attempt++) {
+    await sleep(attempt < 5 ? 1000 : 2000)
+    const result = await furgonetkaFetch<CommandResult>(`/order-commands/${uuid}`)
+    if (result.status === 'successful') return
+    if (result.status === 'error' || result.status === 'partial_success' || result.status === 'cancelled') {
+      const errors = (result.errors ?? []).map((e) => e.message).filter(Boolean).join('; ')
+      throw new Error(`Furgonetka nie zamówiła przesyłki${errors ? `: ${errors}` : ''}.`)
+    }
   }
+  throw new Error('Furgonetka nie potwierdziła zamówienia w 30 s — sprawdź przesyłkę w panelu Furgonetki i odśwież status.')
+}
+
+export class LabelNotReadyError extends Error {}
+
+/**
+ * Etykieta to PLIK (PDF albo ZPL/EPL jako tekst), nie JSON z adresem.
+ * 204 = jeszcze nie ma (przesyłka niezamówiona albo etykieta w przygotowaniu).
+ */
+export async function getShipmentLabel(furgonetkaId: string): Promise<{ data: ArrayBuffer; contentType: string }> {
+  const res = await furgonetkaRequest(`/packages/${encodeURIComponent(furgonetkaId)}/label`, {
+    accept: `application/pdf, text/plain, ${mediaType(1)}`,
+  })
+  if (res.status === 204) {
+    throw new LabelNotReadyError('Etykiety jeszcze nie ma — przesyłka musi być zamówiona. Spróbuj za chwilę.')
+  }
+  const contentType = res.headers.get('content-type') ?? ''
+  if (!res.ok || contentType.includes('json')) {
+    throw new Error(`Furgonetka ${res.status} przy pobieraniu etykiety: ${(await res.text()).slice(0, 500)}`)
+  }
+  return { data: await res.arrayBuffer(), contentType: contentType || 'application/pdf' }
+}
+
+export interface FurgonetkaPackageInfo {
+  id: string
+  state: string | null
+  waybills: string[]
+}
+
+export async function getShipment(furgonetkaId: string): Promise<FurgonetkaPackageInfo> {
+  const result = await furgonetkaFetch<{
+    package_id?: string | number
+    state?: string
+    parcels?: Array<{ package_no?: string | null }>
+  }>(`/packages/${encodeURIComponent(furgonetkaId)}`, { version: 2 })
+  return {
+    id: String(result.package_id ?? furgonetkaId),
+    state: result.state ?? null,
+    waybills: (result.parcels ?? []).map((p) => p.package_no ?? '').filter(Boolean),
+  }
+}
+
+export interface TrackingEvent {
+  state: string
+  description: string
+  datetime: string
+}
+
+/** Najświeższe zdarzenie śledzenia (po dacie — kolejność w odpowiedzi nie jest gwarantowana). */
+export async function getLatestTracking(furgonetkaId: string): Promise<TrackingEvent | null> {
+  const result = await furgonetkaFetch<{
+    parcels?: Record<string, { tracking?: Array<{ state?: string; status?: string; datetime?: string }> }>
+  }>(`/packages/${encodeURIComponent(furgonetkaId)}/tracking`, { version: 2 })
+  let latest: TrackingEvent | null = null
+  for (const parcel of Object.values(result?.parcels ?? {})) {
+    for (const event of parcel?.tracking ?? []) {
+      if (!event?.state) continue
+      const candidate = { state: event.state, description: event.status ?? '', datetime: event.datetime ?? '' }
+      if (!latest || candidate.datetime > latest.datetime) latest = candidate
+    }
+  }
+  return latest
+}
+
+// ─── webhook ──────────────────────────────────────────────────────────────────
+//
+// Adres, format i „sól” webhooka ustawia się w panelu Furgonetki; API je zwraca
+// (GET /account/settings/notification/webhook), więc sól NIE musi być w .env.
+// FURGONETKA_WEBHOOK_SECRET ma pierwszeństwo, gdy jest ustawiona.
+
+const REDIS_WEBHOOK_SALT = 'furgonetka:webhook_salt'
+
+export interface FurgonetkaWebhookSettings {
+  url: string | null
+  format: string | null
+  hasToken: boolean
+}
+
+async function fetchWebhookSettingsRaw(): Promise<{ url?: string | null; format?: string | null; token?: string | null }> {
+  return (await furgonetkaFetch<{ url?: string | null; format?: string | null; token?: string | null }>(
+    '/account/settings/notification/webhook',
+  )) ?? {}
+}
+
+export async function getWebhookSettings(): Promise<FurgonetkaWebhookSettings> {
+  const raw = await fetchWebhookSettingsRaw()
+  if (raw.token) await redis.setEx(REDIS_WEBHOOK_SALT, 600, raw.token).catch(() => null)
+  return { url: raw.url ?? null, format: raw.format ?? null, hasToken: Boolean(raw.token) }
+}
+
+/** Sól do weryfikacji powiadomień: .env → cache 10 min → API Furgonetki. */
+export async function getWebhookSalt(options: { fresh?: boolean } = {}): Promise<string> {
+  const fromEnv = process.env.FURGONETKA_WEBHOOK_SECRET?.trim()
+  if (fromEnv) return fromEnv
+  if (!options.fresh) {
+    const cached = (await redis.get(REDIS_WEBHOOK_SALT).catch(() => null)) as string | null
+    if (cached) return cached
+  }
+  const raw = await fetchWebhookSettingsRaw()
+  if (raw.token) await redis.setEx(REDIS_WEBHOOK_SALT, 600, raw.token).catch(() => null)
+  return raw.token ?? ''
 }

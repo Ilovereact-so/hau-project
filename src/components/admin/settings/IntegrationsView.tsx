@@ -9,8 +9,8 @@ import {
 } from 'lucide-react'
 import type { CheckState, IntegrationCheck } from '@/lib/admin/integrations'
 import type { EnvIssue } from '@/lib/env'
-import { adminFurgonetkaConnect, adminSaveFurgonetkaSender, adminTestIntegration } from '@/actions/adminIntegrations'
-import type { FurgonetkaSender } from '@/lib/furgonetka'
+import { adminFurgonetkaConnect, adminSetFurgonetkaPickup, adminTestIntegration } from '@/actions/adminIntegrations'
+import type { FurgonetkaAddressEntry, FurgonetkaWebhookSettings } from '@/lib/furgonetka'
 import { Badge, type BadgeTone } from '../kit/Badge'
 import { Button, buttonClass } from '../kit/Button'
 import { Card, CardHeader } from '../kit/Card'
@@ -43,14 +43,14 @@ export function IntegrationsView({
   envIssues,
   isProduction,
   furgonetkaRedirect,
-  furgonetkaSender,
+  furgonetka,
 }: {
   checks: IntegrationCheck[]
   endpoints: Array<{ label: string; value: string; hint: string }>
   envIssues: EnvIssue[]
   isProduction: boolean
   furgonetkaRedirect: string
-  furgonetkaSender: FurgonetkaSender
+  furgonetka: FurgonetkaPanel
 }) {
   const router = useRouter()
   const [refreshing, startRefresh] = useTransition()
@@ -195,7 +195,8 @@ export function IntegrationsView({
                       </Button>
                       <FurgonetkaAuthorize initialRedirect={furgonetkaRedirect} />
                       <FurgonetkaPasteCode onConnected={() => router.refresh()} />
-                      <FurgonetkaSenderForm initial={furgonetkaSender} />
+                      <FurgonetkaPickupSelect data={furgonetka} />
+                      <FurgonetkaWebhookStatus data={furgonetka} />
                     </>
                   )}
                   {check.id === 'autopay' && !isProduction && (
@@ -309,60 +310,95 @@ function FurgonetkaAuthorize({ initialRedirect }: { initialRedirect: string }) {
   )
 }
 
-const SENDER_LABELS: Array<[keyof FurgonetkaSender, string, string?]> = [
-  ['company', 'Firma'],
-  ['name', 'Imię i nazwisko (osoba kontaktowa)'],
-  ['street', 'Ulica i numer'],
-  ['postcode', 'Kod pocztowy', '00-000'],
-  ['city', 'Miasto'],
-  ['email', 'E-mail'],
-  ['phone', 'Telefon'],
-]
+type FurgonetkaPanel = {
+  book: { entries: FurgonetkaAddressEntry[]; error: string | null }
+  webhook: FurgonetkaWebhookSettings | null
+  pickupId: number | null
+  webhookUrl: string
+}
 
-/** Adres nadawcy — Furgonetka wymaga go przy każdej przesyłce (pole `pickup`). */
-function FurgonetkaSenderForm({ initial }: { initial: FurgonetkaSender }) {
-  const [sender, setSender] = useState(initial)
-  const [error, setError] = useState<string | undefined>()
+const addressLabel = (entry: FurgonetkaAddressEntry) =>
+  [entry.company || entry.name, `${entry.street}, ${entry.postcode} ${entry.city}`].filter(Boolean).join(' — ')
+
+/** Adres odbioru przesyłek — wybór z książki adresowej Furgonetki. */
+function FurgonetkaPickupSelect({ data }: { data: FurgonetkaPanel }) {
+  const router = useRouter()
+  const { entries, error } = data.book
+  const defaultEntry = entries.find((entry) => entry.defaultPickup)
+  const [value, setValue] = useState(data.pickupId ? String(data.pickupId) : '')
+  const [saveError, setSaveError] = useState<string | undefined>()
   const [pending, startTransition] = useTransition()
 
-  const submit = (event: FormEvent) => {
-    event.preventDefault()
-    setError(undefined)
+  const save = (next: string) => {
+    const previous = value
+    setValue(next)
+    setSaveError(undefined)
     startTransition(async () => {
-      const result = await adminSaveFurgonetkaSender(sender)
+      const result = await adminSetFurgonetkaPickup(next ? Number(next) : null)
       if (!result.ok) {
-        setError(result.error)
+        setValue(previous)
+        setSaveError(result.error)
         return
       }
-      setSender(result.data)
-      toast.success('Adres nadawcy zapisany')
+      toast.success('Adres odbioru zapisany')
+      router.refresh()
     })
   }
 
+  const selectedMissing = data.pickupId && !entries.some((entry) => entry.id === data.pickupId)
+
   return (
-    <form onSubmit={submit} className="mt-1 flex w-full flex-col gap-2 border-t border-border pt-3">
-      <strong className="text-xs font-semibold text-text">Adres nadawcy przesyłek</strong>
+    <div className="mt-1 flex w-full flex-col gap-2 border-t border-border pt-3">
+      <strong className="text-xs font-semibold text-text">Adres odbioru przesyłek</strong>
       <p className="m-0 text-[11px] leading-[1.5] text-text-2">
-        Skąd kurier odbiera paczki. Bez niego „Utwórz przesyłkę” w zamówieniu zwróci błąd.
+        Skąd kurier odbiera paczki — wpis z książki adresowej Furgonetki (dodajesz i edytujesz go w panelu Furgonetki).
       </p>
-      <div className="grid gap-2 sm:grid-cols-2">
-        {SENDER_LABELS.map(([key, label, placeholder]) => (
-          <TextField
-            key={key}
-            label={label}
-            placeholder={placeholder}
-            value={sender[key]}
-            onChange={(event) => setSender((prev) => ({ ...prev, [key]: event.target.value }))}
-            autoComplete="off"
-          />
-        ))}
-      </div>
-      {error && <p className="m-0 text-[11px] text-danger">{error}</p>}
-      <div>
-        <Button size="sm" type="submit" disabled={pending}>
-          {pending ? 'Zapisuję…' : 'Zapisz adres nadawcy'}
-        </Button>
-      </div>
-    </form>
+      {error ? (
+        <p className="m-0 text-[11px] text-danger">{error}</p>
+      ) : (
+        <select
+          className="h-10 w-full min-w-0 rounded-xs border border-border bg-surface px-3 text-sm text-text"
+          value={value}
+          disabled={pending}
+          onChange={(event) => save(event.target.value)}
+        >
+          <option value="">
+            {defaultEntry ? `Domyślny z Furgonetki: ${addressLabel(defaultEntry)}` : 'Domyślny z Furgonetki (brak — wybierz adres)'}
+          </option>
+          {entries.map((entry) => (
+            <option key={entry.id} value={entry.id}>
+              {addressLabel(entry)}
+            </option>
+          ))}
+        </select>
+      )}
+      {!error && !entries.length && (
+        <p className="m-0 text-[11px] text-text-2">Książka adresowa jest pusta — dodaj adres magazynu w panelu Furgonetki.</p>
+      )}
+      {selectedMissing && <p className="m-0 text-[11px] text-danger">Wybranego adresu nie ma już w Furgonetce — wybierz inny.</p>}
+      {saveError && <p className="m-0 text-[11px] text-danger">{saveError}</p>}
+    </div>
+  )
+}
+
+/** Stan webhooka w Furgonetce — czy wskazuje na ten sklep. */
+function FurgonetkaWebhookStatus({ data }: { data: FurgonetkaPanel }) {
+  const webhook = data.webhook
+  const pointsHere = webhook?.url?.replace(/\/+$/, '') === data.webhookUrl
+  const tone = !webhook ? 'text-text-2' : pointsHere && webhook.hasToken ? 'text-success' : 'text-danger'
+  const text = !webhook
+    ? 'Nie udało się odczytać ustawień webhooka (konto niepołączone?).'
+    : !webhook.url
+      ? 'Webhook nie jest ustawiony — statusy przesyłek nie będą się aktualizować same.'
+      : !pointsHere
+        ? `Webhook wskazuje inny adres: ${webhook.url}`
+        : !webhook.hasToken
+          ? 'Webhook ustawiony, ale bez soli — wpisz ją w Furgonetce.'
+          : `Webhook działa na ten sklep (format ${webhook.format?.toUpperCase() ?? '?'}). Statusy przesyłek aktualizują się same.`
+  return (
+    <div className="mt-1 flex w-full flex-col gap-1 border-t border-border pt-3">
+      <strong className="text-xs font-semibold text-text">Webhook statusów</strong>
+      <p className={cn('m-0 text-[11px] leading-[1.5]', tone)}>{text}</p>
+    </div>
   )
 }

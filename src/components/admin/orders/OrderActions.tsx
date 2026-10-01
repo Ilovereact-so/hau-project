@@ -4,11 +4,12 @@ import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import {
-  Ban, CheckCircle2, FileDown, Hammer, PackagePlus, RotateCcw, Tag, Truck,
+  Ban, CheckCircle2, FileDown, Hammer, PackagePlus, RefreshCw, RotateCcw, Tag, Truck,
 } from 'lucide-react'
 import {
   adminCreateShipment,
-  adminGetShipmentLabel,
+  adminOrderShipment,
+  adminRefreshShipment,
   adminRegisterShipment,
   adminSetShipmentStatus,
   adminUpdateOrderStatus,
@@ -73,7 +74,13 @@ export function OrderActions({
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState('')
 
-  const allowed = useMemo(() => ORDER_TRANSITIONS[status] ?? [], [status])
+  // Przesyłka z Furgonetki: „wysłane” i „doręczone” ustawia Furgonetka (webhook /
+  // „Odśwież status”), nie admin — ręcznie zostaje tylko anulowanie i zwrot.
+  const autoTracked = Boolean(shipment?.furgonetkaId)
+  const allowed = useMemo(
+    () => (ORDER_TRANSITIONS[status] ?? []).filter((next) => !autoTracked || (next !== 'shipped' && next !== 'delivered')),
+    [status, autoTracked],
+  )
   const canShip = (status === 'paid' || status === 'processing') && !shipment
 
   const run = (key: string, fn: () => Promise<{ ok: boolean; error?: string }>, success: string) => {
@@ -102,6 +109,12 @@ export function OrderActions({
     <div className="flex flex-col gap-4">
       {error && <ErrorBox>{error}</ErrorBox>}
 
+      {autoTracked && (status === 'processing' || status === 'shipped') && (
+        <p className="m-0 text-xs text-text-2">
+          Wysłanie i doręczenie zaznacza się samo — status przychodzi z Furgonetki.
+        </p>
+      )}
+
       {allowed.length ? (
         <div className="flex flex-wrap gap-2">
           {allowed.map((next) => {
@@ -123,7 +136,7 @@ export function OrderActions({
           })}
         </div>
       ) : (
-        <p className="m-0 text-xs text-text-2">
+        !autoTracked && <p className="m-0 text-xs text-text-2">
           {status === 'pending' || status === 'awaiting_payment'
             ? 'Zamówienie czeka na płatność — status zmieni się sam po potwierdzeniu od operatora.'
             : 'To zamówienie jest domknięte — nie ma na nim nic do zrobienia.'}
@@ -183,7 +196,7 @@ function FurgonetkaShipment({
   }
 
   return (
-    <Section title="Nadaj przesyłkę przez Furgonetkę" hint="Paczka kurierska na adres z zamówienia, nadawca — adres z Ustawień → Integracje. Po utworzeniu zamówienie przechodzi do realizacji, a etykietę pobierzesz jednym kliknięciem.">
+    <Section title="Nadaj przesyłkę przez Furgonetkę" hint="Paczka kurierska na adres z zamówienia, odbiór z adresu wybranego w Ustawieniach → Integracje. Przycisk tworzy i od razu ZAMAWIA przesyłkę (opłata z salda Furgonetki) — potem etykieta i automatyczne statusy.">
       <div className="flex flex-wrap items-end gap-3">
         <label className="grid gap-1">
           <span className="text-[11px] font-medium text-text-2" title="Kod usługi z konta Furgonetki (np. dpd, inpostkurier) albo jej liczbowe id">Kod usługi</span>
@@ -199,7 +212,7 @@ function FurgonetkaShipment({
           onClick={() => run('ship', () => adminCreateShipment({ orderId, service, parcel }), 'Przesyłka utworzona')}
         >
           <PackagePlus size={14} strokeWidth={1.5} />
-          {busy === 'ship' ? 'Tworzę…' : 'Utwórz przesyłkę'}
+          {busy === 'ship' ? 'Zamawiam…' : 'Utwórz i zamów przesyłkę'}
         </Button>
         <Button size="sm" variant="ghost" onClick={() => setManual(true)}>
           Nadano poza Furgonetką
@@ -264,27 +277,19 @@ function ManualShipment({
 function ShipmentBox({
   orderId, shipment, pending, run, busy,
 }: { orderId: string; shipment: NonNullable<Shipment>; pending: boolean; run: Runner; busy: string | null }) {
-  const [labelUrl, setLabelUrl] = useState(shipment.labelUrl)
   const manual = !shipment.furgonetkaId
-
-  const getLabel = () =>
-    run(
-      'label',
-      async () => {
-        const result = await adminGetShipmentLabel(orderId)
-        if (result.ok) {
-          setLabelUrl(result.data)
-          window.open(result.data, '_blank', 'noopener,noreferrer')
-        }
-        return result
-      },
-      'Etykieta gotowa'
-    )
+  const ordered = Boolean(shipment.trackingNumber)
 
   return (
     <Section
       title={`Przesyłka · ${shipment.carrier}`}
-      hint={manual ? 'Nadana poza API — status aktualizujesz ręcznie.' : 'Status aktualizuje webhook Furgonetki.'}
+      hint={
+        manual
+          ? 'Nadana poza API — status aktualizujesz ręcznie.'
+          : ordered
+            ? 'Status aktualizuje się sam z Furgonetki (webhook). „Odśwież status” pyta Furgonetkę od razu.'
+            : 'Przesyłka utworzona, ale nie zamówiona — bez zamówienia nie ma kuriera ani etykiety.'
+      }
     >
       <div className="flex flex-wrap items-center gap-3">
         {shipment.trackingNumber && (
@@ -302,23 +307,47 @@ function ShipmentBox({
             }
             options={Object.entries(ShipmentStatusLabel).map(([value, label]) => ({ value, label }))}
           />
-        ) : labelUrl ? (
-          <a
-            href={labelUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={cn(
-              'inline-flex h-8 items-center gap-1.5 rounded-xs bg-primary px-2.5 text-xs font-medium text-white shadow-1 transition-colors hover:bg-text-2'
-            )}
-          >
-            <FileDown size={14} strokeWidth={1.5} />
-            Etykieta (PDF)
-          </a>
         ) : (
-          <Button size="sm" variant="secondary" disabled={pending} onClick={getLabel}>
-            <FileDown size={14} strokeWidth={1.5} />
-            {busy === 'label' ? 'Pobieram…' : 'Pobierz etykietę'}
-          </Button>
+          <>
+            <span className="text-xs font-medium text-text">{ShipmentStatusLabel[shipment.status] ?? shipment.status}</span>
+            {ordered ? (
+              <a
+                href={`/api/admin/orders/${orderId}/label`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={cn(
+                  'inline-flex h-8 items-center gap-1.5 rounded-xs bg-primary px-2.5 text-xs font-medium text-white shadow-1 transition-colors hover:bg-text-2'
+                )}
+              >
+                <FileDown size={14} strokeWidth={1.5} />
+                Etykieta (PDF)
+              </a>
+            ) : (
+              <Button
+                size="sm"
+                disabled={pending}
+                onClick={() => run('order', () => adminOrderShipment(orderId), 'Przesyłka zamówiona')}
+              >
+                <Truck size={14} strokeWidth={1.5} />
+                {busy === 'order' ? 'Zamawiam…' : 'Zamów kuriera'}
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={pending}
+              onClick={() =>
+                run('refresh', async () => {
+                  const result = await adminRefreshShipment(orderId)
+                  if (result.ok) toast(result.data)
+                  return result
+                }, 'Sprawdzono w Furgonetce')
+              }
+            >
+              <RefreshCw size={14} strokeWidth={1.5} />
+              {busy === 'refresh' ? 'Sprawdzam…' : 'Odśwież status'}
+            </Button>
+          </>
         )}
       </div>
     </Section>

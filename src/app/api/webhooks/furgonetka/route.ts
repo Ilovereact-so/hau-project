@@ -1,26 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { eq, or } from 'drizzle-orm'
-import { db } from '@/lib/db'
-import { shipments, orders } from '@/db/schema'
+import { revalidatePath } from 'next/cache'
+import { getWebhookSalt } from '@/lib/furgonetka'
+import { applyShipmentState, findShipmentByFurgonetka } from '@/lib/shipmentStatus'
 import {
   TRACKING_STATE_MAP,
   detectFormat,
   parseNotification,
-  shouldApplyStatus,
   verifyNotification,
   webhookReply,
+  type FurgonetkaNotification,
   type WebhookFormat,
 } from '@/lib/furgonetkaWebhook'
 
 /*
  * Webhook statusów przesyłek Furgonetki (format i suma kontrolna — patrz
- * lib/furgonetkaWebhook.ts). „Sól” wpisana w panelu Furgonetki = zmienna
- * FURGONETKA_WEBHOOK_SECRET.
+ * lib/furgonetkaWebhook.ts). Sól: FURGONETKA_WEBHOOK_SECRET albo — gdy jej
+ * nie ma — ustawienia webhooka pobrane z API Furgonetki.
  *
  * Furgonetka uznaje dostarczenie TYLKO przy HTTP 200 + {"status":"OK"}
- * (albo <status>OK</status> dla XML), więc nieznana przesyłka (np. testowe
- * powiadomienie przy zapisie adresu w panelu) też dostaje OK — inaczej test
- * adresu by nie przeszedł, a prawdziwe powiadomienia byłyby ponawiane.
+ * (albo <status>OK</status> dla XML). Powiadomienie o przesyłce, której
+ * sklep nie zna, dostaje OK bez weryfikacji — niczego nie zmienia, a tak
+ * wygląda test adresu przy zapisie webhooka w panelu Furgonetki (wtedy API
+ * nie zna jeszcze nowej soli). Sumę kontrolną sprawdzamy, zanim cokolwiek
+ * zapiszemy.
  */
 
 export const dynamic = 'force-dynamic'
@@ -30,8 +32,19 @@ function reply(format: WebhookFormat, ok: boolean, status = 200) {
   return new NextResponse(body, { status, headers: { 'Content-Type': contentType } })
 }
 
-const ORDER_SHIPPED_FROM = ['paid', 'processing']
-const ORDER_DELIVERED_FROM = ['paid', 'processing', 'shipped']
+async function verify(notification: FurgonetkaNotification): Promise<boolean> {
+  try {
+    const salt = await getWebhookSalt()
+    if (salt && verifyNotification(notification, salt)) return true
+    // Sól mogła się właśnie zmienić w panelu — jeszcze raz, bez cache.
+    if (process.env.FURGONETKA_WEBHOOK_SECRET) return false
+    const fresh = await getWebhookSalt({ fresh: true })
+    return Boolean(fresh) && fresh !== salt && verifyNotification(notification, fresh)
+  } catch (err) {
+    console.error('[furgonetka] webhook: nie udało się pobrać soli z API', err)
+    return false
+  }
+}
 
 export async function POST(req: NextRequest) {
   const rawBody = await req.text()
@@ -39,54 +52,17 @@ export async function POST(req: NextRequest) {
   const notification = parseNotification(rawBody, format)
   if (!notification) return reply(format, false, 400)
 
-  const salt = process.env.FURGONETKA_WEBHOOK_SECRET ?? ''
-  if (!salt) {
-    console.error('[furgonetka] webhook: brak FURGONETKA_WEBHOOK_SECRET — powiadomienie odrzucone')
-    return reply(format, false)
-  }
-  if (!verifyNotification(notification, salt)) {
-    console.warn('[furgonetka] webhook: zła suma kontrolna', { packageId: notification.packageId })
-    return reply(format, false)
-  }
-
-  const next = TRACKING_STATE_MAP[notification.state]
-  if (!next || !notification.packageId) return reply(format, true)
-
   try {
-    const [shipment] = await db
-      .select({ id: shipments.id, orderId: shipments.orderId, status: shipments.status })
-      .from(shipments)
-      .where(
-        notification.packageNo
-          ? or(eq(shipments.furgonetkaId, notification.packageId), eq(shipments.trackingNumber, notification.packageNo))
-          : eq(shipments.furgonetkaId, notification.packageId),
-      )
+    const shipment = await findShipmentByFurgonetka(notification.packageId, notification.packageNo)
+    if (!shipment) return reply(format, true)
 
-    if (!shipment) {
-      console.info('[furgonetka] webhook: nieznana przesyłka', { packageId: notification.packageId })
-      return reply(format, true)
+    if (!(await verify(notification))) {
+      console.warn('[furgonetka] webhook: zła suma kontrolna', { packageId: notification.packageId })
+      return reply(format, false)
     }
 
-    await db.transaction(async (tx) => {
-      const patch: { status?: typeof next; trackingNumber?: string } = {}
-      if (shouldApplyStatus(shipment.status, next)) patch.status = next
-      if (notification.packageNo) patch.trackingNumber = notification.packageNo.slice(0, 128)
-      if (Object.keys(patch).length) {
-        await tx.update(shipments).set(patch).where(eq(shipments.id, shipment.id))
-      }
-      if (!patch.status) return
-
-      const [order] = await tx.select({ status: orders.status }).from(orders).where(eq(orders.id, shipment.orderId))
-      if (!order) return
-      if (next === 'delivered' && ORDER_DELIVERED_FROM.includes(order.status)) {
-        await tx.update(orders).set({ status: 'delivered' }).where(eq(orders.id, shipment.orderId))
-      } else if (
-        (next === 'picked_up' || next === 'in_transit' || next === 'out_for_delivery') &&
-        ORDER_SHIPPED_FROM.includes(order.status)
-      ) {
-        await tx.update(orders).set({ status: 'shipped' }).where(eq(orders.id, shipment.orderId))
-      }
-    })
+    const changed = await applyShipmentState(shipment, TRACKING_STATE_MAP[notification.state] ?? null, notification.packageNo)
+    if (changed) revalidatePath('/admin', 'layout')
   } catch (err) {
     // Błąd bazy → ERROR: Furgonetka zapisze nieudane dostarczenie i można je ponowić.
     console.error('[furgonetka] webhook: zapis statusu nie powiódł się', err)
