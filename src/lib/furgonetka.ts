@@ -343,7 +343,7 @@ export async function getServicePrice(serviceCode: string): Promise<number> {
 // ─── shipment ─────────────────────────────────────────────────────────────────
 //
 // POST /packages (v2) wymaga: `service_id` (LICZBOWE id usługi z /account/services —
-// w Sanity `furgonetka_service_id` trzyma KOD, np. "dpd"), `type`, `pickup`
+// w Sanity `furgonetka_service_id` trzyma KOD, np. "dpd"), `parcels[].type`, `pickup`
 // (skąd kurier odbiera), `receiver` z `name` i `postcode`, `parcels`.
 // Adres odbioru to wpis z KSIĄŻKI ADRESOWEJ Furgonetki wybrany w /admin/settings
 // (Redis `furgonetka:pickup_address_id`); bez wyboru — wpis oznaczony w Furgonetce
@@ -520,10 +520,9 @@ export async function createShipment(params: CreateShipmentParams): Promise<Furg
     version: 2,
     body: JSON.stringify({
       service_id: service.id,
-      type:       'package',
       pickup: {
-        name:         sender.name,
-        company:      sender.company,
+        ...(sender.name ? { name: sender.name } : {}),
+        ...(sender.company ? { company: sender.company } : {}),
         street:       sender.street,
         postcode:     normalizePostcode(sender.postcode),
         city:         sender.city,
@@ -533,7 +532,6 @@ export async function createShipment(params: CreateShipmentParams): Promise<Furg
       },
       receiver: {
         name:         receiverName,
-        company:      '',
         street:       params.recipient.street,
         postcode:     normalizePostcode(params.recipient.postalCode),
         city:         params.recipient.city,
@@ -541,7 +539,9 @@ export async function createShipment(params: CreateShipmentParams): Promise<Furg
         email:        params.recipient.email,
         phone:        phoneDigits(params.recipient.phone),
       },
+      // v2: typ jest w każdej paczce (package | dox | pallet | …), nie na poziomie przesyłki.
       parcels: [{
+        type:        'package',
         weight:      params.parcel.weightKg,
         width:       params.parcel.widthCm,
         height:      params.parcel.heightCm,
