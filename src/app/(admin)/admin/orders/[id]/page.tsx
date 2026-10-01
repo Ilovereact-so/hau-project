@@ -15,10 +15,36 @@ import { Card, CardHeader, Field, Line } from '@/components/admin/kit/Card'
 import { DataTable, Td, Th, Tr } from '@/components/admin/kit/DataTable'
 import { formatCentsPrecise, formatDateTime, orderNumber } from '@/components/admin/kit/format'
 import { OrderActions } from '@/components/admin/orders/OrderActions'
+import { eq } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { shipments } from '@/db/schema'
+import { syncFurgonetkaShipment } from '@/lib/shipmentStatus'
 
 export const dynamic = 'force-dynamic'
 
 type Params = Promise<{ id: string }>
+
+/**
+ * Przesyłka czekająca w koszyku Furgonetki: przy otwarciu zamówienia pytamy
+ * Furgonetkę, czy została już opłacona (zapas, gdy webhook nie dotarł).
+ * Najwyżej 4 s — błąd albo wolne API nie blokuje strony.
+ */
+async function syncPendingShipment(orderId: string) {
+  if (!/^[0-9a-f-]{36}$/i.test(orderId)) return
+  try {
+    const [row] = await db
+      .select({ id: shipments.id, orderId: shipments.orderId, status: shipments.status, furgonetkaId: shipments.furgonetkaId, trackingNumber: shipments.trackingNumber })
+      .from(shipments)
+      .where(eq(shipments.orderId, orderId))
+    if (!row?.furgonetkaId || row.trackingNumber) return
+    await Promise.race([
+      syncFurgonetkaShipment({ ...row, furgonetkaId: row.furgonetkaId }),
+      new Promise((resolve) => setTimeout(resolve, 4000)),
+    ])
+  } catch (err) {
+    console.warn('[furgonetka] synchronizacja przesyłki przy otwarciu zamówienia', err)
+  }
+}
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { id } = await params
@@ -27,6 +53,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 
 export default async function AdminOrderDetailPage({ params }: { params: Params }) {
   const { id } = await params
+  await syncPendingShipment(id)
   const data = await getAdminOrderDetail(id)
   if (!data) notFound()
   const { order, items, address, payments, shipment, customerOrderCount } = data

@@ -30,6 +30,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     .where(eq(shipments.orderId, id))
   if (!shipment) return errorPage('Zamówienie nie ma przesyłki.', 404)
   if (!shipment.furgonetkaId) return errorPage('Przesyłka nadana poza Furgonetką — etykieta jest u przewoźnika.', 404)
+  // Bez numeru listu = przesyłka czeka nieopłacona w koszyku Furgonetki.
+  if (!shipment.trackingNumber) {
+    return errorPage('Przesyłka nie jest jeszcze opłacona — zamów ją w koszyku Furgonetki, potem kliknij w panelu „Odśwież status”.', 409)
+  }
 
   try {
     const label = await getShipmentLabel(shipment.furgonetkaId)

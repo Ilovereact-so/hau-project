@@ -22,3 +22,7 @@ export const FURGONETKA_ENV: FurgonetkaEnv = resolveEnv()
 
 export const FURGONETKA_API_URL =
   FURGONETKA_ENV === 'production' ? 'https://api.furgonetka.pl' : 'https://api.sandbox.furgonetka.pl'
+
+/** Panel Furgonetki (koszyk, regulaminy przewoźników) — w tym samym środowisku co API. */
+export const FURGONETKA_PANEL_URL =
+  FURGONETKA_ENV === 'production' ? 'https://furgonetka.pl' : 'https://sandbox.furgonetka.pl'

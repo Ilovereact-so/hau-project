@@ -2,11 +2,12 @@ import 'server-only'
 import { eq, or } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { orders, shipments, type ShipmentStatus } from '@/db/schema'
-import { shouldApplyStatus } from '@/lib/furgonetkaWebhook'
+import { getLatestTracking, getShipment, NOT_ORDERED_STATES } from '@/lib/furgonetka'
+import { TRACKING_STATE_MAP, shouldApplyStatus } from '@/lib/furgonetkaWebhook'
 
 /*
- * Wspólne nakładanie stanu przesyłki z Furgonetki (webhook i ręczne
- * „Odśwież status”). Przesyłka nigdy się nie cofa, a zamówienie przechodzi
+ * Wspólne nakładanie stanu przesyłki z Furgonetki (webhook, otwarcie
+ * zamówienia w panelu i „Odśwież status”). Przesyłka nigdy się nie cofa, a zamówienie przechodzi
  * na „wysłane” po odbiorze przez kuriera i na „doręczone” po doręczeniu —
  * tylko ze stanów, z których to ma sens (anulowane/zwrócone zostają).
  */
@@ -58,4 +59,26 @@ export async function applyShipmentState(
     }
     return true
   })
+}
+
+export type FurgonetkaSyncResult =
+  | { kind: 'waiting' }
+  | { kind: 'cancelled' }
+  | { kind: 'ordered'; changed: boolean; latest: { state: string; description: string } | null }
+
+/**
+ * Stan przesyłki z Furgonetki na żądanie (otwarcie zamówienia w panelu,
+ * „Odśwież status”). Zamówiona = opłacona w koszyku Furgonetki: ma numer
+ * listu przewozowego — dopiero wtedy panel odblokowuje etykietę.
+ */
+export async function syncFurgonetkaShipment(shipment: FurgonetkaShipmentRow & { furgonetkaId: string }): Promise<FurgonetkaSyncResult> {
+  const info = await getShipment(shipment.furgonetkaId)
+  if (info.state === 'cancelled') return { kind: 'cancelled' }
+  const waybill = info.waybills[0]
+  if (!waybill || (info.state && NOT_ORDERED_STATES.includes(info.state))) return { kind: 'waiting' }
+
+  const latest = await getLatestTracking(shipment.furgonetkaId).catch(() => null)
+  const next = latest ? TRACKING_STATE_MAP[latest.state] ?? null : null
+  const changed = await applyShipmentState(shipment, next, waybill)
+  return { kind: 'ordered', changed, latest }
 }

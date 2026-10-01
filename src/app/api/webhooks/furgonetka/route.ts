@@ -61,7 +61,14 @@ export async function POST(req: NextRequest) {
       return reply(format, false)
     }
 
-    const changed = await applyShipmentState(shipment, TRACKING_STATE_MAP[notification.state] ?? null, notification.packageNo)
+    // Numer listu zapisujemy tylko dla przesyłki zamówionej (opłaconej w koszyku
+    // Furgonetki) — jego obecność odblokowuje w panelu etykietę.
+    const ordered = !['waiting', 'canceled', 'cancelled'].includes(notification.state)
+    const changed = await applyShipmentState(
+      shipment,
+      TRACKING_STATE_MAP[notification.state] ?? null,
+      ordered ? notification.packageNo : undefined,
+    )
     if (changed) revalidatePath('/admin', 'layout')
   } catch (err) {
     // Błąd bazy → ERROR: Furgonetka zapisze nieudane dostarczenie i można je ponowić.

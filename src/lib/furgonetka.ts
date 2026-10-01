@@ -562,39 +562,17 @@ export async function createShipment(params: CreateShipmentParams): Promise<Furg
 
 // ─── zamówienie kuriera, etykieta, śledzenie ─────────────────────────────────
 
-type CommandStatus = 'queueing' | 'running' | 'successful' | 'partial_success' | 'error' | 'cancelled'
-type CommandResult = {
-  status?: CommandStatus
-  errors?: Array<{ path?: string; message?: string }>
-  successfully_ordered_packages?: Array<string | number>
-}
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
 /**
- * Zamawia przesyłkę (= kurier + etykieta; Furgonetka pobiera opłatę z salda).
- * Komenda jest asynchroniczna: PUT /order-commands/{uuid}, potem odpytywanie
- * GET aż do stanu końcowego (zwykle 1–5 s). Bez zamówienia etykiety nie ma.
+ * Przesyłka utworzona przez API trafia do KOSZYKA Furgonetki (stan `waiting`).
+ * Zamawia się ją (i płaci) w panelu Furgonetki — dopiero wtedy dostaje numer
+ * listu przewozowego i etykietę. Sklep nie zamawia sam: konto musi mieć
+ * zaakceptowane regulaminy przewoźników, a opłata idzie z salda.
  */
-export async function orderShipment(furgonetkaId: string): Promise<void> {
-  const uuid = crypto.randomUUID()
-  await furgonetkaFetch(`/order-commands/${uuid}`, {
-    method: 'PUT',
-    body: JSON.stringify({
-      packages: [{ id: furgonetkaId }],
-      label: { file_format: 'pdf', page_format: 'a6' },
-    }),
-  })
-  for (let attempt = 0; attempt < 20; attempt++) {
-    await sleep(attempt < 5 ? 1000 : 2000)
-    const result = await furgonetkaFetch<CommandResult>(`/order-commands/${uuid}`)
-    if (result.status === 'successful') return
-    if (result.status === 'error' || result.status === 'partial_success' || result.status === 'cancelled') {
-      const errors = (result.errors ?? []).map((e) => e.message).filter(Boolean).join('; ')
-      throw new Error(`Furgonetka nie zamówiła przesyłki${errors ? `: ${errors}` : ''}.`)
-    }
-  }
-  throw new Error('Furgonetka nie potwierdziła zamówienia w 30 s — sprawdź przesyłkę w panelu Furgonetki i odśwież status.')
+export const NOT_ORDERED_STATES = ['waiting', 'queued']
+
+/** Usunięcie niezamówionej przesyłki z koszyka Furgonetki (zamówionej API nie usunie). */
+export async function deleteShipment(furgonetkaId: string): Promise<void> {
+  await furgonetkaFetch(`/packages/${encodeURIComponent(furgonetkaId)}`, { method: 'DELETE' })
 }
 
 export class LabelNotReadyError extends Error {}
@@ -608,7 +586,7 @@ export async function getShipmentLabel(furgonetkaId: string): Promise<{ data: Ar
     accept: `application/pdf, text/plain, ${mediaType(1)}`,
   })
   if (res.status === 204) {
-    throw new LabelNotReadyError('Etykiety jeszcze nie ma — przesyłka musi być zamówiona. Spróbuj za chwilę.')
+    throw new LabelNotReadyError('Etykiety jeszcze nie ma — opłać przesyłkę w koszyku Furgonetki i spróbuj za chwilę.')
   }
   const contentType = res.headers.get('content-type') ?? ''
   if (!res.ok || contentType.includes('json')) {

@@ -5,16 +5,8 @@ import { revalidatePath } from 'next/cache'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { orders, shipments, shippingAddresses, SHIPMENT_STATUSES, type OrderStatus, type ShipmentStatus } from '@/db/schema'
-import {
-  createShipment,
-  getLatestTracking,
-  getShipment,
-  orderShipment,
-  type FurgonetkaAddress,
-  type FurgonetkaParcel,
-} from '@/lib/furgonetka'
-import { TRACKING_STATE_MAP } from '@/lib/furgonetkaWebhook'
-import { applyShipmentState } from '@/lib/shipmentStatus'
+import { createShipment, deleteShipment, type FurgonetkaAddress, type FurgonetkaParcel } from '@/lib/furgonetka'
+import { syncFurgonetkaShipment } from '@/lib/shipmentStatus'
 import { runAdminAction, type ActionResult } from '@/lib/admin/guard'
 import { ORDER_TRANSITIONS } from '@/lib/admin/labels'
 import { releaseDiscountForOrder } from '@/lib/discountServer'
@@ -125,7 +117,6 @@ export async function adminCreateShipment(input: CreateShipmentInput): Promise<A
         furgonetkaId: result.id,
         carrier: result.carrier || service,
         service,
-        trackingNumber: result.trackingNumber ?? undefined,
         status: 'created',
         parcelWeightG: Math.round(parcel.weightKg * 1000),
       })
@@ -134,19 +125,9 @@ export async function adminCreateShipment(input: CreateShipmentInput): Promise<A
       }
     })
 
+    // Przesyłka ląduje w KOSZYKU Furgonetki — zamawia i opłaca się ją tam.
+    // Numer listu i etykieta pojawią się po opłaceniu (webhook / „Odśwież status”).
     refresh(order.id)
-
-    // Utworzona przesyłka to dopiero szkic w Furgonetce — zamówienie zleca
-    // kuriera i tworzy etykietę. Gdy się nie uda, przesyłka zostaje zapisana
-    // i można ją zamówić ponownie przyciskiem „Zamów kuriera”.
-    try {
-      await orderAndSyncWaybill(shipmentId, result.id)
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err)
-      throw new Error(`Przesyłka utworzona w Furgonetce, ale nie zamówiona: ${reason} Popraw problem i kliknij „Zamów kuriera”.`)
-    } finally {
-      refresh(order.id)
-    }
     return { shipmentId }
   }, 'Nie udało się utworzyć przesyłki w Furgonetce.')
 }
@@ -218,14 +199,6 @@ export async function adminSetShipmentStatus(orderId: string, status: ShipmentSt
   }, 'Nie udało się zmienić statusu przesyłki.')
 }
 
-async function orderAndSyncWaybill(shipmentId: string, furgonetkaId: string) {
-  await orderShipment(furgonetkaId)
-  const info = await getShipment(furgonetkaId).catch(() => null)
-  if (info?.waybills[0]) {
-    await db.update(shipments).set({ trackingNumber: info.waybills[0].slice(0, 128) }).where(eq(shipments.id, shipmentId))
-  }
-}
-
 async function loadFurgonetkaShipment(orderId: string) {
   const order = await loadOrder(orderId)
   const [shipment] = await db
@@ -237,35 +210,42 @@ async function loadFurgonetkaShipment(orderId: string) {
   return { ...shipment, furgonetkaId: shipment.furgonetkaId }
 }
 
-/** Ponowne zamówienie przesyłki, która powstała, ale nie została zamówiona. */
-export async function adminOrderShipment(orderId: string): Promise<ActionResult> {
-  return runAdminAction(async () => {
-    const shipment = await loadFurgonetkaShipment(orderId)
-    if (shipment.trackingNumber) throw new Error('Ta przesyłka jest już zamówiona.')
-    try {
-      await orderAndSyncWaybill(shipment.id, shipment.furgonetkaId)
-    } finally {
-      refresh(orderId)
-    }
-    return null
-  }, 'Nie udało się zamówić przesyłki.')
-}
-
 /**
- * Status z Furgonetki na żądanie (zapas, gdy webhook nie dotarł albo nie jest
- * jeszcze ustawiony). Te same reguły co webhook.
+ * Stan z Furgonetki na żądanie: czy przesyłka została opłacona w koszyku
+ * (→ numer listu, etykieta) i jaki ma status śledzenia. Zapas, gdy webhook
+ * nie dotarł; te same reguły co webhook.
  */
 export async function adminRefreshShipment(orderId: string): Promise<ActionResult<string>> {
   return runAdminAction(async () => {
     const shipment = await loadFurgonetkaShipment(orderId)
-    const [info, latest] = await Promise.all([
-      getShipment(shipment.furgonetkaId).catch(() => null),
-      getLatestTracking(shipment.furgonetkaId),
-    ])
-    const next = latest ? TRACKING_STATE_MAP[latest.state] ?? null : null
-    const changed = await applyShipmentState(shipment, next, info?.waybills[0])
+    const result = await syncFurgonetkaShipment(shipment)
     refresh(orderId)
-    if (!latest) return 'Furgonetka nie ma jeszcze zdarzeń śledzenia.'
-    return changed ? `Status zaktualizowany: ${latest.description || latest.state}` : `Bez zmian: ${latest.description || latest.state}`
+    if (result.kind === 'waiting') return 'Przesyłka czeka w koszyku Furgonetki — opłać ją tam, a etykieta pojawi się tutaj.'
+    if (result.kind === 'cancelled') return 'Przesyłka została anulowana w Furgonetce — usuń ją tutaj i utwórz nową.'
+    if (!result.latest) return 'Przesyłka opłacona — etykieta gotowa. Kurier jeszcze jej nie odebrał.'
+    const what = result.latest.description || result.latest.state
+    return result.changed ? `Status zaktualizowany: ${what}` : `Bez zmian: ${what}`
   }, 'Nie udało się pobrać statusu z Furgonetki.')
+}
+
+/**
+ * Usunięcie przesyłki, która nie została opłacona (np. błędne wymiary albo
+ * anulowana w Furgonetce) — można wtedy utworzyć ją od nowa.
+ */
+export async function adminDiscardShipment(orderId: string): Promise<ActionResult> {
+  return runAdminAction(async () => {
+    const shipment = await loadFurgonetkaShipment(orderId)
+    if (shipment.trackingNumber) {
+      throw new Error('Przesyłka jest już opłacona — anuluj ją w panelu Furgonetki.')
+    }
+    try {
+      await deleteShipment(shipment.furgonetkaId)
+    } catch (err) {
+      // Już usunięta / anulowana w Furgonetce — u nas i tak sprzątamy.
+      console.warn('[furgonetka] usuwanie przesyłki', err)
+    }
+    await db.delete(shipments).where(eq(shipments.id, shipment.id))
+    refresh(orderId)
+    return null
+  }, 'Nie udało się usunąć przesyłki.')
 }
