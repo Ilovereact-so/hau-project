@@ -29,7 +29,7 @@ const ProductItemWithoutBTN = ({product}:{product: GetSlugProduct & { defaultVar
         isFeatured={product.isFeatured}
         isBestseller={product.isBestseller}
         className='left-4'
-        badgeClassName='2xl:text-[16px] sm:text-[15px] text-[13px]'
+        badgeClassName='2xl:text-[13px] sm:text-[12px] text-[10px]'
       />
       
       <div className='flex flex-col max-sm:w-[calc((100vw-66px)/2))] max-md:w-[calc((100vw-110px)/3))] max-lg:w-[calc((100vw-156px)/3))] max-1.5xl:w-[calc((100vw-156px)/4))]s w-[calc((100vw-156px)/5))] 4xl:w-[calc((1900px-156px)/5))]'>
