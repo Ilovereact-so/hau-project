@@ -3,14 +3,14 @@ import { appUrl, getIntegrationChecks } from '@/lib/admin/integrations'
 import { requireAdmin } from '@/lib/admin/guard'
 import { findEnvIssues } from '@/lib/env'
 import { IntegrationsView } from '@/components/admin/settings/IntegrationsView'
-import { DEFAULT_OAUTH_REDIRECT_URI, getSavedOAuthRedirectUri } from '@/lib/furgonetka'
+import { DEFAULT_OAUTH_REDIRECT_URI, getSavedOAuthRedirectUri, getSenderAddress } from '@/lib/furgonetka'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = { title: 'Integracje' }
 
 export default async function AdminSettingsPage() {
   await requireAdmin()
-  const [checks, savedRedirect] = await Promise.all([getIntegrationChecks(), getSavedOAuthRedirectUri()])
+  const [checks, savedRedirect, sender] = await Promise.all([getIntegrationChecks(), getSavedOAuthRedirectUri(), getSenderAddress()])
   const base = appUrl() || 'https://twoj-sklep.pl'
 
   const endpoints = [
@@ -30,6 +30,7 @@ export default async function AdminSettingsPage() {
       envIssues={findEnvIssues()}
       isProduction={process.env.NODE_ENV === 'production'}
       furgonetkaRedirect={savedRedirect || DEFAULT_OAUTH_REDIRECT_URI}
+      furgonetkaSender={sender}
     />
   )
 }

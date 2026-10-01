@@ -323,6 +323,88 @@ export async function getServicePrice(serviceCode: string): Promise<number> {
 }
 
 // ─── shipment ─────────────────────────────────────────────────────────────────
+//
+// POST /packages wymaga: `service_id` (LICZBOWE id usługi z /account/services —
+// w Sanity `furgonetka_service_id` trzyma KOD, np. "dpd"), `type`, `pickup`
+// (adres nadawcy = sklepu), `receiver` z `name` i `postcode`, `parcels`.
+// Adres nadawcy ustawia się w /admin/settings (Redis), zapasowo z .env.
+
+const REDIS_SENDER = 'furgonetka:sender'
+
+export interface FurgonetkaSender {
+  name:     string
+  company:  string
+  street:   string
+  postcode: string
+  city:     string
+  email:    string
+  phone:    string
+}
+
+const SENDER_FIELDS = ['name', 'company', 'street', 'postcode', 'city', 'email', 'phone'] as const
+
+function senderFromEnv(): FurgonetkaSender {
+  const env = (key: string) => process.env[`FURGONETKA_SENDER_${key.toUpperCase()}`]?.trim() ?? ''
+  return Object.fromEntries(SENDER_FIELDS.map((key) => [key, env(key)])) as unknown as FurgonetkaSender
+}
+
+/** Adres nadawcy z panelu (Redis), a gdy go nie ma — z .env. */
+export async function getSenderAddress(): Promise<FurgonetkaSender> {
+  try {
+    const saved = (await redis.get(REDIS_SENDER)) as string | null
+    if (saved) return { ...senderFromEnv(), ...JSON.parse(saved) }
+  } catch {
+    // Redis niedostępny — wartość z .env
+  }
+  return senderFromEnv()
+}
+
+export function normalizePostcode(raw: string): string {
+  const digits = String(raw ?? '').replace(/\D/g, '')
+  return digits.length === 5 ? `${digits.slice(0, 2)}-${digits.slice(2)}` : String(raw ?? '').trim()
+}
+
+/** Braki w adresie nadawcy (puste = komplet). Firma albo imię i nazwisko. */
+export function senderProblems(sender: FurgonetkaSender): string[] {
+  const missing: string[] = []
+  if (!sender.name && !sender.company) missing.push('nazwa / imię i nazwisko')
+  if (!sender.street) missing.push('ulica')
+  if (!/^\d{2}-\d{3}$/.test(normalizePostcode(sender.postcode))) missing.push('kod pocztowy (00-000)')
+  if (!sender.city) missing.push('miasto')
+  if (!/^\S+@\S+\.\S+$/.test(sender.email)) missing.push('e-mail')
+  if (sender.phone.replace(/\D/g, '').length < 9) missing.push('telefon')
+  return missing
+}
+
+export async function setSenderAddress(input: Partial<FurgonetkaSender>): Promise<FurgonetkaSender> {
+  const sender = Object.fromEntries(
+    SENDER_FIELDS.map((key) => [key, String(input[key] ?? '').replace(/\s+/g, ' ').trim().slice(0, 120)]),
+  ) as unknown as FurgonetkaSender
+  sender.postcode = normalizePostcode(sender.postcode)
+  const missing = senderProblems(sender)
+  if (missing.length) throw new Error(`Uzupełnij adres nadawcy: ${missing.join(', ')}.`)
+  await redis.set(REDIS_SENDER, JSON.stringify(sender))
+  return sender
+}
+
+/**
+ * Kod usługi (np. "dpd", "inpostkurier") albo liczbowe id → `service_id`.
+ * Lista usług konta jest w cache 1 h.
+ */
+export async function resolveServiceId(serviceCode: string): Promise<{ id: number; code: string }> {
+  const code = serviceCode.trim()
+  if (/^\d+$/.test(code)) return { id: Number(code), code }
+  const services = await getAvailableServices()
+  const lower = code.toLowerCase()
+  const match =
+    services.find((s) => s.code.toLowerCase() === lower) ??
+    services.find((s) => s.name.toLowerCase() === lower)
+  if (!match) {
+    const known = services.map((s) => s.code).join(', ') || 'brak usług na koncie'
+    throw new Error(`Furgonetka nie zna usługi „${code}”. Dostępne na koncie: ${known}.`)
+  }
+  return { id: match.id, code: match.code }
+}
 
 export interface CreateShipmentParams {
   service:     string
@@ -332,42 +414,66 @@ export interface CreateShipmentParams {
   description: string
 }
 
+const phoneDigits = (raw: string) => String(raw ?? '').replace(/[^\d+]/g, '')
+
 export async function createShipment(params: CreateShipmentParams): Promise<FurgonetkaShipmentResult> {
+  const sender = await getSenderAddress()
+  const missing = senderProblems(sender)
+  if (missing.length) {
+    throw new Error(`Brak adresu nadawcy (${missing.join(', ')}) — uzupełnij go w Ustawieniach → Integracje → Furgonetka.`)
+  }
+  const service = await resolveServiceId(params.service)
+  const receiverName = `${params.recipient.firstName} ${params.recipient.lastName}`.trim()
+
   const result = await furgonetkaFetch<{
-    id:              string
-    tracking_number: string | null
-    carrier:         string
-    status:          string
+    package_id?:  number | string
+    id?:          number | string
+    service?:     string
+    state?:       string
+    status?:      string
+    parcels?:     Array<{ package_no?: string | null }>
+    tracking_number?: string | null
   }>('/packages', {
     method: 'POST',
     body: JSON.stringify({
-      service: params.service,
-      parcels: [{
-        weight: params.parcel.weightKg,
-        width:  params.parcel.widthCm,
-        height: params.parcel.heightCm,
-        depth:  params.parcel.depthCm,
-      }],
-      receiver: {
-        first_name:   params.recipient.firstName,
-        last_name:    params.recipient.lastName,
-        email:        params.recipient.email,
-        phone:        params.recipient.phone,
-        street:       params.recipient.street,
-        city:         params.recipient.city,
-        post_code:    params.recipient.postalCode,
-        country_code: params.recipient.country,
+      service_id: service.id,
+      type:       'package',
+      pickup: {
+        name:         sender.name,
+        company:      sender.company,
+        street:       sender.street,
+        postcode:     normalizePostcode(sender.postcode),
+        city:         sender.city,
+        country_code: 'PL',
+        email:        sender.email,
+        phone:        phoneDigits(sender.phone),
       },
-      reference:   params.reference,
-      description: params.description,
+      receiver: {
+        name:         receiverName,
+        company:      '',
+        street:       params.recipient.street,
+        postcode:     normalizePostcode(params.recipient.postalCode),
+        city:         params.recipient.city,
+        country_code: params.recipient.country,
+        email:        params.recipient.email,
+        phone:        phoneDigits(params.recipient.phone),
+      },
+      parcels: [{
+        weight:      params.parcel.weightKg,
+        width:       params.parcel.widthCm,
+        height:      params.parcel.heightCm,
+        depth:       params.parcel.depthCm,
+        description: params.description,
+      }],
+      user_reference_number: params.reference,
     }),
   })
 
   return {
-    id:             result.id,
-    trackingNumber: result.tracking_number,
-    carrier:        result.carrier,
-    status:         result.status,
+    id:             String(result.package_id ?? result.id ?? ''),
+    trackingNumber: result.parcels?.[0]?.package_no ?? result.tracking_number ?? null,
+    carrier:        result.service || service.code,
+    status:         result.state ?? result.status ?? 'created',
   }
 }
 

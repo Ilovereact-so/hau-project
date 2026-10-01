@@ -183,10 +183,10 @@ function FurgonetkaShipment({
   }
 
   return (
-    <Section title="Nadaj przesyłkę przez Furgonetkę" hint="Paczka kurierska na adres z zamówienia. Po utworzeniu zamówienie przechodzi do realizacji, a etykietę pobierzesz jednym kliknięciem.">
+    <Section title="Nadaj przesyłkę przez Furgonetkę" hint="Paczka kurierska na adres z zamówienia, nadawca — adres z Ustawień → Integracje. Po utworzeniu zamówienie przechodzi do realizacji, a etykietę pobierzesz jednym kliknięciem.">
       <div className="flex flex-wrap items-end gap-3">
         <label className="grid gap-1">
-          <span className="text-[11px] font-medium text-text-2">Kod usługi</span>
+          <span className="text-[11px] font-medium text-text-2" title="Kod usługi z konta Furgonetki (np. dpd, inpostkurier) albo jej liczbowe id">Kod usługi</span>
           <CellInput value={service} onChange={(event) => setService(event.target.value)} className="w-36 font-mono" />
         </label>
         <NumberField label="Waga (kg)" step="0.1" value={parcel.weightKg} onChange={(weightKg) => setParcel((p) => ({ ...p, weightKg }))} />

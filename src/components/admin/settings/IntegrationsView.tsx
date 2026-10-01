@@ -9,7 +9,8 @@ import {
 } from 'lucide-react'
 import type { CheckState, IntegrationCheck } from '@/lib/admin/integrations'
 import type { EnvIssue } from '@/lib/env'
-import { adminFurgonetkaConnect, adminTestIntegration } from '@/actions/adminIntegrations'
+import { adminFurgonetkaConnect, adminSaveFurgonetkaSender, adminTestIntegration } from '@/actions/adminIntegrations'
+import type { FurgonetkaSender } from '@/lib/furgonetka'
 import { Badge, type BadgeTone } from '../kit/Badge'
 import { Button, buttonClass } from '../kit/Button'
 import { Card, CardHeader } from '../kit/Card'
@@ -42,12 +43,14 @@ export function IntegrationsView({
   envIssues,
   isProduction,
   furgonetkaRedirect,
+  furgonetkaSender,
 }: {
   checks: IntegrationCheck[]
   endpoints: Array<{ label: string; value: string; hint: string }>
   envIssues: EnvIssue[]
   isProduction: boolean
   furgonetkaRedirect: string
+  furgonetkaSender: FurgonetkaSender
 }) {
   const router = useRouter()
   const [refreshing, startRefresh] = useTransition()
@@ -192,6 +195,7 @@ export function IntegrationsView({
                       </Button>
                       <FurgonetkaAuthorize initialRedirect={furgonetkaRedirect} />
                       <FurgonetkaPasteCode onConnected={() => router.refresh()} />
+                      <FurgonetkaSenderForm initial={furgonetkaSender} />
                     </>
                   )}
                   {check.id === 'autopay' && !isProduction && (
@@ -300,6 +304,64 @@ function FurgonetkaAuthorize({ initialRedirect }: { initialRedirect: string }) {
           <KeyRound size={13} strokeWidth={1.5} />
           Autoryzuj konto
         </button>
+      </div>
+    </form>
+  )
+}
+
+const SENDER_LABELS: Array<[keyof FurgonetkaSender, string, string?]> = [
+  ['company', 'Firma'],
+  ['name', 'Imię i nazwisko (osoba kontaktowa)'],
+  ['street', 'Ulica i numer'],
+  ['postcode', 'Kod pocztowy', '00-000'],
+  ['city', 'Miasto'],
+  ['email', 'E-mail'],
+  ['phone', 'Telefon'],
+]
+
+/** Adres nadawcy — Furgonetka wymaga go przy każdej przesyłce (pole `pickup`). */
+function FurgonetkaSenderForm({ initial }: { initial: FurgonetkaSender }) {
+  const [sender, setSender] = useState(initial)
+  const [error, setError] = useState<string | undefined>()
+  const [pending, startTransition] = useTransition()
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    setError(undefined)
+    startTransition(async () => {
+      const result = await adminSaveFurgonetkaSender(sender)
+      if (!result.ok) {
+        setError(result.error)
+        return
+      }
+      setSender(result.data)
+      toast.success('Adres nadawcy zapisany')
+    })
+  }
+
+  return (
+    <form onSubmit={submit} className="mt-1 flex w-full flex-col gap-2 border-t border-border pt-3">
+      <strong className="text-xs font-semibold text-text">Adres nadawcy przesyłek</strong>
+      <p className="m-0 text-[11px] leading-[1.5] text-text-2">
+        Skąd kurier odbiera paczki. Bez niego „Utwórz przesyłkę” w zamówieniu zwróci błąd.
+      </p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {SENDER_LABELS.map(([key, label, placeholder]) => (
+          <TextField
+            key={key}
+            label={label}
+            placeholder={placeholder}
+            value={sender[key]}
+            onChange={(event) => setSender((prev) => ({ ...prev, [key]: event.target.value }))}
+            autoComplete="off"
+          />
+        ))}
+      </div>
+      {error && <p className="m-0 text-[11px] text-danger">{error}</p>}
+      <div>
+        <Button size="sm" type="submit" disabled={pending}>
+          {pending ? 'Zapisuję…' : 'Zapisz adres nadawcy'}
+        </Button>
       </div>
     </form>
   )
