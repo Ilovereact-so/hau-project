@@ -292,11 +292,16 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
         <div ref={containerRef} id='filter-scroll' className="flex space-x-3 w-full md:pb-1 rounded-[20px]">
             <AnimatePresence>
             {isOpenMenu && 
-            <Portal>                
+            <Portal>
+                {/* Wysokość szuflady zależy od WYSOKOŚCI okna, nie tylko szerokości:
+                    na niskich ekranach (laptopy ≤ 820 px wysokości, telefony) 90%
+                    z marginesem 5% od dołu, żeby zmieściło się jak najwięcej filtrów;
+                    na wysokich monitorach 80% i 10% od dołu (więcej „powietrza”).
+                    Treść w środku przewija się, gdy i tak się nie zmieści. */}
                 <motion.div onClick={(e)=>handleContainerClick(e)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{opacity:0}} className={`fixed z-9999 top-0 left-0 w-[100vw] h-[100svh] bg-gradient-to-b from-white/60 from-[90%] to-transparent inset-0 flex ${
                     isOpenMenu ? "flex":"hidden"
                 }`}>
-                    <motion.div initial={{ translateX: "100%" }} animate={{ translateX: "0%" }} exit={{ translateX: "100%" }} className='bg-background subcategory-dock-shadow-portal flex flex-col font-poppins md:min-w-[400px] max-w-[90%] max-h-[80%] max-md:space-y-2 h-auto rounded-l-[40px] md:px-6 px-4 md:py-6 py-4 absolute right-0 bottom-[10%] '>
+                    <motion.div initial={{ translateX: "100%" }} animate={{ translateX: "0%" }} exit={{ translateX: "100%" }} className='bg-background subcategory-dock-shadow-portal flex flex-col font-poppins md:min-w-[400px] max-w-[90%] max-h-[90%] bottom-[5%] md:[@media(min-height:821px)]:max-h-[80%] md:[@media(min-height:821px)]:bottom-[10%] max-md:space-y-2 h-auto rounded-l-[40px] md:px-6 px-4 md:py-6 py-4 absolute right-0 '>
                         <div className='flex justify-between items-center'>
                             <h1 className='font-medium text-[clamp(15px,2.3vw,19px)] text-black ml-2'>Filtruj</h1>    
                             <div onClick={()=> setOpenMenu(false)} className="cursor-pointer">
@@ -309,7 +314,7 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
                                 {/**Price */}
                                 <div className='flex flex-col md:my-3 py-2 px-2 space-y-2'>
                                     <h1 className='text-[clamp(12px,2vw,16px)] text-black'>Cena:</h1>
-                                    <PriceRangeInputs draft={priceDraft} onChange={setPriceDraft} bounds={priceBounds} />
+                                    <PriceRangeInputs draft={priceDraft} onChange={setPriceDraft} compact={true} bounds={priceBounds} />
                                 </div>
                                 {comboAvailableFilters && comboAvailableFilters.map((item,i)=>(
                                     <div key={i} className='w-full flex flex-col'>
@@ -636,7 +641,7 @@ function PriceRangeInputs({
     compact?: boolean
     onEnter?: () => void
 }) {
-    const inputClass = `w-full min-w-0 text-center text-black rounded-[10px] focus:outline-none focus:ring-2 focus:ring-black/20 placeholder:text-[#8E8E8E] ${
+    const inputClass = `w-[80px] min-w-0 text-center text-black rounded-[10px] focus:outline-none focus:ring-0 focus:ring-black/20 placeholder:text-[#8E8E8E] ${
         compact ? 'bg-white/80 text-[13px] leading-none h-[24px] py-0 px-1 rounded-[8px]' : 'bg-[#E1E1E1] text-[clamp(13px,2vw,16px)] py-2 px-2'
     }`
     const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -647,7 +652,7 @@ function PriceRangeInputs({
     }
     return (
         <div className={`flex items-center ${compact ? 'gap-1.5' : 'gap-2'}`}>
-            <label className='flex items-center gap-1 flex-1 min-w-0'>
+            <label className='flex items-center gap-1 min-w-0'>
                 <span className={`text-black ${compact ? 'text-[13px] font-normal' : 'text-[clamp(12px,2vw,15px)]'}`}>od</span>
                 <input
                     type='text'
@@ -661,7 +666,7 @@ function PriceRangeInputs({
                 />
             </label>
             <span className='text-black'>–</span>
-            <label className='flex items-center gap-1 flex-1 min-w-0'>
+            <label className='flex items-center gap-1 min-w-0'>
                 <span className={`text-black ${compact ? 'text-[13px] font-normal' : 'text-[clamp(12px,2vw,15px)]'}`}>do</span>
                 <input
                     type='text'
