@@ -7,7 +7,7 @@ import { filterProductCategories } from '@/lib/categoryNavigation'
 import Link from 'next/link'
 import { ArrowLeft, BookOpen, Search } from 'lucide-react'
 import Image from 'next/image'
-import { animate, AnimatePresence, motion, useScroll } from 'framer-motion'
+import { animate, AnimatePresence, motion } from 'framer-motion'
 import {useMediaQuery} from '@/hooks/useMediaQuery'
 import SubmenuPortal from './SubmenuPortal'
 import SearchBarContext from './SearchBarContext'
@@ -160,44 +160,34 @@ const NavRMenu = ({ className, style, mode, categories, initialMobile = false}: 
     };
     // ────────────────────────────────────────────────────────────────────────
 
-const BackgroundTheme = () => {
-  if (mode !== 0) return;
+    // Stan „kursor nad którąś kategorią” dla nakładki obok menu (mode 0).
+    // Nasłuchy zakładamy RAZ na zamontowane zakładki. Wcześniej funkcja była
+    // wołana przy każdym najechaniu i dokładała kolejne nasłuchy do wszystkich
+    // zakładek (nigdy ich nie zdejmując) — po kilkudziesięciu ruchach myszą
+    // każde wejście odpalało dziesiątki handlerów w trakcie animacji panelu.
+    useEffect(() => {
+        if (mode !== 0) return;
+        const elements = itemRefs.current
+            .map((ref) => ref.current)
+            .filter((el): el is HTMLLabelElement => Boolean(el));
 
-  const handleMouseEnter = () => {
-    setIsHover(true);
-  };
+        const handleMouseEnter = () => setIsHover(true);
+        const handleMouseLeave = (e: MouseEvent) => {
+            const related = e.relatedTarget as Node | null;
+            if (!related || !elements.some((el) => el.contains(related))) setIsHover(false);
+        };
 
-  const handleMouseLeave = (e: MouseEvent) => {
-    const related = e.relatedTarget as Node | null;
-
-    const stillInside = itemRefs.current.some((ref) => {
-      const el = ref.current;
-      return el && related && el.contains(related);
-    });
-
-    if (!stillInside) {
-      setIsHover(false);
-    }
-  };
-
-  itemRefs.current.forEach((ref) => {
-    const el = ref.current;
-    if (!el) return;
-
-    el.addEventListener("mouseenter", handleMouseEnter);
-    el.addEventListener("mouseleave", handleMouseLeave);
-  });
-
-  return () => {
-    itemRefs.current.forEach((ref) => {
-      const el = ref.current;
-      if (!el) return;
-
-      el.removeEventListener("mouseenter", handleMouseEnter);
-      el.removeEventListener("mouseleave", handleMouseLeave);
-    });
-  };
-};
+        elements.forEach((el) => {
+            el.addEventListener("mouseenter", handleMouseEnter);
+            el.addEventListener("mouseleave", handleMouseLeave);
+        });
+        return () => {
+            elements.forEach((el) => {
+                el.removeEventListener("mouseenter", handleMouseEnter);
+                el.removeEventListener("mouseleave", handleMouseLeave);
+            });
+        };
+    }, [mode, mobile, showSearchBar, visibleCategories]);
 
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [_query, setQuery] = useState<string>("");
@@ -380,7 +370,7 @@ const BackgroundTheme = () => {
                                 <Image src="/logo_hau_white.svg" alt='logo' className='min-w-[40px] min-h-[40px]' width={40} height={40}/>
                             </div>
                             {visibleCategories.map((item, index) => (
-                                <NavLink navRef={navbarRef} mode={themeMode} item={item} index={index} total={visibleCategories.length} key={item._id ?? index} itemRef={itemRefs.current[index]} isHoverExport={BackgroundTheme} globalDelay={globalDelay} initialMobile={initialMobile} />
+                                <NavLink navRef={navbarRef} mode={themeMode} item={item} index={index} total={visibleCategories.length} key={item._id ?? index} itemRef={itemRefs.current[index]} globalDelay={globalDelay} initialMobile={initialMobile} />
                             ))}
                             <GuidesNavLink mode={themeMode} initialMobile={initialMobile} onNavigate={() => setOpenMenu(false)} />
                         </NavbarItems>
@@ -428,7 +418,7 @@ const BackgroundTheme = () => {
                                     <Image src="/logo_hau_white.svg" alt='logo' className='min-w-[40px] min-h-[40px]' width={40} height={40}/>
                                 </div>
                                 {visibleCategories.map((item, index) => (
-                                    <NavLink navRef={navbarRef} mode={themeMode} item={item} index={index} total={visibleCategories.length} key={item._id ?? index} itemRef={itemRefs.current[index]} isHoverExport={BackgroundTheme} globalDelay={globalDelay} initialMobile={initialMobile} />
+                                    <NavLink navRef={navbarRef} mode={themeMode} item={item} index={index} total={visibleCategories.length} key={item._id ?? index} itemRef={itemRefs.current[index]} globalDelay={globalDelay} initialMobile={initialMobile} />
                                 ))}
                                 <GuidesNavLink mode={themeMode} initialMobile={initialMobile} onNavigate={() => setOpenMenu(false)} />
                             </NavbarItems>
@@ -511,47 +501,63 @@ type CategoryItem = {
      }[];
 }
 
-const NavLink = ({ item, index, total, navRef, itemRef, isHoverExport, globalDelay, mode, initialMobile = false}: { item: CategoryItem, index: number, total: number, navRef: React.Ref<HTMLDivElement | null>, itemRef: React.Ref<HTMLLabelElement | null>, isHoverExport: VoidFunction, globalDelay:number, mode: number, initialMobile?: boolean}) => {
+// ── Animacja rozwijanego menu ─────────────────────────────────────────────
+// Na komputerze animujemy WYŁĄCZNIE clip-path (i kolor tła napisu), nigdy wysokości.
+// Wcześniej panel rósł przez `max-height: 0 → 420px` z liniowym easingiem:
+// każda klatka przeliczała układ strony, a przy panelu o realnej wysokości
+// ~150–250 px widoczny ruch kończył się w połowie czasu i panel „stawał” —
+// stąd wrażenie szarpania. clip-path nie zmienia układu (framer-motion puszcza
+// go przez Web Animations API, poza wątkiem Reacta), a krzywa ease-out daje
+// płynne wyhamowanie niezależnie od wysokości panelu.
+const EASE_OUT = [0.22, 1, 0.36, 1] as const
+const EASE_IN = [0.4, 0, 1, 1] as const
+// Tło zakładki odsłaniane od góry; prawa krawędź z zapasem 60 px, bo poza
+// zakładką (left: 100%) siedzi wklęsły narożnik łączący ją z panelem.
+const TAB_OPEN = "inset(0px -60px 0% 0px)"
+const TAB_CLOSED = "inset(0px -60px 100% 0px)"
+// Panel rozwijany od góry; ujemne marginesy na boki i dół zostawiają miejsce
+// na cień (shadow-lg), który inaczej byłby przycięty.
+const PANEL_OPEN = "inset(0% -20% -25% -20%)"
+const PANEL_CLOSED = "inset(0% -20% 100% -20%)"
+
+const NavLink = React.memo(function NavLink({ item, index, total, navRef, itemRef, globalDelay, mode, initialMobile = false}: { item: CategoryItem, index: number, total: number, navRef: React.Ref<HTMLDivElement | null>, itemRef: React.Ref<HTMLLabelElement | null>, globalDelay:number, mode: number, initialMobile?: boolean}) {
     const mobile  = useMediaQuery('(max-width: 639px)', initialMobile);
     const [isHover, setIsHover] = useState<boolean>(false);
 
-    useScroll({
-        container: navRef as React.RefObject<HTMLElement>,
-    });
-
     const handleMouseEnter = (e: HTMLElement) => {
-        
         const container = navRef as React.RefObject<HTMLElement>;
-        if (!container) return;
+        if (container?.current) {
+            const { left, right } = e.getBoundingClientRect();
+            const { left: cLeft, right: cRight } = container.current.getBoundingClientRect();
+            const offset = mode === 0 ? 40 : 25;
 
-        
-
-        const { left, right } = e.getBoundingClientRect();
-        const { left: cLeft, right: cRight } = container.current.getBoundingClientRect();
-        const offset = mode === 0 ? 40 : 25;
-
-        if (left < cLeft + offset) {
-            container.current.scrollTo({ left: container.current.scrollLeft + left - cLeft - offset, behavior: "smooth" });
-        } else if (right > cRight - offset) {
-            container.current.scrollTo({ left: container.current.scrollLeft + right - cRight + offset, behavior: "smooth" });
+            if (left < cLeft + offset) {
+                container.current.scrollTo({ left: container.current.scrollLeft + left - cLeft - offset, behavior: "smooth" });
+            } else if (right > cRight - offset) {
+                container.current.scrollTo({ left: container.current.scrollLeft + right - cRight + offset, behavior: "smooth" });
+            }
         }
         setIsHover(true);
-        isHoverExport();
     }
 
-    // Cała sekwencja otwarcia trwa ~0,35 s (wcześniej ~0,9 s): tło zakładki,
-    // panel i tekst startują niemal razem, zamykanie jest natychmiastowe.
+    // Otwarcie: tło zakładki (0,16 s) → panel dołącza, gdy tło jest prawie
+    // gotowe (0,28 s, większość ruchu w pierwszej połowie) — razem ~0,4 s
+    // zamiast ~0,9 s w pierwotnej wersji. Zamknięcie: panel zwija się szybko
+    // (0,16 s), tło zakładki znika tuż za nim. Każdy stan animuje się od
+    // BIEŻĄCEJ wartości, więc szybkie przejeżdżanie po zakładkach nie skacze.
     const variants = {
-        borderOpen: { height: "100%", transition: { duration: 0.15 , delay: globalDelay} },
-        borderClosed: { height: 0, transition: { duration: 0.12 , delay: 0.08 } },
-        ListOpen: { maxHeight: 420, display: "block", transition: { duration: 0.2 , delay: 0.1 + globalDelay}},
-        ListClosed: { maxHeight: 0, display: "none", transition: { duration: 0.12 } },
-        shadowOpen: { height: "100%", width: 50, transition: { duration: 0.15, delay: 0.05 + globalDelay } },
-        shadowClosed: { height: 0, width: 0, transition: { duration: 0.12 , delay: 0.08 } },
-        textOpen:{opacity: 1, transition:{duration:0.15, delay:0.14 + globalDelay}},
-        textClosed:{opacity:0, transition:{duration:0.08}},
-        circleOpen:{backgroundColor: "#f6f6f62e", transition:{duration:0.15, delay:0.05 + globalDelay}},
-        circleClosed:{backgroundColor: "#f6f6f600", transition:{duration:0.15}},
+        borderOpen: { clipPath: TAB_OPEN, transition: { duration: 0.16, ease: EASE_OUT, delay: globalDelay } },
+        borderClosed: { clipPath: TAB_CLOSED, transition: { duration: 0.14, ease: EASE_IN, delay: 0.1 } },
+        ListOpen: { clipPath: PANEL_OPEN, display: "block", transition: { duration: 0.28, ease: EASE_OUT, delay: 0.1 + globalDelay } },
+        ListClosed: { clipPath: PANEL_CLOSED, transition: { duration: 0.16, ease: EASE_IN }, transitionEnd: { display: "none" } },
+        // Telefon: lista jest w przepływie strony (akordeon), więc tu musi
+        // rosnąć wysokość — do realnej wysokości treści ("auto"), nie do
+        // sztywnego max-height. `visibility` zamiast `display`, żeby framer
+        // mógł zmierzyć wysokość "auto".
+        mobileListOpen: { height: "auto", opacity: 1, visibility: "visible", transition: { duration: 0.28, ease: EASE_OUT, delay: 0.06 + globalDelay } },
+        mobileListClosed: { height: 0, opacity: 0, transition: { duration: 0.18, ease: EASE_IN }, transitionEnd: { visibility: "hidden" } },
+        circleOpen:{backgroundColor: "#f6f6f62e", transition:{duration:0.16, delay:globalDelay}},
+        circleClosed:{backgroundColor: "#f6f6f600", transition:{duration:0.16}},
     }
     const categoryHref = `/category/${item.slug}`
     return (
@@ -560,101 +566,84 @@ const NavLink = ({ item, index, total, navRef, itemRef, isHoverExport, globalDel
         <div className={`px-[6px] flex justify-start sm:justify-center items-center ${
             mode === 1 ? "":"sm:py-1"
         }`}>
-            <motion.div initial={{height:0}} animate={isHover ? "borderOpen" : "borderClosed"} variants={variants} className='rounded-t-[20px] bg-menu-content absolute top-0 left-0 w-full h-full z-[9]'>
-                <motion.div initial={{height:0, width:0}} animate={isHover ? "shadowOpen" : "shadowClosed"} variants={variants} className='absolute w-[50px] h-full left-[100%] bottom-0 overflow-hidden'>
+            <motion.div initial={{ clipPath: TAB_CLOSED }} animate={isHover ? "borderOpen" : "borderClosed"} variants={variants} className='rounded-t-[20px] bg-menu-content absolute top-0 left-0 w-full h-full z-[9]'>
+                <div className='absolute w-[50px] h-full left-[100%] bottom-0 overflow-hidden'>
                     <div className='sh-nav-rounded rounded-bl-[20px]'></div>
-                </motion.div>
+                </div>
             </motion.div>
             {/* Główna kategoria jest klikalna — prowadzi na stronę kategorii
                 (/category/[slug]) z produktami ze wszystkich jej podkategorii. */}
             <Link href={categoryHref} className='z-10 outline-none'>
                 <motion.span initial={{backgroundColor: "#f6f6f600"}} animate={isHover ? "circleOpen" : "circleClosed"} variants={variants} className='p-1 rounded-[10px] block'>{item.title}</motion.span>
             </Link>
-            
+
             <SubmenuPortal anchorRef={itemRef as React.RefObject<HTMLLabelElement>} scrollRef={navRef as React.RefObject<HTMLDivElement>} open={isHover} exit={()=>setIsHover(false)}>
                 <motion.div
-                    initial={{ maxHeight: 0, display: "none" }}
+                    initial={{ clipPath: PANEL_CLOSED, display: "none" }}
                     animate={isHover ? "ListOpen" : "ListClosed"}
                     variants={variants}
-                    transition={{ease:"linear"}}
-                    className="space-y-3 z-[9999] bg-menu-content w-auto h-auto px-4 pb-3 pt-2 flex flex-col rounded-b-[20px] rounded-r-[20px] overflow-hidden shadow-lg shadow-black/25"
+                    className="z-[9999] bg-menu-content w-auto h-auto rounded-b-[20px] rounded-r-[20px] shadow-lg shadow-black/25"
                 >
-                    <Link href={categoryHref} className="w-auto h-auto flex no-underline outline-none font-poppins">
-                        <motion.span
-                        initial={{ opacity: 0 }}
-                        animate={isHover ? "textOpen" : "textClosed"}
-                        variants={variants}
-                        className="text-black font-medium 2xl:text-[16px] text-[14px] hover:scale-[0.96] origin-left ease-in-out duration-300"
-                        >
-                        Wszystko z kategorii →
-                        </motion.span>
-                    </Link>
-                    {item.subcategory?.map((subitem, subindex) => (
-                    <Link key={subindex} href={`/subcategory/${subitem.slug}`} className="w-auto h-auto flex no-underline outline-none font-poppins">
-                        <motion.h1
-                        initial={{ opacity: 0 }}
-                        animate={isHover ? "textOpen" : "textClosed"}
-                        variants={variants}
-                        className="text-black 2xl:text-[16px] text-[14px] hover:scale-[0.96] origin-left ease-in-out duration-300"
-                        >
-                        {subitem.title}
-                        </motion.h1>
-                    </Link>
-                    ))}
-                    <hr className="border-white my-1" />
+                    <div className="px-4 pb-3 pt-2 flex flex-col space-y-3">
+                        <Link href={categoryHref} className="w-auto h-auto flex no-underline outline-none font-poppins">
+                            <span className="text-black font-medium 2xl:text-[16px] text-[14px] hover:scale-[0.96] origin-left ease-in-out duration-300">
+                            Wszystko z kategorii →
+                            </span>
+                        </Link>
+                        {item.subcategory?.map((subitem, subindex) => (
+                        <Link key={subindex} href={`/subcategory/${subitem.slug}`} className="w-auto h-auto flex no-underline outline-none font-poppins">
+                            <span className="text-black 2xl:text-[16px] text-[14px] hover:scale-[0.96] origin-left ease-in-out duration-300">
+                            {subitem.title}
+                            </span>
+                        </Link>
+                        ))}
+                        <hr className="border-white my-1" />
+                    </div>
                 </motion.div>
             </SubmenuPortal>
         </div>
         ):
         (
         <div className='px-[6px] sm:py-1 flex sm:flex-row flex-col justify-start sm:justify-center sm:items-center items-start'>
-            
+
             <div className='z-10 relative px-2 py-[5px] h-auto'>
                 <motion.p initial={{backgroundColor: "#f6f6f600"}} animate={isHover ? "circleOpen" : "circleClosed"} variants={variants} className='p-1 rounded-[10px]'>{item.title}</motion.p>
-                <motion.div initial={{height:0}} animate={isHover ? "borderOpen" : "borderClosed"} variants={variants} className='rounded-t-[20px] bg-[#D1EAE5]/83 absolute top-0 left-0 w-full h-full z-[-1]'>
-                    <motion.div initial={{height:0, width:0}} animate={isHover ? "shadowOpen" : "shadowClosed"} variants={variants} className='absolute w-[50px] h-full left-[100%] bottom-0 overflow-hidden'>
+                <motion.div initial={{ clipPath: TAB_CLOSED }} animate={isHover ? "borderOpen" : "borderClosed"} variants={variants} className='rounded-t-[20px] bg-[#D1EAE5]/83 absolute top-0 left-0 w-full h-full z-[-1]'>
+                    <div className='absolute w-[50px] h-full left-[100%] bottom-0 overflow-hidden'>
                         <div className='sh-nav-rounded2 rounded-bl-[20px]'></div>
-                    </motion.div>
+                    </div>
                 </motion.div>
             </div>
 
             <motion.div
-                initial={{ maxHeight: 0, display: "none" }}
-                animate={isHover ? "ListOpen" : "ListClosed"}
+                initial={{ height: 0, opacity: 0, visibility: "hidden" }}
+                animate={isHover ? "mobileListOpen" : "mobileListClosed"}
                 variants={variants}
-                className={`space-y-3 z-10 bg-[#D1EAE5]/83 w-auto h-auto px-4 pb-3 pt-2 flex flex-col rounded-b-[20px] rounded-r-[20px] overflow-hidden shadow-lg shadow-black/25 ${
+                className={`z-10 bg-[#D1EAE5]/83 w-auto rounded-b-[20px] rounded-r-[20px] overflow-hidden shadow-lg shadow-black/25 ${
                     index == 1 ? "min-w-[65vw]":"min-w-auto"
                 }`}
             >
-                <Link href={categoryHref} className="w-auto h-auto flex">
-                    <motion.span
-                    initial={{ opacity: 0 }}
-                    animate={isHover ? "textOpen" : "textClosed"}
-                    variants={variants}
-                    className="text-black text-[14px] font-medium hover:underline"
-                    >
-                    Wszystko z kategorii →
-                    </motion.span>
-                </Link>
-                {item.subcategory?.map((subitem, subindex) => (
-                <Link key={subindex} href={`/subcategory/${subitem.slug}`} className="w-auto h-auto flex">
-                    <motion.h1
-                    initial={{ opacity: 0 }}
-                    animate={isHover ? "textOpen" : "textClosed"}
-                    variants={variants}
-                    className="text-black text-[14px] hover:underline"
-                    >
-                    {subitem.title}
-                    </motion.h1>
-                </Link>
-                ))}
-                <hr className="border-white my-1" />
+                <div className="px-4 pb-3 pt-2 flex flex-col space-y-3">
+                    <Link href={categoryHref} className="w-auto h-auto flex">
+                        <span className="text-black text-[14px] font-medium hover:underline">
+                        Wszystko z kategorii →
+                        </span>
+                    </Link>
+                    {item.subcategory?.map((subitem, subindex) => (
+                    <Link key={subindex} href={`/subcategory/${subitem.slug}`} className="w-auto h-auto flex">
+                        <span className="text-black text-[14px] hover:underline">
+                        {subitem.title}
+                        </span>
+                    </Link>
+                    ))}
+                    <hr className="border-white my-1" />
+                </div>
             </motion.div>
         </div>
         )}
     </motion.label>
     )
-}
+})
 
 /**
  * Poradniki jako osobny punkt nawigacji.

@@ -26,8 +26,6 @@ export default function SubmenuPortal({ anchorRef, open, children, scrollRef: _s
   }, []);
 
   useEffect(() => {
-    //if (!open) return;
-
     const updatePosition = () => {
       const anchor = anchorRef.current;
       const container = containerRef.current;
@@ -50,7 +48,13 @@ export default function SubmenuPortal({ anchorRef, open, children, scrollRef: _s
       // }
     };
 
+    // Pozycję liczymy zawsze przy zmianie `open` (także na starcie — zamknięty
+    // panel nie może wylądować na końcu strony), ale nasłuchy przewijania
+    // trzymamy TYLKO dla otwartego panelu. Wcześniej każda kategoria w menu
+    // wołała getBoundingClientRect przy każdym przewinięciu czegokolwiek
+    // (także w trakcie płynnego przewijania paska kategorii podczas animacji).
     updatePosition();
+    if (!open) return;
 
     window.addEventListener("scroll", updatePosition, true);
     window.addEventListener("resize", updatePosition);
