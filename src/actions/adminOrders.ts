@@ -5,7 +5,8 @@ import { revalidatePath } from 'next/cache'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { orders, shipments, shippingAddresses, SHIPMENT_STATUSES, type OrderStatus, type ShipmentStatus } from '@/db/schema'
-import { createShipment, getShipmentLabel, type FurgonetkaAddress, type FurgonetkaParcel } from '@/lib/furgonetka'
+import { createShipment, deleteShipment, type FurgonetkaAddress, type FurgonetkaParcel } from '@/lib/furgonetka'
+import { syncFurgonetkaShipment } from '@/lib/shipmentStatus'
 import { runAdminAction, type ActionResult } from '@/lib/admin/guard'
 import { ORDER_TRANSITIONS } from '@/lib/admin/labels'
 import { releaseDiscountForOrder } from '@/lib/discountServer'
@@ -116,7 +117,6 @@ export async function adminCreateShipment(input: CreateShipmentInput): Promise<A
         furgonetkaId: result.id,
         carrier: result.carrier || service,
         service,
-        trackingNumber: result.trackingNumber ?? undefined,
         status: 'created',
         parcelWeightG: Math.round(parcel.weightKg * 1000),
       })
@@ -125,6 +125,8 @@ export async function adminCreateShipment(input: CreateShipmentInput): Promise<A
       }
     })
 
+    // Przesyłka ląduje w KOSZYKU Furgonetki — zamawia i opłaca się ją tam.
+    // Numer listu i etykieta pojawią się po opłaceniu (webhook / „Odśwież status”).
     refresh(order.id)
     return { shipmentId }
   }, 'Nie udało się utworzyć przesyłki w Furgonetce.')
@@ -197,21 +199,53 @@ export async function adminSetShipmentStatus(orderId: string, status: ShipmentSt
   }, 'Nie udało się zmienić statusu przesyłki.')
 }
 
-export async function adminGetShipmentLabel(orderId: string): Promise<ActionResult<string>> {
+async function loadFurgonetkaShipment(orderId: string) {
+  const order = await loadOrder(orderId)
+  const [shipment] = await db
+    .select({ id: shipments.id, orderId: shipments.orderId, status: shipments.status, furgonetkaId: shipments.furgonetkaId, trackingNumber: shipments.trackingNumber })
+    .from(shipments)
+    .where(eq(shipments.orderId, order.id))
+  if (!shipment) throw new Error('Zamówienie nie ma przesyłki.')
+  if (!shipment.furgonetkaId) throw new Error('Przesyłka nadana poza Furgonetką.')
+  return { ...shipment, furgonetkaId: shipment.furgonetkaId }
+}
+
+/**
+ * Stan z Furgonetki na żądanie: czy przesyłka została opłacona w koszyku
+ * (→ numer listu, etykieta) i jaki ma status śledzenia. Zapas, gdy webhook
+ * nie dotarł; te same reguły co webhook.
+ */
+export async function adminRefreshShipment(orderId: string): Promise<ActionResult<string>> {
   return runAdminAction(async () => {
-    const order = await loadOrder(orderId)
-    const [shipment] = await db
-      .select({ furgonetkaId: shipments.furgonetkaId, labelUrl: shipments.labelUrl })
-      .from(shipments)
-      .where(eq(shipments.orderId, order.id))
+    const shipment = await loadFurgonetkaShipment(orderId)
+    const result = await syncFurgonetkaShipment(shipment)
+    refresh(orderId)
+    if (result.kind === 'waiting') return 'Przesyłka czeka w koszyku Furgonetki — opłać ją tam, a etykieta pojawi się tutaj.'
+    if (result.kind === 'cancelled') return 'Przesyłka została anulowana w Furgonetce — usuń ją tutaj i utwórz nową.'
+    if (!result.latest) return 'Przesyłka opłacona — etykieta gotowa. Kurier jeszcze jej nie odebrał.'
+    const what = result.latest.description || result.latest.state
+    return result.changed ? `Status zaktualizowany: ${what}` : `Bez zmian: ${what}`
+  }, 'Nie udało się pobrać statusu z Furgonetki.')
+}
 
-    if (!shipment) throw new Error('Zamówienie nie ma przesyłki.')
-    if (shipment.labelUrl) return shipment.labelUrl
-    if (!shipment.furgonetkaId) throw new Error('Przesyłka nadana poza Furgonetką — etykieta jest u przewoźnika.')
-
-    const labelUrl = await getShipmentLabel(shipment.furgonetkaId)
-    await db.update(shipments).set({ labelUrl }).where(eq(shipments.orderId, order.id))
-    refresh(order.id)
-    return labelUrl
-  }, 'Nie udało się pobrać etykiety.')
+/**
+ * Usunięcie przesyłki, która nie została opłacona (np. błędne wymiary albo
+ * anulowana w Furgonetce) — można wtedy utworzyć ją od nowa.
+ */
+export async function adminDiscardShipment(orderId: string): Promise<ActionResult> {
+  return runAdminAction(async () => {
+    const shipment = await loadFurgonetkaShipment(orderId)
+    if (shipment.trackingNumber) {
+      throw new Error('Przesyłka jest już opłacona — anuluj ją w panelu Furgonetki.')
+    }
+    try {
+      await deleteShipment(shipment.furgonetkaId)
+    } catch (err) {
+      // Już usunięta / anulowana w Furgonetce — u nas i tak sprzątamy.
+      console.warn('[furgonetka] usuwanie przesyłki', err)
+    }
+    await db.delete(shipments).where(eq(shipments.id, shipment.id))
+    refresh(orderId)
+    return null
+  }, 'Nie udało się usunąć przesyłki.')
 }

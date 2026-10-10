@@ -1,89 +1,80 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createHmac } from 'crypto'
-import { db } from '@/lib/db'
-import { shipments, orders } from '@/db/schema'
-import { eq } from 'drizzle-orm'
-import type { ShipmentStatus } from '@/db/schema'
+import { revalidatePath } from 'next/cache'
+import { getWebhookSalt } from '@/lib/furgonetka'
+import { applyShipmentState, findShipmentByFurgonetka } from '@/lib/shipmentStatus'
+import {
+  TRACKING_STATE_MAP,
+  detectFormat,
+  parseNotification,
+  verifyNotification,
+  webhookReply,
+  type FurgonetkaNotification,
+  type WebhookFormat,
+} from '@/lib/furgonetkaWebhook'
 
-const WEBHOOK_SECRET = process.env.FURGONETKA_WEBHOOK_SECRET!
+/*
+ * Webhook statusów przesyłek Furgonetki (format i suma kontrolna — patrz
+ * lib/furgonetkaWebhook.ts). Sól: FURGONETKA_WEBHOOK_SECRET albo — gdy jej
+ * nie ma — ustawienia webhooka pobrane z API Furgonetki.
+ *
+ * Furgonetka uznaje dostarczenie TYLKO przy HTTP 200 + {"status":"OK"}
+ * (albo <status>OK</status> dla XML). Powiadomienie o przesyłce, której
+ * sklep nie zna, dostaje OK bez weryfikacji — niczego nie zmienia, a tak
+ * wygląda test adresu przy zapisie webhooka w panelu Furgonetki (wtedy API
+ * nie zna jeszcze nowej soli). Sumę kontrolną sprawdzamy, zanim cokolwiek
+ * zapiszemy.
+ */
 
-// Status mapping from Furgonetka events to our enum
-const STATUS_MAP: Record<string, ShipmentStatus> = {
-  'picked_up':        'picked_up',
-  'in_transit':       'in_transit',
-  'out_for_delivery': 'out_for_delivery',
-  'delivered':        'delivered',
-  'delivery_failed':  'failed',
-  'returned':         'returned',
+export const dynamic = 'force-dynamic'
+
+function reply(format: WebhookFormat, ok: boolean, status = 200) {
+  const { body, contentType } = webhookReply(format, ok)
+  return new NextResponse(body, { status, headers: { 'Content-Type': contentType } })
 }
 
-interface FurgonetkaWebhookPayload {
-  event:          string
-  package_id:     string
-  tracking_number?: string
-  status:         string
-  timestamp:      string
-}
-
-function verifySignature(body: string, signature: string | null): boolean {
-  if (!signature) return false
-  const expected = createHmac('sha256', WEBHOOK_SECRET).update(body).digest('hex')
-  return expected === signature
+async function verify(notification: FurgonetkaNotification): Promise<boolean> {
+  try {
+    const salt = await getWebhookSalt()
+    if (salt && verifyNotification(notification, salt)) return true
+    // Sól mogła się właśnie zmienić w panelu — jeszcze raz, bez cache.
+    if (process.env.FURGONETKA_WEBHOOK_SECRET) return false
+    const fresh = await getWebhookSalt({ fresh: true })
+    return Boolean(fresh) && fresh !== salt && verifyNotification(notification, fresh)
+  } catch (err) {
+    console.error('[furgonetka] webhook: nie udało się pobrać soli z API', err)
+    return false
+  }
 }
 
 export async function POST(req: NextRequest) {
-  const rawBody  = await req.text()
-  const signature = req.headers.get('x-furgonetka-signature')
+  const rawBody = await req.text()
+  const format = detectFormat(rawBody, req.headers.get('content-type'))
+  const notification = parseNotification(rawBody, format)
+  if (!notification) return reply(format, false, 400)
 
-  if (!verifySignature(rawBody, signature)) {
-    console.warn('[Furgonetka] Invalid webhook signature')
-    return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
-  }
-
-  let payload: FurgonetkaWebhookPayload
   try {
-    payload = JSON.parse(rawBody)
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
-  }
+    const shipment = await findShipmentByFurgonetka(notification.packageId, notification.packageNo)
+    if (!shipment) return reply(format, true)
 
-  const nextStatus = STATUS_MAP[payload.status]
-  if (!nextStatus) {
-    // unknown status — acknowledge but ignore
-    return NextResponse.json({ status: 'OK' })
-  }
-
-  const [shipment] = await db
-    .select({ id: shipments.id, orderId: shipments.orderId })
-    .from(shipments)
-    .where(eq(shipments.furgonetkaId, payload.package_id))
-
-  if (!shipment) {
-    console.error('[Furgonetka] Shipment not found', { furgonetkaId: payload.package_id })
-    return NextResponse.json({ error: 'Shipment not found' }, { status: 404 })
-  }
-
-  await db.transaction(async tx => {
-    await tx
-      .update(shipments)
-      .set({
-        status:         nextStatus,
-        trackingNumber: payload.tracking_number ?? undefined,
-      })
-      .where(eq(shipments.id, shipment.id))
-
-    if (nextStatus === 'delivered') {
-      await tx
-        .update(orders)
-        .set({ status: 'delivered' })
-        .where(eq(orders.id, shipment.orderId))
-    } else if (nextStatus === 'in_transit' || nextStatus === 'out_for_delivery') {
-      await tx
-        .update(orders)
-        .set({ status: 'shipped' })
-        .where(eq(orders.id, shipment.orderId))
+    if (!(await verify(notification))) {
+      console.warn('[furgonetka] webhook: zła suma kontrolna', { packageId: notification.packageId })
+      return reply(format, false)
     }
-  })
 
-  return NextResponse.json({ status: 'OK' })
+    // Numer listu zapisujemy tylko dla przesyłki zamówionej (opłaconej w koszyku
+    // Furgonetki) — jego obecność odblokowuje w panelu etykietę.
+    const ordered = !['waiting', 'canceled', 'cancelled'].includes(notification.state)
+    const changed = await applyShipmentState(
+      shipment,
+      TRACKING_STATE_MAP[notification.state] ?? null,
+      ordered ? notification.packageNo : undefined,
+    )
+    if (changed) revalidatePath('/admin', 'layout')
+  } catch (err) {
+    // Błąd bazy → ERROR: Furgonetka zapisze nieudane dostarczenie i można je ponowić.
+    console.error('[furgonetka] webhook: zapis statusu nie powiódł się', err)
+    return reply(format, false, 500)
+  }
+
+  return reply(format, true)
 }

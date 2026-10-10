@@ -214,7 +214,6 @@ async function checkFurgonetka(): Promise<IntegrationCheck> {
   }
   const warnings = lacking.map((name) => `Brak zmiennej ${name}.`)
   if (tokenSource === 'brak') warnings.push('Brak tokenu — kliknij „Autoryzuj”, żeby połączyć konto Furgonetki.')
-  if (!has('FURGONETKA_WEBHOOK_SECRET')) warnings.push('Brak FURGONETKA_WEBHOOK_SECRET — statusy przesyłek nie będą aktualizowane.')
   if (!has('NEXT_PUBLIC_FURGONETKA_MAP_API_KEY')) warnings.push('Brak klucza mapy punktów (NEXT_PUBLIC_FURGONETKA_MAP_API_KEY).')
 
   return {
@@ -224,7 +223,7 @@ async function checkFurgonetka(): Promise<IntegrationCheck> {
     summary: lacking.length ? 'Nieskonfigurowana' : `Środowisko ${FURGONETKA_ENV === 'production' ? 'produkcyjne' : 'sandbox'}`,
     details: [
       { label: 'Token odświeżania', value: tokenSource },
-      { label: 'Webhook', value: yesNo(has('FURGONETKA_WEBHOOK_SECRET')) },
+      { label: 'Sól webhooka', value: has('FURGONETKA_WEBHOOK_SECRET') ? 'z .env' : 'z API Furgonetki' },
       { label: 'Mapa punktów', value: yesNo(has('NEXT_PUBLIC_FURGONETKA_MAP_API_KEY')) },
     ],
     warnings,
