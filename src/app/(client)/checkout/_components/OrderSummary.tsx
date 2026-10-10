@@ -10,17 +10,20 @@ import { primaryImageForVariant } from '@/lib/variantImages'
 import useStore from 'store'
 import { buildVariantLabel } from './utils'
 import { applyDiscount } from '@/lib/discounts'
+import { effectivePrice } from '@/lib/omnibus'
 import type { DiscountPreview } from '@/actions/discounts'
 
 interface Props {
   shippingCents?:   number
+  /** Darmowa dostawa od progu (panel → Dostawy) — dostawa 0 zł i „Gratis”. */
+  freeShipping?:    boolean
   deliveryName?:    string | null
   /** podgląd kodu z koszyka (liczy serwer); kwotę w zamówieniu i tak ustala kasa */
   discount?:        Extract<DiscountPreview, { ok: true }> | null
   discountLoading?: boolean
 }
 
-export default function OrderSummary({ shippingCents, deliveryName, discount, discountLoading }: Props) {
+export default function OrderSummary({ shippingCents, freeShipping = false, deliveryName, discount, discountLoading }: Props) {
   const cartItems     = useStore(s => s.cartItems)
   const getTotalPrice = useStore(s => s.getTotalPrice)
   const subtotalPLN   = getTotalPrice()
@@ -51,7 +54,9 @@ export default function OrderSummary({ shippingCents, deliveryName, discount, di
         </div>
         <div className="flex justify-between text-black">
           <span>Dostawa</span>
-          {hasShipping ? (
+          {freeShipping ? (
+            <span className="text-[#3F8F84] font-medium">Gratis</span>
+          ) : hasShipping ? (
             applied?.freeShipping ? (
               <span className="flex items-center gap-2">
                 <PriceFormatter amount={shippingCents! / 100} className="font-normal line-through text-[#8E8E8E] text-[clamp(14px,1.2vw,16px)]" />
@@ -79,8 +84,8 @@ export default function OrderSummary({ shippingCents, deliveryName, discount, di
       {/* item list */}
       <div className="md:pl-6 pl-2 py-3 space-y-4 ">
         {cartItems.map(({ product, variant, quantity }) => {
-          const variantProps  = product.variants?.find((v: any) => v._key === variant)
-          const price         = (variantProps?.price ?? product.price ?? 0) * quantity
+          // Ta sama cena co koszyk i kasa (wariant → produkt, z promocją).
+          const price         = (effectivePrice(product, variant) ?? 0) * quantity
           const variantLabel  = buildVariantLabel(product, variant)
 
           return (

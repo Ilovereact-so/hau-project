@@ -26,7 +26,7 @@ const ProductItem = ({product}:{product: GetSlugProduct}) => {
       <div className='flex flex-col'>
       <h1 className='1xl:text-[16px] text-[15px] text-black font-bold mt-2 line-clamp-2 '>{product?.title}</h1>
       <div className='text-black 1xl:text-[13px] text-[11px] mt-1'>
-        <OmnibusNote state={priceState} />
+        <OmnibusNote state={priceState} className='text-[#6C6C6C] text-[11px]' />
       </div>
       </div>
       <div className='flex justify-between mt-2'>

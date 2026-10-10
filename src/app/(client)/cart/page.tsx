@@ -21,6 +21,11 @@ import { useAuthModalStore } from '@/store/authModalStore'
 import { effectivePrice } from '@/lib/omnibus'
 import DiscountCodePanel from '@/components/cart/DiscountCodePanel'
 import { useDiscountPreview } from '@/hooks/useDiscountPreview'
+import FreeShippingProgress from '@/components/cart/FreeShippingProgress'
+import AcceptedPayments from '@/components/cart/AcceptedPayments'
+import { useShopSettings } from '@/hooks/useShopSettings'
+import { qualifiesForFreeShipping } from '@/lib/shopSettings'
+import { maxOrderQty } from '@/lib/stock'
 
 export default function CartPage() {
   const [isClient, setIsClient] = useState(false)
@@ -35,6 +40,7 @@ export default function CartPage() {
   const cartReady      = useStore(s => s.cartReady)
   const openModal      = useAuthModalStore(s => s.openModal)
   const discount       = useDiscountPreview()
+  const shopSettings   = useShopSettings()
 
   useEffect(() => { setIsClient(true) }, [])
   // Koszyk działa bez logowania. Czekamy tylko, aż StoreHydration ustali
@@ -45,7 +51,15 @@ export default function CartPage() {
   // Podgląd liczy serwer na cenach z Sanity; tu tylko go pokazujemy.
   const appliedPreview       = discount.state.status === 'ready' && discount.state.preview.applicable ? discount.state.preview : null
   const productDiscountCents = appliedPreview?.productDiscountCents ?? 0
-  const freeShipping         = appliedPreview?.freeShipping ?? false
+  const subtotal             = getSubTotal()
+  // Darmowa dostawa: kod rabatowy „darmowa dostawa” albo próg z panelu
+  // (liczony od wartości produktów — tak samo jak w kasie).
+  const freeByThreshold      = shopSettings ? qualifiesForFreeShipping(shopSettings, Math.round(subtotal * 100)) : false
+  const freeShipping         = (appliedPreview?.freeShipping ?? false) || freeByThreshold
+  const shippingFrom         = shopSettings?.minShippingCents != null ? shopSettings.minShippingCents / 100 : null
+  // Pozycje, których jest więcej niż w magazynie — kasa i tak je odrzuci,
+  // więc mówimy o tym od razu.
+  const overStock = cartItems.filter(({ product, variant, quantity }) => quantity > maxOrderQty(product, variant))
 
   const handleResetCart = () => {
     if (!window.confirm('Czy na pewno chcesz wyczyścić koszyk?')) return
@@ -150,7 +164,7 @@ export default function CartPage() {
                 <div className="text-black text-[clamp(14px,1.4vw,16px)] lg:mt-6 mt-4">
                   <div className="flex justify-between">
                     <span>Wartość produktów</span>
-                    <PriceFormatter amount={getSubTotal()} className="font-normal" />
+                    <PriceFormatter amount={subtotal} className="font-normal" />
                   </div>
                   {productDiscountCents > 0 && appliedPreview && (
                     <div className="flex justify-between text-[#3F8F84]">
@@ -159,16 +173,22 @@ export default function CartPage() {
                     </div>
                   )}
                   <div className="flex justify-between">
-                    <span>Dostawa od</span>
+                    <span>{freeShipping ? 'Dostawa' : 'Dostawa od'}</span>
                     {freeShipping ? (
                       <span className="flex items-center gap-2">
-                        <span className="line-through text-[#8E8E8E]"><PriceFormatter amount={10.49} className="font-normal" /></span>
+                        {shippingFrom !== null && shippingFrom > 0 && (
+                          <span className="line-through text-[#8E8E8E]"><PriceFormatter amount={shippingFrom} className="font-normal" /></span>
+                        )}
                         <span className="text-[#3F8F84] font-medium">Gratis</span>
                       </span>
+                    ) : shippingFrom !== null ? (
+                      <PriceFormatter amount={shippingFrom} className="font-normal" />
                     ) : (
-                      <PriceFormatter amount={10.49} className="font-normal" />
+                      <span className="text-[#6C6C6C]">w kasie</span>
                     )}
                   </div>
+
+                  <FreeShippingProgress settings={shopSettings} subtotal={subtotal} className="my-3" />
 
                   <Separator />
 
@@ -183,36 +203,32 @@ export default function CartPage() {
                     />
                   </div>
 
-                  {isSignedIn ? (
-                    <Button asChild className="w-auto cursor-pointer rounded-full font-bold tracking-wide bg-fancy-black text-white text-[clamp(14px,1.4vw,16px)] lg:py-6 sm:py-5 py-3 lg:px-8p sm:px-7 px-6">
-                      <Link href="/checkout">Przejdź do kasy</Link>
-                    </Button>
-                  ) : (
-                    <>
-                      {/* Gość: zamówienie wymaga konta. Po zalogowaniu koszyk jest
-                          scalany z kontem, a użytkownik trafia prosto do kasy. */}
-                      <Button
-                        type="button"
-                        onClick={() => openModal('signIn', { redirectTo: '/checkout' })}
-                        className="w-auto cursor-pointer rounded-full font-bold tracking-wide bg-fancy-black text-white text-[clamp(14px,1.4vw,16px)] lg:py-6 sm:py-5 py-3 lg:px-8p sm:px-7 px-6"
-                      >
-                        Zaloguj się i przejdź do kasy
-                      </Button>
-                      <p className="text-[#6C6C6C] text-[clamp(12px,1.2vw,14px)] mt-2">
-                        Produkty w koszyku zostaną zachowane i dodane do Twojego konta.{' '}
-                        <button
-                          type="button"
-                          onClick={() => openModal('signUp', { redirectTo: '/checkout' })}
-                          className="text-black underline underline-offset-2 cursor-pointer"
-                        >
-                          Nie masz konta? Załóż je
-                        </button>
-                      </p>
-                    </>
+                  {overStock.length > 0 && (
+                    <p className="text-[#B4442F] text-[clamp(12px,1.2vw,14px)] mb-3">
+                      {overStock.map(({ product }) => product.title).join(', ')}: w magazynie jest mniej sztuk niż w koszyku — zmniejsz ilość przed zamówieniem.
+                    </p>
                   )}
 
-                  <p className="text-black text-[clamp(14px,1.4vw,16px)] lg:mt-4 mt-3 mb-2">Akceptujemy</p>
-                  <Image src="/payment.png" width={300} height={30} alt="payment" />
+                  {/* Zakup bez logowania: kasa przyjmuje gości (zamówienie jest
+                      przypięte do ciasteczka i do linku na stronie potwierdzenia). */}
+                  <Button asChild className="w-auto cursor-pointer rounded-full font-bold tracking-wide bg-fancy-black text-white text-[clamp(14px,1.4vw,16px)] lg:py-6 sm:py-5 py-3 lg:px-8p sm:px-7 px-6">
+                    <Link href="/checkout">{isSignedIn ? 'Przejdź do kasy' : 'Kup bez logowania'}</Link>
+                  </Button>
+                  {!isSignedIn && (
+                    <p className="text-[#6C6C6C] text-[clamp(12px,1.2vw,14px)] mt-2">
+                      Masz konto?{' '}
+                      <button
+                        type="button"
+                        onClick={() => openModal('signIn', { redirectTo: '/checkout' })}
+                        className="text-black underline underline-offset-2 cursor-pointer"
+                      >
+                        Zaloguj się
+                      </button>{' '}
+                      — zamówienie zapisze się w historii, a adres podpowie się sam.
+                    </p>
+                  )}
+
+                  <AcceptedPayments className="lg:mt-5 mt-4 mb-2" />
                 </div>
               </div>
             </div>

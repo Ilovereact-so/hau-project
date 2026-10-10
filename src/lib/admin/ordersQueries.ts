@@ -335,7 +335,9 @@ export async function getNewsletterStats() {
   const [[totals], recent] = await Promise.all([
     db.select({
         active: sql<number>`SUM(CASE WHEN ${newsletterSubscribers.isActive} THEN 1 ELSE 0 END)`,
-        inactive: sql<number>`SUM(CASE WHEN ${newsletterSubscribers.isActive} THEN 0 ELSE 1 END)`,
+        // Zapis bez kliknięcia linku potwierdzającego (double opt-in).
+        pending: sql<number>`SUM(CASE WHEN NOT ${newsletterSubscribers.isActive} AND ${newsletterSubscribers.confirmedAt} IS NULL THEN 1 ELSE 0 END)`,
+        inactive: sql<number>`SUM(CASE WHEN NOT ${newsletterSubscribers.isActive} AND ${newsletterSubscribers.confirmedAt} IS NOT NULL THEN 1 ELSE 0 END)`,
         last30: sql<number>`SUM(CASE WHEN ${newsletterSubscribers.createdAt} >= ${d30} THEN 1 ELSE 0 END)`,
       })
       .from(newsletterSubscribers),
@@ -343,6 +345,7 @@ export async function getNewsletterStats() {
         id: newsletterSubscribers.id,
         email: newsletterSubscribers.email,
         isActive: newsletterSubscribers.isActive,
+        confirmedAt: newsletterSubscribers.confirmedAt,
         createdAt: newsletterSubscribers.createdAt,
       })
       .from(newsletterSubscribers)
@@ -351,6 +354,7 @@ export async function getNewsletterStats() {
   ])
   return {
     active: num(totals?.active),
+    pending: num(totals?.pending),
     inactive: num(totals?.inactive),
     last30: num(totals?.last30),
     recent,

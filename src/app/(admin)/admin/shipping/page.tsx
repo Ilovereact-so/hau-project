@@ -2,7 +2,8 @@ import type { Metadata } from 'next'
 import { gte, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { deliveryServices, orders } from '@/db/schema'
-import { listShippingMethods, type AdminShippingMethod } from '@/lib/admin/catalog'
+import { getAdminShopSettings, listShippingMethods, type AdminShippingMethod } from '@/lib/admin/catalog'
+import { FreeShippingCard } from '@/components/admin/shipping/FreeShippingCard'
 import { ShippingView, type FurgonetkaServiceRow } from '@/components/admin/shipping/ShippingView'
 
 export const dynamic = 'force-dynamic'
@@ -10,7 +11,7 @@ export const metadata: Metadata = { title: 'Dostawy' }
 
 export default async function AdminShippingPage() {
   const d30 = new Date(Date.now() - 30 * 86400_000)
-  const [methodsResult, usageResult, servicesResult] = await Promise.allSettled([
+  const [methodsResult, usageResult, servicesResult, settingsResult] = await Promise.allSettled([
     listShippingMethods(),
     db
       .select({ method: orders.shippingMethod, count: sql<number>`COUNT(*)` })
@@ -28,6 +29,7 @@ export default async function AdminShippingPage() {
       })
       .from(deliveryServices)
       .orderBy(deliveryServices.sortOrder, deliveryServices.name),
+    getAdminShopSettings(),
   ])
 
   const methods: AdminShippingMethod[] = methodsResult.status === 'fulfilled' ? methodsResult.value : []
@@ -37,7 +39,11 @@ export default async function AdminShippingPage() {
       : {}
   const services: FurgonetkaServiceRow[] = servicesResult.status === 'fulfilled' ? servicesResult.value : []
 
+  const settings = settingsResult.status === 'fulfilled' ? settingsResult.value : { freeShippingEnabled: false, freeShippingThreshold: null }
+
   return (
+    <div className="flex flex-col gap-4">
+    <FreeShippingCard initial={settings} />
     <ShippingView
       methods={methods}
       usage={usage}
@@ -48,5 +54,6 @@ export default async function AdminShippingPage() {
           : undefined
       }
     />
+    </div>
   )
 }

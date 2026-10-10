@@ -27,7 +27,7 @@ const PriceView = ({ product, variantKey, initial, className }: Props) => {
         priceClassName={twMerge("text-[clamp(24px,1.8vw,32px)]", className)}
         suffix={<p className="text-black text-[clamp(16px,1.2vw,20px)] mt-2">w tym VAT</p>}
       />
-      <OmnibusNote state={state} className="text-black text-[clamp(14px,1.1vw,16px)]" />
+      <OmnibusNote state={state} className="text-[#6C6C6C] text-[clamp(11px,0.9vw,13px)]" />
     </div>
   );
 };

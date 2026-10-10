@@ -6,6 +6,8 @@ import { AnimatePresence, motion } from 'framer-motion'
 import Link from 'next/link'
 import { createPortal } from 'react-dom'
 import { effectivePrice } from '@/lib/omnibus'
+import { useShopSettings } from '@/hooks/useShopSettings'
+import FreeShippingProgress from './cart/FreeShippingProgress'
 
 type Props = {
     mode: number
@@ -13,6 +15,11 @@ type Props = {
 
 const CartIcon = ({ mode }: Props) => {
     const setOnItemAdded = useCartStore((state) => state.setOnItemAdded)
+    // Wartość całego koszyka — pasek „brakuje X zł do darmowej dostawy”.
+    const cartSubtotal = useCartStore((state) =>
+        state.cartItems.reduce((sum, item) => sum + (effectivePrice(item.product, item.variant) ?? 0) * item.quantity, 0)
+    )
+    const shopSettings = useShopSettings()
 
     // The item that triggered the popup — set directly from the callback
     const [popupItem, setPopupItem] = useState<any>(null)
@@ -165,6 +172,7 @@ const CartIcon = ({ mode }: Props) => {
                             </div>
                             
 
+                            <FreeShippingProgress settings={shopSettings} subtotal={cartSubtotal} compact className="px-1 pt-1" />
                             <Link href={"/cart"} className="bg-fancy-black w-full py-2 flex justify-center rounded-[20px] text-white font-medium text-[clamp(12px,1.3vw,16px)] mt-2 cursor-pointer font-poppins">
                                 Przejdź do koszyka
                             </Link>

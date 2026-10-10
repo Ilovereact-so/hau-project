@@ -47,6 +47,21 @@ interface Props {
   onEdit:       () => void
   onContinue:   (data: Step2Result) => void
   dynamicService: (serviceCode: string) => void
+  /** Zamówienie łapie się na darmową dostawę (próg z panelu) — ceny jako „Gratis”. */
+  freeShipping?: boolean
+  /** Gość (bez konta) — bez zapamiętywania karty. */
+  isGuest?: boolean
+}
+
+/** Cena dostawy albo „Gratis” (z przekreśloną ceną) przy darmowej dostawie. */
+function ShippingPrice({ amount, free, className }: { amount: number; free?: boolean; className?: string }) {
+  if (!free) return <PriceFormatter className={className} amount={amount} />
+  return (
+    <span className="flex items-center gap-1.5">
+      {amount > 0 && <PriceFormatter className="font-normal line-through text-[#8E8E8E] text-[clamp(12px,1.3vw,14px)]" amount={amount} />}
+      <span className="text-[#3F8F84] font-medium text-[clamp(13px,1.4vw,15px)]">Gratis</span>
+    </span>
+  )
 }
 
 // ─── carrier → asset key ──────────────────────────────────────────────────────
@@ -77,9 +92,9 @@ const maskImage = `linear-gradient(to bottom, transparent 0, black ${EDGE_FADE_S
 // ─── service card (kurier) ────────────────────────────────────────────────────
 
 function ServiceCard({
-  service, selected, onClick,
+  service, selected, onClick, free,
 }: {
-  service: Shipping_methods; selected: boolean; onClick: () => void
+  service: Shipping_methods; selected: boolean; onClick: () => void; free?: boolean
 }) {
   const asset = SHIPPING_ASSETS[service.slug?.current as keyof typeof SHIPPING_ASSETS]
   return (
@@ -96,7 +111,7 @@ function ServiceCard({
         )}>
           {selected && <Check size={11} className="text-white" strokeWidth={3} />}
         </div>
-        <PriceFormatter className="font-normal text-fancy-black font-medium text-[clamp(14px,1.4vw,15px)]" amount={service.internal_price ?? 0} />
+        <ShippingPrice className="font-normal text-fancy-black font-medium text-[clamp(14px,1.4vw,15px)]" amount={service.internal_price ?? 0} free={free} />
       </div>
       
       {asset?.logo && <Image width={500} height={500} src={asset.logo.src} alt={service.name ?? ''} className="h-[25px] w-[60px]" />}
@@ -108,9 +123,9 @@ function ServiceCard({
 // ─── pickup point card (automat) ─────────────────────────────────────────────
 
 function PickupCard({
-  point, selected, price, onClick,
+  point, selected, price, onClick, free,
 }: {
-  point: PickupCandidate; selected: boolean; price: number | null; onClick: () => void
+  point: PickupCandidate; selected: boolean; price: number | null; onClick: () => void; free?: boolean
 }) {
   const asset = getAssetForCarrier(point.carrier)
   return (
@@ -146,8 +161,12 @@ function PickupCard({
           )}
           <div className="flex space-x-2 items-center">
             {asset?.logo && <Image width={500} height={500} src={asset.logo.src} alt={point.carrier} className="h-[25px] w-max" />}
-            {price !== null && ( 
-              <p className="text-[clamp(13px,1.4vw,14px)] text-black">{price.toFixed(2).replace('.', ',')} zł</p>
+            {price !== null && (
+              free ? (
+                <ShippingPrice amount={price} free />
+              ) : (
+                <p className="text-[clamp(13px,1.4vw,14px)] text-black">{price.toFixed(2).replace('.', ',')} zł</p>
+              )
             )}
           </div>
         </div>
@@ -158,7 +177,7 @@ function PickupCard({
 
 // ─── component ────────────────────────────────────────────────────────────────
 
-export default function Step2DeliveryPayment({ address, deliveryType, services, onEdit, onContinue, dynamicService }: Props) {
+export default function Step2DeliveryPayment({ address, deliveryType, services, onEdit, onContinue, dynamicService, freeShipping = false, isGuest = false }: Props) {
   // Tylko metody jawnie aktywne — serwer (checkout.ts → fetchShippingPriceCents)
   // przyjmuje wyłącznie `active == true`, więc metoda z nieustawionym polem
   // była widoczna, ale zamówienie z nią kończyło się błędem.
@@ -408,6 +427,7 @@ export default function Step2DeliveryPayment({ address, deliveryType, services, 
                         point={point}
                         selected={pickupPoint?.code === point.code}
                         price={svc?.internal_price ?? null}
+                        free={freeShipping}
                         onClick={() => selectPickupPoint(point)}
                       />
                       {pointCandidates.length -1 > i &&
@@ -430,6 +450,7 @@ export default function Step2DeliveryPayment({ address, deliveryType, services, 
                   key={s._id}
                   service={s}
                   selected={serviceCode === s.furgonetka_service_id}
+                  free={freeShipping}
                   onClick={() => setServiceCode(s.furgonetka_service_id ?? '')}
                 />
               ))
@@ -441,7 +462,7 @@ export default function Step2DeliveryPayment({ address, deliveryType, services, 
       {/* payment */}
       <div className="space-y-3">
         <h3 className="text-[clamp(15px,1.4vw,18px)] font-medium text-black">Płatność</h3>
-        <Step2PaymentForm value={payment} onChange={setPayment} />
+        <Step2PaymentForm value={payment} onChange={setPayment} allowSaveCard={!isGuest} />
       </div>
 
       {/* continue */}

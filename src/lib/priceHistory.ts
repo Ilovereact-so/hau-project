@@ -14,6 +14,7 @@ import {
   type PriceInterval,
   type ProductOmnibus,
 } from '@/lib/omnibus'
+import type { ProductPromotion } from '@/lib/promotion'
 
 /*
  * Rejestr cen produktów (MySQL `product_price_history`) — źródło danych
@@ -52,6 +53,7 @@ export type PriceDoc = {
   _updatedAt?: string | null
   price?: number | null
   variants?: Array<{ _key?: string | null; price?: number | null } | null> | null
+  promotion?: ProductPromotion | null
 }
 
 export type SyncResult = { checked: number; changed: number; failed: string[] }
@@ -63,7 +65,7 @@ async function fetchPriceDocs(ids: string[]): Promise<Map<string, PriceDoc>> {
   for (let i = 0; i < ids.length; i += SANITY_CHUNK) {
     const chunk = ids.slice(i, i + SANITY_CHUNK)
     const rows = await fresh.fetch<PriceDoc[]>(
-      `*[_type == "product" && _id in $ids]{ _id, _updatedAt, price, variants[]{ _key, price } }`,
+      `*[_type == "product" && _id in $ids]{ _id, _updatedAt, price, variants[]{ _key, price }, promotion }`,
       { ids: chunk },
     )
     for (const row of rows) docs.set(row._id, row)
@@ -98,11 +100,20 @@ function changeMoment(doc: PriceDoc | undefined, source: PriceChangeSource, now:
   if (source !== 'cron' && source !== 'observed') return now
   const updated = doc?._updatedAt ? new Date(doc._updatedAt) : null
   if (!updated || Number.isNaN(updated.getTime()) || updated > now) return now
-  return updated
+  // Promocja czasowa zmienia cenę BEZ edycji dokumentu: zapisana wcześniej,
+  // zaczyna (kończy) się o `startsAt` (`endsAt`). Wtedy momentem zmiany jest
+  // ta granica, a nie `_updatedAt` — inaczej rejestr „cofnąłby” cenę
+  // promocyjną do chwili zapisu w panelu i zafałszował historię.
+  let moment = updated
+  for (const boundary of [doc?.promotion?.startsAt, doc?.promotion?.endsAt]) {
+    const time = boundary ? new Date(boundary) : null
+    if (time && !Number.isNaN(time.getTime()) && time <= now && time > moment) moment = time
+  }
+  return moment
 }
 
 async function syncOne(productId: string, doc: PriceDoc | undefined, source: PriceChangeSource, now: Date): Promise<boolean> {
-  const desired = doc ? priceKeysOf(doc) : new Map<string, number>()
+  const desired = doc ? priceKeysOf(doc, now) : new Map<string, number>()
   const detectedAt = changeMoment(doc, source, now)
 
   return db.transaction(async (tx) => {

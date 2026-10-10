@@ -1,11 +1,13 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { AnimatePresence, motion } from "framer-motion"
 import { Check, ChevronDown } from "lucide-react"
 import { GetSlugProduct } from "../../sanity.types"
 import { VariantOption } from "./OptionWidthImageFromVariant"
 import { useClickOutside } from "@/hooks/useClickOutside"
+import { sortFilterValues } from "@/lib/filterValueOrder"
 
 type Props = {
   filterValues?: GetSlugProduct["filterValues"]
@@ -23,14 +25,19 @@ type Props = {
 export default function SizeSelect({ option, filterValues, setValue }: Props) {
   const items = React.useMemo(
     () =>
-      filterValues
-        ?.map((item) => ({
-          label: item.value,
-          value: item.slug?.current,
-        }))
-        .filter((item): item is { label: string; value: string } => Boolean(item?.value)),
+      sortFilterValues(
+        filterValues
+          ?.map((item) => ({
+            label: item.value,
+            value: item.slug?.current,
+          }))
+          .filter((item): item is { label: string; value: string } => Boolean(item?.value)) ?? [],
+        (item) => item.label,
+      ),
     [filterValues]
   )
+  // Rozmiar opisujemy rozmiarem psa — link do wyjaśnienia w Centrum pomocy.
+  const isSizeOption = /rozmiar|size/i.test(`${option?.name?.key ?? ''} ${option?.name?.label ?? ''}`)
 
   const selected = option?.value?.slug?.current ?? null
   const selectedLabel = items?.find((item) => item.value === selected)?.label ?? option?.value?.value ?? ""
@@ -56,7 +63,14 @@ export default function SizeSelect({ option, filterValues, setValue }: Props) {
 
   return (
     <div ref={rootRef} className="relative w-fit font-poppins mt-3">
-      <p className='2lg:text-[16px] text-[15px] text-black '>{option?.name?.label}:</p>
+      <div className="flex items-baseline gap-3">
+        <p className='2lg:text-[16px] text-[15px] text-black '>{option?.name?.label}:</p>
+        {isSizeOption && (
+          <Link href="/help/jak-dobrac-rozmiar" className="text-[13px] text-[#6C6C6C] underline underline-offset-2 hover:text-black">
+            Jak dobrać rozmiar?
+          </Link>
+        )}
+      </div>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}

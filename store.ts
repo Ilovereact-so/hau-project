@@ -3,6 +3,7 @@ import { persist, createJSONStorage, devtools } from 'zustand/middleware'
 import { GetSlugProduct } from 'sanity.types'
 import { syncCart, syncWishlist } from '@/actions/sync'
 import type { CartLine } from '@/lib/cartMerge'
+import { maxOrderQty } from '@/lib/stock'
 import { effectivePrice } from '@/lib/omnibus'
 
 export type CartItem = {
@@ -236,10 +237,14 @@ const useStore = create<Store>()(
           const existing = state.cartItems.find(
             i => i.product._id === product._id && i.variant === variant
           )
+          // Nie więcej niż jest w magazynie (stan nieprowadzony = limit 99).
+          // Kasa i tak sprawdza stan jeszcze raz na świeżych danych.
+          const limit = Math.min(MAX_LINE_QTY, maxOrderQty(product, variant))
+          if (limit <= 0 || (existing && existing.quantity >= limit)) return {}
           const next: CartItem[] = existing
             ? state.cartItems.map(i =>
                 i.product._id === product._id && i.variant === variant
-                  ? { ...i, quantity: Math.min(MAX_LINE_QTY, i.quantity + 1) }
+                  ? { ...i, product, quantity: Math.min(limit, i.quantity + 1) }
                   : i
               )
             : [...state.cartItems, { product, variant, quantity: 1 }]

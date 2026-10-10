@@ -2,6 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 import {
+  saveShopSettings,
+  type AdminShopSettings,
   createShippingMethod,
   deleteDocument,
   publishDocument,
@@ -64,4 +66,14 @@ export async function adminSyncFurgonetkaServices(): Promise<ActionResult<{ adde
     refresh()
     return { added: result.added, existing: result.existing }
   }, 'Synchronizacja z Furgonetką nie powiodła się.')
+}
+
+/** Próg darmowej dostawy (koszyk pokazuje pasek postępu, kasa zeruje dostawę). */
+export async function adminSaveShopSettings(input: AdminShopSettings): Promise<ActionResult> {
+  return runAdminAction(async () => {
+    await saveShopSettings(input)
+    refresh()
+    revalidatePath('/', 'layout')
+    return null
+  }, 'Nie udało się zapisać ustawień dostawy.')
 }

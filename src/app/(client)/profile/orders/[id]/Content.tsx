@@ -39,6 +39,22 @@ const SHIPMENT_STATUS_LABEL: Record<string, string> = {
   returned: 'Zwrócona',
 }
 
+/** Komunikat po powrocie z płatności (`?payment=success|pending|cod|error`). */
+function PaymentBanner({ payment, status }: { payment?: string | null; status: string }) {
+  if (!payment) return null
+  const paid = status === 'paid' || status === 'processing' || status === 'shipped' || status === 'delivered'
+  const text =
+    payment === 'cod'
+      ? 'Zamówienie przyjęte — zapłacisz przy odbiorze.'
+      : paid
+        ? 'Płatność przyjęta — dziękujemy! Zamówienie jest w realizacji.'
+        : payment === 'error'
+          ? 'Płatność nie doszła do skutku. Spróbuj ponownie albo skontaktuj się z nami.'
+          : 'Czekamy na potwierdzenie płatności od operatora — status odświeży się za chwilę.'
+  const tone = payment === 'error' && !paid ? 'bg-[#fcefec] text-[#8A2E1C]' : 'bg-[#EDEDED] text-black'
+  return <p className={`mt-5 rounded-[20px] px-5 py-3 text-[clamp(13px,1.6vw,15px)] ${tone}`}>{text}</p>
+}
+
 /** Linia "Etykieta: wartość" — szara etykieta, czarna wartość
  *  (wzór: "Zamówienie: #XXX" z listy zamówień). */
 function InfoLine({ label, value, className = '' }: { label: string; value: React.ReactNode; className?: string }) {
@@ -68,23 +84,59 @@ function InfoSection({ title, children }: { title: string; children: React.React
  * przyciski. Na mobile menu profilu przechodzi nad treść (poziomy pasek),
  * a kolumny informacyjne układają się jedna pod drugą.
  */
-export default function Content({ data }: { data: OrderDetail }) {
+export default function Content({
+  data,
+  variant = 'profile',
+  payment: paymentParam,
+  guestLink,
+}: {
+  data: OrderDetail
+  /** `guest` — zamówienie bez konta: bez menu profilu, z linkiem do zachowania. */
+  variant?: 'profile' | 'guest'
+  /** `?payment=` z powrotu z bramki — komunikat nad zamówieniem. */
+  payment?: string | null
+  /** Pełny adres strony zamówienia gościa (z tokenem) — do skopiowania. */
+  guestLink?: string | null
+}) {
+  const isGuest = variant === 'guest'
   const { order, items, address, payment, shipment } = data
   const createdAt = order.createdAt ? format(new Date(order.createdAt), 'd MMMM yyyy, HH:mm', { locale: pl }) : null
   const updatedAt = order.updatedAt ? format(new Date(order.updatedAt), 'd MMMM yyyy, HH:mm', { locale: pl }) : null
 
   return (
     <div className='flex flex-col 3md:flex-row w-full pt-10 font-poppins relative'>
-      <ProfileMenu selected={1} />
+      {!isGuest && <ProfileMenu selected={1} />}
 
-      <div className='w-full min-w-0 flex flex-col mt-4 lg:mt-0 2xl:pl-12'>
-        <Link
-          href='/profile/orders'
-          className='w-fit rounded-full font-bold bg-[#EDEDED] text-fancy-black 2xl:text-[16px] text-[clamp(13px,1.8vw,15px)] md:py-4 py-3 md:px-6 px-5 hover:bg-[#EDEDED]/40 hover:text-fancy-black transition-colors cursor-pointer flex items-center space-x-2'
-        >
-          <ArrowLeft size={18} />
-          <p>Moje zamówienia</p>
-        </Link>
+      <div className={`w-full min-w-0 flex flex-col mt-4 lg:mt-0 ${isGuest ? '' : '2xl:pl-12'}`}>
+        {isGuest ? (
+          <Link
+            href='/'
+            className='w-fit rounded-full font-bold bg-[#EDEDED] text-fancy-black 2xl:text-[16px] text-[clamp(13px,1.8vw,15px)] md:py-4 py-3 md:px-6 px-5 hover:bg-[#EDEDED]/40 hover:text-fancy-black transition-colors cursor-pointer flex items-center space-x-2'
+          >
+            <ArrowLeft size={18} />
+            <p>Wróć do sklepu</p>
+          </Link>
+        ) : (
+          <Link
+            href='/profile/orders'
+            className='w-fit rounded-full font-bold bg-[#EDEDED] text-fancy-black 2xl:text-[16px] text-[clamp(13px,1.8vw,15px)] md:py-4 py-3 md:px-6 px-5 hover:bg-[#EDEDED]/40 hover:text-fancy-black transition-colors cursor-pointer flex items-center space-x-2'
+          >
+            <ArrowLeft size={18} />
+            <p>Moje zamówienia</p>
+          </Link>
+        )}
+
+        <PaymentBanner payment={paymentParam} status={order.status} />
+
+        {isGuest && guestLink && (
+          <div className='mt-5 rounded-[24px] bg-[#e2f3f0] px-5 py-4 text-[clamp(13px,1.6vw,15px)] text-black'>
+            <p className='font-medium'>Dziękujemy za zamówienie!</p>
+            <p className='text-[#3A3A3A] mt-1'>
+              Zamówienie złożone bez konta. Zachowaj ten link — pod nim zawsze sprawdzisz status zamówienia i przesyłki:
+            </p>
+            <p className='mt-2 break-all font-mono text-[12px] bg-white/70 rounded-[12px] px-3 py-2 select-all'>{guestLink}</p>
+          </div>
+        )}
 
         {/* Nagłówek — ten sam wzór co wiersz zamówienia na liście */}
         <div className='flex flex-col sm:flex-row sm:items-start justify-between gap-3 mt-6'>

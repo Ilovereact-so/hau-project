@@ -1,10 +1,11 @@
 import type { MetadataRoute } from 'next'
 import { getSitemapData } from '@/sanity/helpers'
 import { absoluteUrl } from '@/lib/site'
+import { isProductCategory } from '@/lib/categoryNavigation'
 
 /**
  * Mapa strony: sekcje stałe + wszystko, co admin dodaje w Sanity
- * (produkty, subkategorie, kolekcje, poradniki, dokumenty pomocy).
+ * (produkty, kategorie, subkategorie, kolekcje, poradniki, dokumenty pomocy).
  * Odświeżana co godzinę — nowy produkt trafia do mapy sam.
  */
 export const revalidate = 3600
@@ -31,6 +32,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: 'weekly',
     priority: 0.8,
   }))
+
+  // Kategorie główne (bez „Poradników” — to nie kategoria sklepu).
+  const categories: MetadataRoute.Sitemap = (data.categories ?? [])
+    .filter((entry) => isProductCategory({ slug: entry.slug }))
+    .map((entry) => ({
+      url: absoluteUrl(`/category/${entry.slug}`),
+      lastModified: date(entry.updatedAt),
+      changeFrequency: 'daily',
+      priority: 0.9,
+    }))
 
   const subcategories: MetadataRoute.Sitemap = data.subcategories.map((entry) => ({
     url: absoluteUrl(`/subcategory/${entry.slug}`),
@@ -60,5 +71,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.3,
   }))
 
-  return [...staticPages, ...subcategories, ...products, ...collections, ...guides, ...help]
+  return [...staticPages, ...categories, ...subcategories, ...products, ...collections, ...guides, ...help]
 }

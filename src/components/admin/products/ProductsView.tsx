@@ -1,6 +1,8 @@
 'use client'
 
 import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { LOW_STOCK_THRESHOLD } from '@/lib/stock'
+import { describePromotion, promotionState, type ProductPromotion } from '@/lib/promotion'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import {
@@ -24,7 +26,8 @@ import { useQueryNav } from '../orders/useQueryNav'
 import { ProductModal, type CategoryOptions } from './ProductModal'
 import { VariantStockTable } from './VariantStockTable'
 
-const LOW_STOCK = 10
+// Niski stan = 1 sztuka albo brak (lib/stock.ts).
+const LOW_STOCK = LOW_STOCK_THRESHOLD
 
 export function ProductsView({
   products,
@@ -208,8 +211,8 @@ export function ProductsView({
       <Card className="flex flex-col">
         <CardHeader
           icon={lowOnly ? Boxes : PackageOpen}
-          title={lowOnly ? 'Magazyn — niski stan' : 'Katalog produktów'}
-          subtitle={`${products.length} pozycji · ${counts.published} w sklepie · ${counts.drafts} szkiców · ${counts.low} z niskim stanem`}
+          title={lowOnly ? 'Magazyn — 1 sztuka lub brak' : 'Katalog produktów'}
+          subtitle={`${products.length} pozycji · ${counts.published} w sklepie · ${counts.drafts} szkiców · ${counts.low} z 1 szt. lub bez towaru`}
           actions={
             <>
               <PillSearch value={search} onChange={setSearch} placeholder="Szukaj produktu, SKU…" />
@@ -236,7 +239,7 @@ export function ProductsView({
                 />
               )}
               <PillButton icon={Boxes} active={lowOnly} onClick={() => nav.set({ filter: lowOnly ? null : 'low' })}>
-                {lowOnly ? 'Pokaż wszystkie' : `Niski stan (${counts.low})`}
+                {lowOnly ? 'Pokaż wszystkie' : `1 szt. lub brak (${counts.low})`}
               </PillButton>
               <PillButton icon={RefreshCw} onClick={refresh} disabled={busy === 'refresh'}>
                 Odśwież
@@ -420,7 +423,10 @@ export function ProductsView({
                         </Td>
                         <Td className="text-right whitespace-nowrap">
                           {product.price !== null ? (
-                            <span className="font-medium">{formatCurrencyPrecise(product.price)}</span>
+                            <span className="flex flex-col items-end">
+                              <span className="font-medium">{formatCurrencyPrecise(product.price)}</span>
+                              <PromotionTag promotion={product.promotion} />
+                            </span>
                           ) : (
                             <span className="text-danger">brak ceny</span>
                           )}
@@ -503,7 +509,7 @@ export function ProductsView({
             </DataTable>
           ) : products.length ? (
             <EmptyState icon={<PackageOpen size={20} strokeWidth={1.5} />} title="Brak wyników">
-              {lowOnly ? 'Żaden produkt nie ma niskiego stanu — wszystkie warianty są powyżej progu 10 szt.' : 'Żaden produkt nie pasuje do filtrów.'}
+              {lowOnly ? 'Żaden produkt nie ma niskiego stanu — nie ma wariantów z 1 sztuką ani bez towaru.' : 'Żaden produkt nie pasuje do filtrów.'}
             </EmptyState>
           ) : (
             <EmptyState icon={<PackageOpen size={20} strokeWidth={1.5} />} title="Brak produktów">
@@ -595,5 +601,16 @@ function SelectBox({
       title={label}
       className="size-4 cursor-pointer accent-[var(--adm-primary,#ec3013)]"
     />
+  )
+}
+
+/** Mała etykieta promocji pod ceną w katalogu (trwa / zaplanowana). */
+function PromotionTag({ promotion }: { promotion: ProductPromotion | null }) {
+  const state = promotionState(promotion)
+  if (state !== 'active' && state !== 'scheduled') return null
+  return (
+    <span className={cn('text-[10px] font-semibold', state === 'active' ? 'text-success' : 'text-text-2')}>
+      {state === 'active' ? 'promocja' : 'zaplanowana'} {describePromotion(promotion)}
+    </span>
   )
 }

@@ -3,9 +3,11 @@ import { getProductsBySearch, getFiltersByIds, SubcategoryWithCategory } from "@
 import { GetSlugProduct } from "../../../../sanity.types";
 import { ArrowDown, ChevronRight } from "lucide-react";
 import SortSelect from "@/components/SortSelect";
-import { parseProductSort } from "@/lib/productSort";
+import { LISTING_SORTS, parseProductSort, type ProductSort } from "@/lib/productSort";
+
+const SEARCH_SORTS: ProductSort[] = ["relevance", ...LISTING_SORTS];
 import { sortProductsForListing } from "@/lib/productListing";
-import Image from "next/image";
+import { filterListingProducts, listingPriceBounds, parseListingParams } from "@/lib/listingFilters";
 import ProductItemWithoutBTN from "@/components/ProductItemWithoutBTN";
 import SubcategoryFilterContainer from "@/components/SubcategoryFilterContainer";
 import Container from "@/components/Container";
@@ -22,80 +24,6 @@ import { pageMetadata } from "@/lib/seo/metadata";
 // SubcategoryFilterContainer — łącznie z ostatnio dodanym atrybutem ceny.
 // SubcategoryFilterContainer buduje teraz URL filtrów z usePathname() (a nie
 // z hardkodowanego /subcategory/${slug}), więc działa tu tak samo jak tam.
-
-// "q" (fraza) i "sort" (kolejność listy) to zarezerwowane klucze w URL — analogicznie do "price"
-// (patrz extractPriceFilter w filterProductsByVariantOptions), traktujemy go
-// jako parametr specjalny, nie jako klucz filtra. Kolizja z prawdziwym filtrem
-// jest praktycznie wykluczona (klucze filtrów pochodzą z Sanity Studio), ale
-// i tak wycinamy "q" na wejściu, żeby nigdy nie trafił do parseFiltersFromSearchParams.
-function parseFiltersFromSearchParams(
-  searchParams: Record<string, string | string[] | undefined>
-) {
-  const result: Record<string, string[]> = {};
-
-  Object.entries(searchParams).forEach(([key, value]) => {
-    if (key === "q" || key === "sort") return;
-    if (!value) return;
-
-    result[key] = Array.isArray(value) ? value : [value];
-  });
-
-  return result;
-}
-
-function extractPriceFilter(filters: Record<string, string[]>) {
-  const { price, ...optionFilters } = filters;
-
-  const maxPrice = price?.[0] ? Number(price[0]) : null;
-
-  return {
-    maxPrice,
-    optionFilters,
-  };
-}
-
-type Filters = Record<string, string[]>;
-
-function filterProductsByVariantOptions(
-  products: GetSlugProduct[],
-  filters: Filters
-): (GetSlugProduct & { defaultVariant?: string })[] {
-  if (Object.keys(filters).length === 0) return products;
-
-  const { maxPrice, optionFilters } = extractPriceFilter(filters);
-
-  return products.reduce<(GetSlugProduct & { defaultVariant?: string })[]>(
-    (acc, product) => {
-      if (!product.variants?.length) return acc;
-
-      const matchingVariant = product.variants.find(variant => {
-        if (maxPrice !== null && variant.price != null && variant.price > maxPrice) {
-          return false;
-        }
-
-        return Object.entries(optionFilters).every(
-          ([filterKey, filterValues]) =>
-            variant.optionValues?.some(
-              ov =>
-                ov.name?.key === filterKey &&
-                ov.value?.slug?.current &&
-                filterValues.includes(ov.value.slug.current)
-            )
-        );
-      });
-
-      if (!matchingVariant) return acc;
-
-      acc.push({
-        ...product,
-        defaultVariant: matchingVariant._key,
-      });
-
-      return acc;
-    },
-    []
-  );
-}
 
 // Filtry na wynikach wyszukiwania nie są przypisane do jednej subkategorii —
 // wyniki mogą pochodzić z wielu kategorii naraz. Budujemy je z unikalnych
@@ -165,12 +93,18 @@ const SearchPage = async ({
     category: { _id: "search", title: "Wyszukiwanie", slug: "search" },
   };
 
-  const filters = parseFiltersFromSearchParams(resolvedSearchParams);
-  const sort = parseProductSort(resolvedSearchParams.sort);
+  // Filtry (opcje + cena „od – do”) — wspólna logika z kategoriami (lib/listingFilters.ts).
+  const listingParams = parseListingParams(resolvedSearchParams);
+  const filterIds = new Map(
+    (availableFilters as Array<{ _id: string; key: string }>).map((f) => [f.key, f._id])
+  );
+  // Domyślnie „Trafność” — kolejność z wyszukiwarki (lib/search.ts).
+  const sort = parseProductSort(resolvedSearchParams.sort, "relevance");
   const filteredProducts = await sortProductsForListing(
-    filterProductsByVariantOptions(products, filters),
+    filterListingProducts(products, listingParams, filterIds),
     sort
   );
+  const priceBounds = listingPriceBounds(products);
 
   // Ten sam mechanizm co w subcategory/[slug]/page.tsx — patrz komentarz tam.
   const initialMobile = (await headers()).get("x-is-mobile") === "1";
@@ -198,25 +132,20 @@ const SearchPage = async ({
           </div>
         </div>
         {/* Dock filtrów — markup 1:1 ze strony subkategorii (ta sama pigułka,
-            dekoracyjne /white-holo.png, kolumna "Sortuj"). Renderowany tylko gdy
+            kolumna "Sortuj"). Renderowany tylko gdy
             jest fraza, bo bez wyników nie ma z czego zbudować listy filtrów. */}
         {trimmedQuery && (
           <div className="flex justify-center w-full mt-[clamp(30px,8vw,80px)]">
             <div className="flex subcategory-dock-shadow relative bg-fancy-black md:py-2 xs:py-3 py-2 md:pt-4 md:px-9 3xs:px-7 xs:px-4 px-3 rounded-full lg:w-[65vw] 2md:w-[70vw] w-[80vw] z-[1] min-h-[50px] max-w-[1350px]">
-              <Image
-                className="3xs:w-[clamp(300px,33vw,400px)] w-[250px] absolute bottom-[0] xl:left-[-200px] lg:left-[-15vw] 2md:left-[-12vw] left-[-8vw] z-[2] opacity-80"
-                src="/white-holo.png"
-                alt="white-holo"
-                width={460}
-                height={330}
-              />
               <div className="w-full flex justify-between">
                 <div className="flex flex-col w-full z-[3] relative space-y-2 pr-4">
                   <h1 className="text-white text-[clamp(16px,1.4vw,18px)] ml-1 max-md:hidden">Filtruj:</h1>
                   <SubcategoryFilterContainer
                     subcategoryDetails={searchSubcategoryDetails}
                     products={products}
-                    paramsFilter={filters}
+                    paramsFilter={listingParams.options}
+                    priceBounds={priceBounds}
+                    priceRange={{ min: listingParams.priceMin, max: listingParams.priceMax }}
                     initialMobile={initialMobile}
                   />
                 </div>
@@ -225,7 +154,7 @@ const SearchPage = async ({
                     <h1 className="text-white text-[clamp(16px,1.4vw,18px)] max-md:hidden">Sortuj:</h1>
                     <ArrowDown className="text-white w-[20px] h-[20px]" />
                   </div>
-                  <SortSelect value={sort} />
+                  <SortSelect value={sort} options={SEARCH_SORTS} defaultValue="relevance" />
                 </div>
               </div>
             </div>

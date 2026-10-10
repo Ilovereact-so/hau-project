@@ -236,6 +236,49 @@ export type Shipping_methods = {
   active?: boolean;
 };
 
+export type ShopSettings = {
+  _id: string;
+  _type: "shopSettings";
+  _createdAt: string;
+  _updatedAt: string;
+  _rev: string;
+  freeShippingEnabled?: boolean;
+  freeShippingThreshold?: number;
+};
+
+export type HomeLayout = {
+  _id: string;
+  _type: "homeLayout";
+  _createdAt: string;
+  _updatedAt: string;
+  _rev: string;
+  sections?: Array<{
+    key?: string;
+    kind?: string;
+    enabled?: boolean;
+    title?: string;
+    subtitle?: string;
+    source?: string;
+    ref?: {
+      id?: string;
+      title?: string;
+      slug?: string;
+    };
+    productIds?: Array<string>;
+    pinnedIds?: Array<string>;
+    excludedIds?: Array<string>;
+    order?: string;
+    onlyFeatured?: boolean;
+    onlyBestseller?: boolean;
+    onlyInStock?: boolean;
+    onlyDiscounted?: boolean;
+    limit?: number;
+    showMoreLink?: boolean;
+    _type: "homeSection";
+    _key: string;
+  }>;
+};
+
 export type BanerVariants = {
   _id: string;
   _type: "banerVariants";
@@ -385,6 +428,13 @@ export type Product = {
   }>;
   price?: number;
   currency?: string;
+  promotion?: {
+    enabled?: boolean;
+    discountType?: "percent" | "price";
+    value?: number;
+    startsAt?: string;
+    endsAt?: string;
+  };
   compareAtPrice?: number;
   stock?: number;
   visibility?: "draft" | "published" | "storefront";
@@ -529,6 +579,26 @@ export type Subcategory = {
   title?: string;
   slug?: Slug;
   description?: string;
+  seoContent?: Array<{
+    children?: Array<{
+      marks?: Array<string>;
+      text?: string;
+      _type: "span";
+      _key: string;
+    }>;
+    style?: "normal" | "h2" | "h3" | "blockquote";
+    listItem?: "bullet" | "number";
+    markDefs?: Array<{
+      href?: string;
+      _type: "link";
+      _key: string;
+    }>;
+    level?: number;
+    _type: "block";
+    _key: string;
+  }>;
+  metaTitle?: string;
+  metaDescription?: string;
   availableFilters?: Array<{
     _ref: string;
     _type: "reference";
@@ -566,6 +636,26 @@ export type Category = {
   title?: string;
   slug?: Slug;
   description?: string;
+  seoContent?: Array<{
+    children?: Array<{
+      marks?: Array<string>;
+      text?: string;
+      _type: "span";
+      _key: string;
+    }>;
+    style?: "normal" | "h2" | "h3" | "blockquote";
+    listItem?: "bullet" | "number";
+    markDefs?: Array<{
+      href?: string;
+      _type: "link";
+      _key: string;
+    }>;
+    level?: number;
+    _type: "block";
+    _key: string;
+  }>;
+  metaTitle?: string;
+  metaDescription?: string;
 };
 
 export type SanityImagePaletteSwatch = {
@@ -664,7 +754,7 @@ export type Geopoint = {
   alt?: number;
 };
 
-export type AllSanitySchemaTypes = Divider | ProductEmbed | Callout | VideoEmbed | Guide | SanityImageCrop | SanityImageHotspot | GuideCategory | Slug | HelpDocument | Shipping_methods | BanerVariants | Collection | OptionList | Product | FilterValue | Filter | Subcategory | Category | SanityImagePaletteSwatch | SanityImagePalette | SanityImageDimensions | SanityImageMetadata | SanityFileAsset | SanityAssetSourceData | SanityImageAsset | Geopoint;
+export type AllSanitySchemaTypes = Divider | ProductEmbed | Callout | VideoEmbed | Guide | SanityImageCrop | SanityImageHotspot | GuideCategory | Slug | HelpDocument | Shipping_methods | ShopSettings | HomeLayout | BanerVariants | Collection | OptionList | Product | FilterValue | Filter | Subcategory | Category | SanityImagePaletteSwatch | SanityImagePalette | SanityImageDimensions | SanityImageMetadata | SanityFileAsset | SanityAssetSourceData | SanityImageAsset | Geopoint;
 export declare const internalGroqTypeReferenceTo: unique symbol;
 // Source: ./src/sanity/helpers/index.ts
 // Variable: METHODS_QUERY
@@ -781,6 +871,13 @@ export type PRODUCTS_QUERYResult = Array<{
   }>;
   price?: number;
   currency?: string;
+  promotion?: {
+    enabled?: boolean;
+    discountType?: "percent" | "price";
+    value?: number;
+    startsAt?: string;
+    endsAt?: string;
+  };
   compareAtPrice?: number;
   stock?: number;
   visibility?: "draft" | "published" | "storefront";
@@ -888,12 +985,32 @@ export type PRODUCTS_QUERYResult = Array<{
   chew_strength?: "heavy" | "light" | "medium";
 }>;
 // Variable: SUBCATEGORY_BY_ID_QUERY
-// Query: *[_type == "subcategory" && slug.current == $slug]{      _id,      title,       "slug": slug.current,       description,      availableFilters[]->{        _id,        key,        label,        type,        UX_type      },       imageWithAlt,       "category": *[_type == "category" && _id == ^.parent._ref]{        _id,        title,        "slug": slug.current      }[0]    } | order(name asc) [0]
+// Query: *[_type == "subcategory" && slug.current == $slug]{      _id,      title,       "slug": slug.current,       description,      metaTitle,      metaDescription,      seoContent,      availableFilters[]->{        _id,        key,        label,        type,        UX_type      },       imageWithAlt,       "category": *[_type == "category" && _id == ^.parent._ref]{        _id,        title,        "slug": slug.current      }[0]    } | order(name asc) [0]
 export type SUBCATEGORY_BY_ID_QUERYResult = {
   _id: string;
   title: string | null;
   slug: string | null;
   description: string | null;
+  metaTitle: string | null;
+  metaDescription: string | null;
+  seoContent: Array<{
+    children?: Array<{
+      marks?: Array<string>;
+      text?: string;
+      _type: "span";
+      _key: string;
+    }>;
+    style?: "blockquote" | "h2" | "h3" | "normal";
+    listItem?: "bullet" | "number";
+    markDefs?: Array<{
+      href?: string;
+      _type: "link";
+      _key: string;
+    }>;
+    level?: number;
+    _type: "block";
+    _key: string;
+  }> | null;
   availableFilters: Array<{
     _id: string;
     key: string | null;
@@ -966,6 +1083,13 @@ export type PRODUCT_BY_ID_QUERYResult = {
   }>;
   price?: number;
   currency?: string;
+  promotion?: {
+    enabled?: boolean;
+    discountType?: "percent" | "price";
+    value?: number;
+    startsAt?: string;
+    endsAt?: string;
+  };
   compareAtPrice?: number;
   stock?: number;
   visibility?: "draft" | "published" | "storefront";
@@ -1113,153 +1237,13 @@ export type PRODUCT_BY_SUBCATEGORY_QUERYResult = Array<{
   }>;
   price?: number;
   currency?: string;
-  compareAtPrice?: number;
-  stock?: number;
-  visibility?: "draft" | "published" | "storefront";
-  category: {
-    _id: string;
-    title: string | null;
-    slug: Slug | null;
-  } | null;
-  type: {
-    _id: string;
-    title: string | null;
-    slug: Slug | null;
-  } | null;
-  collections?: Array<{
-    _ref: string;
-    _type: "reference";
-    _weak?: boolean;
-    _key: string;
-    [internalGroqTypeReferenceTo]?: "collection";
-  }>;
-  brand?: string;
-  vendor?: string;
-  tags?: Array<string>;
-  images?: Array<{
-    asset?: {
-      _ref: string;
-      _type: "reference";
-      _weak?: boolean;
-      [internalGroqTypeReferenceTo]?: "sanity.imageAsset";
-    };
-    media?: unknown;
-    hotspot?: SanityImageHotspot;
-    crop?: SanityImageCrop;
-    alt?: string;
-    position?: number;
-    variantKeys?: Array<string>;
-    _type: "image";
-    _key: string;
-  }>;
-  dimensions?: {
-    width_cm?: number;
-    height_cm?: number;
-    depth_cm?: number;
-    unit?: string;
+  promotion?: {
+    enabled?: boolean;
+    discountType?: "percent" | "price";
+    value?: number;
+    startsAt?: string;
+    endsAt?: string;
   };
-  weight_g?: number;
-  shipping_weight_g?: number;
-  material?: string;
-  care?: string;
-  isMachineWashable?: boolean;
-  isWaterproof?: boolean;
-  isFeatured?: boolean;
-  isBestseller?: boolean;
-  filterValues: Array<{
-    filter: {
-      _ref: string;
-      _type: "reference";
-      _weak?: boolean;
-      [internalGroqTypeReferenceTo]?: "filter";
-    } | null;
-    _id: string;
-    value: string | null;
-    slug: Slug | null;
-  }> | null;
-  productOptions: Array<{
-    _id: string;
-    key: string | null;
-    label: string | null;
-    type: "boolean" | "enum" | "range" | null;
-    UX_type: "only-value-list" | "with-image-from-variant" | null;
-  }> | null;
-  variants: Array<{
-    _key: string;
-    price: number | null;
-    sku: string | null;
-    stock: number | null;
-    optionValues: Array<{
-      _key: string;
-      label: string | null;
-      name: {
-        _id: string;
-        key: string | null;
-        label: string | null;
-        type: "boolean" | "enum" | "range" | null;
-        UX_type: "only-value-list" | "with-image-from-variant" | null;
-      } | null;
-      value: {
-        _id: string;
-        value: string | null;
-        slug: Slug | null;
-      } | null;
-    }> | null;
-  }> | null;
-  indexedOptions?: Array<string>;
-  metaTitle?: string;
-  metaDescription?: string;
-  barcode?: string;
-  externalId?: string;
-  sourceCSV?: string;
-  chew_strength?: "heavy" | "light" | "medium";
-}>;
-// Variable: PRODUCT_SEARCH_QUERY
-// Query: *[      _type == "product" &&      (        lower(title) match lower($p0) || lower(title) match lower($c0) ||        lower(title) match lower($p1) || lower(title) match lower($c1) ||        lower(title) match lower($p2) || lower(title) match lower($c2)      )    ]{      ...,      category->{      _id,      title,      slug      },      type->{      _id,      title,      slug      },      productOptions[]->{        _id,        key,        label,        type,        UX_type      },      filterValues[]->{        filter,        _id,        value,        slug      },      variants[]{        _key,        price,        sku,        stock,        optionValues[]{          _key,          label,          "name":name->{            _id,            key,            label,            type,            UX_type          },          "value":value->{            _id,            value,            slug          }        }      }    }
-export type PRODUCT_SEARCH_QUERYResult = Array<{
-  _id: string;
-  _type: "product";
-  _createdAt: string;
-  _updatedAt: string;
-  _rev: string;
-  title?: string;
-  subtitle?: string;
-  intro?: string;
-  sku?: string;
-  slug?: Slug;
-  shortDescription?: string;
-  description?: Array<{
-    children?: Array<{
-      marks?: Array<string>;
-      text?: string;
-      _type: "span";
-      _key: string;
-    }>;
-    style?: "blockquote" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "normal";
-    listItem?: "bullet" | "number";
-    markDefs?: Array<{
-      href?: string;
-      _type: "link";
-      _key: string;
-    }>;
-    level?: number;
-    _type: "block";
-    _key: string;
-  } | {
-    asset?: {
-      _ref: string;
-      _type: "reference";
-      _weak?: boolean;
-      [internalGroqTypeReferenceTo]?: "sanity.imageAsset";
-    };
-    media?: unknown;
-    hotspot?: SanityImageHotspot;
-    crop?: SanityImageCrop;
-    _type: "image";
-    _key: string;
-  }>;
-  price?: number;
-  currency?: string;
   compareAtPrice?: number;
   stock?: number;
   visibility?: "draft" | "published" | "storefront";
@@ -1435,10 +1419,9 @@ declare module "@sanity/client" {
     "*[_type==\"shipping_methods\"] | order(name asc)": METHODS_QUERYResult;
     "*[_type==\"banerVariants\"]{\n    ...,\n    \"collectionLink\": collection->{ title, \"slug\": slug.current }\n  }": BANERS_QUERYResult;
     "*[_type==\"product\"] | order(name asc)": PRODUCTS_QUERYResult;
-    "*[_type == \"subcategory\" && slug.current == $slug]{\n      _id,\n      title, \n      \"slug\": slug.current, \n      description,\n      availableFilters[]->{\n        _id,\n        key,\n        label,\n        type,\n        UX_type\n      }, \n      imageWithAlt, \n      \"category\": *[_type == \"category\" && _id == ^.parent._ref]{\n        _id,\n        title,\n        \"slug\": slug.current\n      }[0]\n    } | order(name asc) [0]": SUBCATEGORY_BY_ID_QUERYResult;
+    "*[_type == \"subcategory\" && slug.current == $slug]{\n      _id,\n      title, \n      \"slug\": slug.current, \n      description,\n      metaTitle,\n      metaDescription,\n      seoContent,\n      availableFilters[]->{\n        _id,\n        key,\n        label,\n        type,\n        UX_type\n      }, \n      imageWithAlt, \n      \"category\": *[_type == \"category\" && _id == ^.parent._ref]{\n        _id,\n        title,\n        \"slug\": slug.current\n      }[0]\n    } | order(name asc) [0]": SUBCATEGORY_BY_ID_QUERYResult;
     "*[_type == \"product\" && slug.current == $slug]{\n  ...,\n    category->{\n    _id,\n    title,\n    slug\n    },\n    type->{\n    _id,\n    title,\n    slug\n    },\n    productOptions[]->{\n      _id,\n      key,\n      label,\n      type,\n      UX_type\n    },\n    filterValues[]->{\n      filter,\n      _id,\n      value,\n      slug\n    },\n    variants[]{\n      _key,\n      price,\n      sku,\n      stock,\n      optionValues[]{\n        _key,\n        label,\n        \"name\":name->{\n          _id,\n          key,\n          label,\n          type,\n          UX_type\n        },\n        \"value\":value->{\n          _id,\n          value,\n          slug\n        }\n      }\n    }\n  }[0]": PRODUCT_BY_ID_QUERYResult;
     "*[_type == 'product' && references(*[_type == \"subcategory\" && slug.current == $subcategorySlug]._id)]{\n  ...,\n    category->{\n    _id,\n    title,\n    slug\n    },\n    type->{\n    _id,\n    title,\n    slug\n    },\n    productOptions[]->{\n      _id,\n      key,\n      label,\n      type,\n      UX_type\n    },\n    filterValues[]->{\n      filter,\n      _id,\n      value,\n      slug\n    },\n    variants[]{\n      _key,\n      price,\n      sku,\n      stock,\n      optionValues[]{\n        _key,\n        label,\n        \"name\":name->{\n          _id,\n          key,\n          label,\n          type,\n          UX_type\n        },\n        \"value\":value->{\n          _id,\n          value,\n          slug\n        }\n      }\n    }\n  } | order(name asc)": PRODUCT_BY_SUBCATEGORY_QUERYResult;
-    "*[\n      _type == \"product\" &&\n      (\n        lower(title) match lower($p0) || lower(title) match lower($c0) ||\n        lower(title) match lower($p1) || lower(title) match lower($c1) ||\n        lower(title) match lower($p2) || lower(title) match lower($c2)\n      )\n    ]{\n      ...,\n      category->{\n      _id,\n      title,\n      slug\n      },\n      type->{\n      _id,\n      title,\n      slug\n      },\n      productOptions[]->{\n        _id,\n        key,\n        label,\n        type,\n        UX_type\n      },\n      filterValues[]->{\n        filter,\n        _id,\n        value,\n        slug\n      },\n      variants[]{\n        _key,\n        price,\n        sku,\n        stock,\n        optionValues[]{\n          _key,\n          label,\n          \"name\":name->{\n            _id,\n            key,\n            label,\n            type,\n            UX_type\n          },\n          \"value\":value->{\n            _id,\n            value,\n            slug\n          }\n        }\n      }\n    }": PRODUCT_SEARCH_QUERYResult;
     "*[_type == \"filter\" && _id in $ids]{\n      _id,\n      key,\n      label,\n      type,\n      UX_type\n    }": FILTERS_BY_ID_QUERYResult;
     "*[_type == \"helpDocument\" && slug.current == $slug][0]{\n      _id,\n      title,\n      \"slug\": slug.current,\n      lead,\n      body,\n      updatedAt,\n      order\n    }": HELP_DOCUMENT_QUERYResult;
     "*[_type == \"helpDocument\" && defined(slug.current)] | order(order asc, title asc){\n      _id,\n      title,\n      \"slug\": slug.current,\n      lead,\n      updatedAt,\n      order\n    }": ALL_HELP_DOCUMENTS_QUERYResult;

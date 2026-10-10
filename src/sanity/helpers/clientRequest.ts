@@ -1,5 +1,6 @@
 import { GetSlugProduct, Product, Subcategory } from "../../../sanity.types"
 import { client } from "../lib/client"
+import type { ProductPromotion } from "@/lib/promotion"
 
 type SubcategoryNode = {
     _id: string;
@@ -68,7 +69,9 @@ export type ProductSearchResult = {
     variants?: Array<{
         _key: string;
         price: number;
+        stock?: number | null;
     }>;
+    promotion?: ProductPromotion | null;
     images: Product['images'];
     category: {
         title: string;
@@ -79,92 +82,19 @@ export type ProductSearchResult = {
         slug: string;
     };
 }
-function parseQuery(query: string) {
-  const tokens = query
-    .toLowerCase()
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 3)
-  return tokens
-}
-function buildParams(tokens: string[]) {
-  const params: Record<string, string> = {}
-
-  tokens.forEach((t, i) => {
-    params[`p${i}`] = `${t}*`
-    params[`c${i}`] = `*${t}*`
-  })
-
-  return params
-}
-function rankProducts(products: any[], tokens: string[]) {
-  return products
-    .map(p => {
-      const name = p.title.toLowerCase()
-
-      let score = 0
-
-      tokens.forEach(t => {
-        if (name.startsWith(t)) score += 3
-        else if (name.includes(t)) score += 1
-      })
-
-      return { ...p, score }
-    })
-    .sort((a, b) => b.score - a.score)
-}
-export const searchProductsByName = async (name: string, controller: AbortController) => {
-    if (name.length < 2) return []
-
-    const tokens = parseQuery(name)
-    const params = {
-    p0: "",
-    c0: "",
-    p1: "",
-    c1: "",
-    p2: "",
-    c2: "",
-    ...buildParams(tokens)
-    }
-
-    const SEARCH_QUERY = `*[
-      _type == "product" &&
-      (
-        lower(title) match lower($p0) ||
-        lower(title) match lower($c0) ||
-        lower(title) match lower($p1) ||
-        lower(title) match lower($c1) ||
-        lower(title) match lower($p2) ||
-        lower(title) match lower($c2)
-      )
-    ]{
-      _id,
-      title,
-      subtitle,
-      brand,
-      price,
-      compareAtPrice,
-      images,
-      "variants": variants[]{
-        _key,
-        price
-      },
-      "category":category->{
-         "slug": slug.current,
-         title
-      },
-      "type":type->{
-        "slug": slug.current,
-        title
-        },
-      "slug": slug.current
-    }`
+/**
+ * Podpowiedzi wyszukiwarki — z `/api/search` (dopasowanie po nazwie, marce,
+ * kategoriach, tagach, SKU i opisach liczy serwer: lib/search.ts).
+ */
+export const searchProductsByName = async (name: string, controller: AbortController): Promise<ProductSearchResult[]> => {
+    if (name.trim().length < 2) return []
     try {
-        const data = await client.fetch<ProductSearchResult[]>(SEARCH_QUERY, params , { signal: controller.signal });
-        return rankProducts(data, tokens) || [];
+        const res = await fetch(`/api/search?q=${encodeURIComponent(name.trim())}`, { signal: controller.signal })
+        if (!res.ok) return []
+        const data = (await res.json()) as { results?: ProductSearchResult[] }
+        return (data.results ?? []).filter((item) => item?.slug && item?.title)
     } catch (error) {
-        console.error("Error fetching products by name:", error);
+        if ((error as Error)?.name !== "AbortError") console.error("Error fetching products by name:", error);
         return [];
     }
 }

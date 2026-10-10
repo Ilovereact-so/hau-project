@@ -8,6 +8,9 @@ import {
   clearGuestCookie, deleteCart, getOrCreateGuestId, readCart, readGuestId,
   readWishlist, writeCart, writeWishlist,
 } from '@/lib/cartServer'
+import { db } from '@/lib/db'
+import { orders } from '@/db/schema'
+import { eq } from 'drizzle-orm'
 import {
   mergeCartLines, mergeWishlistIds, reconcileWithCatalog, sanitizeCartLines,
   sanitizeWishlistIds, type CartLine,
@@ -108,6 +111,11 @@ export async function hydrateUserSession(input: {
     ])
 
     if (guestId) {
+      // Zamówienia złożone w tej przeglądarce bez logowania przechodzą na
+      // konto (ta sama przeglądarka = ten sam klient) — pojawią się w profilu
+      // i liczą się do „zweryfikowanego zakupu” w opiniach. Błąd nie blokuje
+      // logowania; link z tokenem do zamówienia gościa i tak działa.
+      await claimGuestOrders(guestId, userId).catch((err) => console.error('[hydrateUserSession] claim orders failed', err))
       await deleteCart(guestId)
       await clearGuestCookie()
     }
@@ -122,4 +130,10 @@ export async function hydrateUserSession(input: {
     console.error('[hydrateUserSession] failed', err)
     return { ok: false, error: 'failed' }
   }
+}
+
+/** Przepina zamówienia gościa (`user_id = guest_…`) na konto. */
+async function claimGuestOrders(guestId: string, userId: string) {
+  if (!guestId.startsWith('guest_')) return
+  await db.update(orders).set({ userId }).where(eq(orders.userId, guestId))
 }

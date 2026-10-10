@@ -4,6 +4,7 @@ import { GetSlugProduct } from "../../sanity.types";
 import { twMerge } from "tailwind-merge";
 import { Minus, Plus, Trash2 } from "lucide-react";
 import useCartStore from "../../store";
+import { maxOrderQty } from "@/lib/stock";
 
 interface Props {
   product: GetSlugProduct;
@@ -48,6 +49,11 @@ const QuantityButtons = ({ product, variant, className, borderStyle }: Props) =>
       <div
         className="w-9 h-9 flex justify-center items-center cursor-pointer text-black hover:bg-[#D7D7D7] rounded-full"
         onClick={() => {
+          const limit = maxOrderQty(product, variant);
+          if (itemCount >= limit) {
+            toast.error(limit <= 0 ? "Produkt jest chwilowo niedostępny." : `Dostępnych sztuk: ${limit}.`);
+            return;
+          }
           addItem(product, variant, false);
           toast.success("Zwiększono ilość");
         }}

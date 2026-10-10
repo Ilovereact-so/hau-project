@@ -43,6 +43,8 @@ export const NOINDEX_PATHS = [
   '/checkout',
   '/cart',
   '/orders',
+  '/zamowienie',
+  '/newsletter',
   '/success',
   '/upload',
   '/sign-in',

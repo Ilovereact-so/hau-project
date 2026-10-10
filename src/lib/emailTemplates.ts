@@ -5,6 +5,10 @@ import { eq } from 'drizzle-orm'
 import { SITE_URL } from '@/lib/site'
 
 export const NEWSLETTER_WELCOME_KEY = 'newsletter_welcome'
+/** Mail z prośbą o potwierdzenie zapisu (double opt-in) — wysyłany jako pierwszy. */
+export const NEWSLETTER_CONFIRM_KEY = 'newsletter_confirm'
+export const EMAIL_TEMPLATE_KEYS = [NEWSLETTER_CONFIRM_KEY, NEWSLETTER_WELCOME_KEY] as const
+export type EmailTemplateKey = (typeof EMAIL_TEMPLATE_KEYS)[number]
 
 export interface EmailTemplate {
   subject: string
@@ -75,8 +79,8 @@ export const DEFAULT_NEWSLETTER_WELCOME: EmailTemplate = {
         </tr>
         <tr>
           <td style="padding:24px 16px 0;font-size:12px;line-height:1.6;color:#8e8e8e;text-align:center;">
-            Otrzymujesz tę wiadomość, ponieważ adres {{email}} został zapisany do newslettera e-hau.pl i wyrażono zgodę na jego otrzymywanie.
-            Jeśli to pomyłka lub chcesz się wypisać — odpowiedz na tę wiadomość.<br>
+            Otrzymujesz tę wiadomość, ponieważ adres {{email}} został zapisany do newslettera e-hau.pl i potwierdzono zgodę na jego otrzymywanie.
+            <a href="{{unsubscribeUrl}}" style="color:#8e8e8e;">Wypisz się z newslettera</a><br>
             <a href="{{shopUrl}}" style="color:#8e8e8e;">e-hau.pl</a>
           </td>
         </tr>
@@ -88,23 +92,83 @@ export const DEFAULT_NEWSLETTER_WELCOME: EmailTemplate = {
 </html>`,
 }
 
+// Domyślny mail z prośbą o potwierdzenie zapisu (double opt-in).
+// Placeholdery: {{confirmUrl}} (link potwierdzający — WYMAGANY), {{email}}, {{shopUrl}}.
+// Kod rabatowy przychodzi dopiero w mailu powitalnym, po potwierdzeniu.
+export const DEFAULT_NEWSLETTER_CONFIRM: EmailTemplate = {
+  subject: 'Potwierdź zapis do newslettera e-hau.pl 🐾',
+  html: `<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Potwierdź zapis do newslettera</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f4f2;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#f4f4f2;">Jedno kliknięcie i kod -10% jest Twój.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f4f2;">
+  <tr>
+    <td align="center" style="padding:32px 16px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;font-family:'Poppins',Helvetica,Arial,sans-serif;color:#20201f;">
+        <tr>
+          <td style="padding:0 8px 20px;font-size:22px;font-weight:700;letter-spacing:3px;color:#20201f;">HAU</td>
+        </tr>
+        <tr>
+          <td style="background:#ffffff;border:1px solid #e8e8e8;border-radius:24px;padding:40px 40px 36px;">
+            <h1 style="margin:0 0 12px;font-size:24px;line-height:1.3;font-weight:600;color:#20201f;">Potwierdź zapis do newslettera</h1>
+            <p style="margin:0 0 24px;font-size:15px;line-height:1.65;color:#4a4a4a;">
+              Ktoś (mamy nadzieję, że Ty!) zapisał adres <strong style="color:#20201f;">{{email}}</strong> do newslettera e-hau.pl.
+              Kliknij przycisk, żeby potwierdzić — zaraz potem wyślemy Ci kod rabatowy -10% na pierwsze zamówienie.
+            </p>
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="background:#20201f;border-radius:999px;">
+                  <a href="{{confirmUrl}}" style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;">Potwierdzam zapis</a>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:24px 0 0;font-size:13px;line-height:1.6;color:#8e8e8e;">
+              Jeśli to nie Ty — po prostu zignoruj tę wiadomość. Bez potwierdzenia nie wyślemy Ci żadnego newslettera.
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:24px 16px 0;font-size:12px;line-height:1.6;color:#8e8e8e;text-align:center;">
+            <a href="{{shopUrl}}" style="color:#8e8e8e;">e-hau.pl</a>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>`,
+}
+
+export const DEFAULT_EMAIL_TEMPLATES: Record<EmailTemplateKey, EmailTemplate> = {
+  [NEWSLETTER_CONFIRM_KEY]: DEFAULT_NEWSLETTER_CONFIRM,
+  [NEWSLETTER_WELCOME_KEY]: DEFAULT_NEWSLETTER_WELCOME,
+}
+
+export function isEmailTemplateKey(key: string): key is EmailTemplateKey {
+  return (EMAIL_TEMPLATE_KEYS as readonly string[]).includes(key)
+}
+
 // Pobiera szablon z bazy; jeśli nie istnieje — zwraca domyślny.
 export async function getEmailTemplate(key: string): Promise<EmailTemplate> {
+  const fallback = isEmailTemplateKey(key) ? DEFAULT_EMAIL_TEMPLATES[key] : { subject: '', html: '' }
   const rows = await db
     .select({ subject: emailTemplates.subject, html: emailTemplates.html })
     .from(emailTemplates)
     .where(eq(emailTemplates.key, key))
     .limit(1)
 
-  if (!rows[0]) {
-    return key === NEWSLETTER_WELCOME_KEY
-      ? DEFAULT_NEWSLETTER_WELCOME
-      : { subject: '', html: '' }
-  }
+  if (!rows[0]) return fallback
 
   return {
-    subject: rows[0].subject || DEFAULT_NEWSLETTER_WELCOME.subject,
-    html:    rows[0].html || DEFAULT_NEWSLETTER_WELCOME.html,
+    subject: rows[0].subject || fallback.subject,
+    html:    rows[0].html || fallback.html,
   }
 }
 
@@ -128,12 +192,21 @@ export async function setEmailTemplate(
     })
 }
 
-// Podmienia placeholdery {{email}} i {{shopUrl}} w treści i temacie.
-// Adres e-mail jest escapowany — trafia do HTML-a.
-export function renderTemplate(template: EmailTemplate, email: string): EmailTemplate {
-  const safeEmail = email.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
-  return {
-    subject: template.subject.replaceAll('{{email}}', email).replaceAll('{{shopUrl}}', SITE_URL),
-    html:    template.html.replaceAll('{{email}}', safeEmail).replaceAll('{{shopUrl}}', SITE_URL),
+// Podmienia placeholdery {{email}}, {{shopUrl}} oraz dodatkowe (np.
+// {{confirmUrl}}, {{unsubscribeUrl}}) w treści i temacie. Wartości trafiające
+// do HTML-a są escapowane.
+export function renderTemplate(
+  template: EmailTemplate,
+  email: string,
+  extra: Record<string, string> = {},
+): EmailTemplate {
+  const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
+  const vars: Record<string, string> = { email, shopUrl: SITE_URL, unsubscribeUrl: SITE_URL, ...extra }
+  let subject = template.subject
+  let html = template.html
+  for (const [name, value] of Object.entries(vars)) {
+    subject = subject.replaceAll(`{{${name}}}`, value)
+    html = html.replaceAll(`{{${name}}}`, escapeHtml(value))
   }
+  return { subject, html }
 }

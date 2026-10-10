@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 import { useClickOutside } from '@/hooks/useClickOutside'
 import {
   DEFAULT_PRODUCT_SORT,
-  PRODUCT_SORTS,
+  LISTING_SORTS,
   PRODUCT_SORT_LABELS,
   type ProductSort,
 } from '@/lib/productSort'
@@ -22,10 +22,16 @@ export default function SortSelect({
   value,
   className,
   buttonClassName,
+  options = LISTING_SORTS,
+  defaultValue = DEFAULT_PRODUCT_SORT,
 }: {
   value: ProductSort
   className?: string
   buttonClassName?: string
+  /** Dostępne opcje (wyszukiwarka dokłada „Trafność”). */
+  options?: ProductSort[]
+  /** Sortowanie domyślne strony — nie trafia do adresu. */
+  defaultValue?: ProductSort
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -49,7 +55,7 @@ export default function SortSelect({
     setPending(next)
     const params = new URLSearchParams(searchParams.toString())
     // Domyślnego sortowania nie zapisujemy w adresie — czysty link do kategorii.
-    if (next === DEFAULT_PRODUCT_SORT) params.delete('sort')
+    if (next === defaultValue) params.delete('sort')
     else params.set('sort', next)
     const query = params.toString()
     router.push(query ? `${pathname}?${query}` : pathname, { scroll: false })
@@ -89,7 +95,7 @@ export default function SortSelect({
           aria-label="Sortowanie produktów"
           className="absolute right-0 top-[100%] z-[20] w-[min(240px,80vw)] overflow-hidden rounded-[20px] px-2 rounded-tr-none bg-[#EDEDED] py-2 shadow-[0_18px_40px_rgba(0,0,0,0.18)]"
         >
-          {PRODUCT_SORTS.map((option) => {
+          {options.map((option) => {
             const active = option === current
             return (
               <li key={option}>

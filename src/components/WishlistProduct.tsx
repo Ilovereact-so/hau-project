@@ -71,7 +71,7 @@ const WishlistProduct = memo(function WishlistProduct({ product }: Props) {
           </div>
         </div>
         <div className="mt-1">
-          <OmnibusNote state={priceState} className="text-[#6C6C6C] sm:text-[13px] text-[11px] leading-tight" />
+          <OmnibusNote state={priceState} className="text-[#6C6C6C] sm:text-[12px] text-[11px] leading-tight" />
         </div>
         {/* <button
           onClick={() => addItem(product, variantsProperties?._key ?? '')}

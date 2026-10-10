@@ -5,7 +5,8 @@ import type {StructureResolver} from 'sanity/structure'
 // automatycznej liście "reszta", bo admin dostałby dwa wejścia do tego samego
 // zbioru dokumentów (jedno pogrupowane, jedno luzem).
 // `homeLayout` edytuje się wyłącznie w panelu (/admin/home) — reguły karuzel z podglądem.
-const HANDLED_TYPES = ['category', 'collection', 'guide', 'guideCategory', 'helpDocument', 'homeLayout']
+// `shopSettings` (próg darmowej dostawy) — w panelu, zakładka Dostawy.
+const HANDLED_TYPES = ['category', 'collection', 'guide', 'guideCategory', 'helpDocument', 'homeLayout', 'shopSettings']
 
 // https://www.sanity.io/docs/structure-builder-cheat-sheet
 export const structure: StructureResolver = (S) =>

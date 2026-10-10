@@ -15,6 +15,7 @@ import videoEmbed from './videoEmbed'
 import { calloutBlock, dividerBlock, productEmbedBlock } from './guideBlocks'
 import collection from './collection'
 import { homeLayoutType } from './homeLayout'
+import { shopSettingsType } from './shopSettings'
 
 
 export const schema: { types: SchemaTypeDefinition[] } = {
@@ -28,6 +29,8 @@ export const schema: { types: SchemaTypeDefinition[] } = {
     collection,
     // Układ strony głównej (karuzele) — edytowany w panelu /admin/home.
     homeLayoutType,
+    // Ustawienia sklepu (próg darmowej dostawy) — edytowane w panelu /admin/shipping.
+    shopSettingsType,
     filter,
     filterValue,
     shipping_methods,

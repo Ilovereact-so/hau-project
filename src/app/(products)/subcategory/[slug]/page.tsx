@@ -6,7 +6,9 @@ import { ChevronRight } from "lucide-react";
 import SortSelect from "@/components/SortSelect";
 import { parseProductSort } from "@/lib/productSort";
 import { sortProductsForListing } from "@/lib/productListing";
-import Image from "next/image";
+import Link from "next/link";
+import ListingSeoContent from "@/components/ListingSeoContent";
+import { filterListingProducts, listingPriceBounds, parseListingParams } from "@/lib/listingFilters";
 import ProductItemWithoutBTN from "@/components/ProductItemWithoutBTN";
 import SubcategoryFilterContainer from "@/components/SubcategoryFilterContainer";
 import Container from "@/components/Container";
@@ -31,8 +33,8 @@ export async function generateMetadata({
     const hasParams = Object.keys(await searchParams).length > 0
     const title = details.category?.title ? `${details.title} — ${details.category.title}` : details.title
     return pageMetadata({
-        title,
-        description: details.description || `${details.title} w sklepie HAU. Sprawdź ceny, opinie i dostępność.`,
+        title: details.metaTitle || title,
+        description: details.metaDescription || details.description || `${details.title} w sklepie HAU. Sprawdź ceny, opinie i dostępność.`,
         path: `/subcategory/${slug}`,
         index: !hasParams,
     })
@@ -53,90 +55,20 @@ const SubCategoryProductPage = async ({
         getProductsBySubCategory(slug) as Promise<GetSlugProduct[]>,
         getSubCategoryBySlug(slug) as Promise<SubcategoryWithCategory>,
     ]);
-    if (!products) {
+    if (!subCategoryDetails) {
         return notFound();
-      }
+    }
     
-    function parseFiltersFromSearchParams(
-        searchParams: Record<string, string | string[] | undefined>
-        ) {
-        const result: Record<string, string[]> = {}
-
-        Object.entries(searchParams).forEach(([key, value]) => {
-            if (!value) return
-
-            result[key] = Array.isArray(value)
-            ? value
-            : [value]
-        })
-
-        return result
-    }
-
-
-    function extractPriceFilter(filters: Record<string, string[]>) {
-        const { price, ...optionFilters } = filters
-
-        const maxPrice = price?.[0] ? Number(price[0]) : null
-
-        return {
-            maxPrice,
-            optionFilters,
-        }
-    }
-    type Filters = Record<string, string[]>
-
-function filterProductsByVariantOptions(
-    products: GetSlugProduct[],
-    filters: Filters
-    ): (GetSlugProduct & { defaultVariant?: string })[] {
-    if (Object.keys(filters).length === 0) return products
-
-    const { maxPrice, optionFilters } = extractPriceFilter(filters)
-
-    return products.reduce<(GetSlugProduct & { defaultVariant?: string })[]>(
-        (acc, product) => {
-        if (!product.variants?.length) return acc
-
-        const matchingVariant = product.variants.find(variant => {
-            // 💰 price filter
-            if (maxPrice !== null && variant.price != null &&variant.price > maxPrice) {
-            return false
-            }
-
-            // 🎛 option filters (color, size, etc.)
-            return Object.entries(optionFilters).every(
-            ([filterKey, filterValues]) =>
-                variant.optionValues?.some(ov =>
-                ov.name?.key === filterKey && ov.value?.slug?.current && 
-                filterValues.includes(ov.value?.slug?.current)
-                )
-            )
-        })
-
-        if (!matchingVariant) return acc
-
-        acc.push({
-            ...product,
-            defaultVariant: matchingVariant._key,
-        })
-
-        return acc
-        },
-        []
-    )
-    }
-
-
     const resolvedSearchParams = await searchParams
-    // `sort` to — jak `price` — klucz zarezerwowany w adresie, nie filtr.
-    const { sort: sortParam, ...filterParams } = resolvedSearchParams
-    const sort = parseProductSort(sortParam)
-    const filters = parseFiltersFromSearchParams(filterParams)
+    const sort = parseProductSort(resolvedSearchParams.sort)
+    // Filtry (opcje + cena „od – do”) — wspólna logika z kategorią i wyszukiwarką.
+    const listingParams = parseListingParams(resolvedSearchParams)
+    const filterIds = new Map((subCategoryDetails?.availableFilters ?? []).map((f) => [f.key, f._id]))
     const filteredProducts = await sortProductsForListing(
-        filterProductsByVariantOptions(products, filters),
+        filterListingProducts(products, listingParams, filterIds),
         sort,
     )
+    const priceBounds = listingPriceBounds(products)
     // Podpowiedź z middleware (User-Agent), ten sam mechanizm co w NavbarContainer —
     // żeby SubcategoryFilterContainer od razu na pierwszym renderze (SSR + pierwsza
     // hydracja) wiedział czy jest mobile, zamiast zakładać desktop i dopiero po
@@ -147,7 +79,7 @@ function filterProductsByVariantOptions(
     const breadcrumb = breadcrumbJsonLd([
         { name: "Strona główna", path: "/" },
         ...(subCategoryDetails?.category?.title
-            ? [{ name: subCategoryDetails.category.title, path: `/subcategory/${slug}` }]
+            ? [{ name: subCategoryDetails.category.title, path: subCategoryDetails.category.slug ? `/category/${subCategoryDetails.category.slug}` : `/subcategory/${slug}` }]
             : []),
         { name: subCategoryDetails?.title ?? "", path: `/subcategory/${slug}` },
     ])
@@ -160,20 +92,23 @@ function filterProductsByVariantOptions(
                 <div className="flex w-full relative z-[3]">
                     <div className="flex flex-col space-y-1">
                         <div className="flex items-center space-x-2">
-                            <h1 className="text-black  text-[clamp(14px,1.4vw,16px)]">{subCategoryDetails?.category?.title}</h1>
+                            {subCategoryDetails?.category?.slug ? (
+                                <Link href={`/category/${subCategoryDetails.category.slug}`} className="text-black text-[clamp(14px,1.4vw,16px)] hover:underline underline-offset-2">{subCategoryDetails.category.title}</Link>
+                            ) : (
+                                <span className="text-black  text-[clamp(14px,1.4vw,16px)]">{subCategoryDetails?.category?.title}</span>
+                            )}
                             <ChevronRight className="text-black w-[20px] h-[20px]"/>
-                            <h1 className="text-black  text-[clamp(14px,1.4vw,16px)]">{subCategoryDetails?.title}</h1>
+                            <span className="text-black  text-[clamp(14px,1.4vw,16px)]">{subCategoryDetails?.title}</span>
                         </div>
                         <h1 className="font-medium text-black sm:text-[clamp(18px,2vw,26px)] text-[16px]">{subCategoryDetails?.description}</h1>
                     </div>
                 </div>
                 <div className="flex justify-center w-full mt-[clamp(30px,8vw,80px)]">
                     <div className="flex subcategory-dock-shadow relative bg-fancy-black md:py-2 xs:py-3 py-2 md:pt-4 md:px-9 3xs:px-7 xs:px-4 px-3 rounded-full lg:w-[65vw] 2md:w-[70vw] w-[80vw] z-[1] min-h-[50px] max-w-[1350px]">
-                        <Image className="3xs:w-[clamp(300px,33vw,400px)] w-[250px] absolute bottom-[0] xl:left-[-200px] lg:left-[-15vw] 2md:left-[-12vw] left-[-8vw] z-[2] opacity-80" src='/white-holo.png' alt="white-holo" width={460} height={330}/>
                         <div className="w-full flex justify-between">
                             <div className="flex flex-col w-full z-[3] relative space-y-2 pr-4">
                                 <h1 className="text-white text-[clamp(16px,1.4vw,18px)] ml-1 max-md:hidden">Filtruj:</h1>                            
-                                <SubcategoryFilterContainer subcategoryDetails={subCategoryDetails} products={products} paramsFilter={filters} initialMobile={initialMobile}/>
+                                <SubcategoryFilterContainer subcategoryDetails={subCategoryDetails} products={products} paramsFilter={listingParams.options} priceBounds={priceBounds} priceRange={{ min: listingParams.priceMin, max: listingParams.priceMax }} initialMobile={initialMobile}/>
                             </div>
                             <div className="flex md:flex-col flex-row-reverse md:space-y-2 h-fit relative z-[3]">
                                 <div className="flex items-center 3xs:px-4 px-2">
@@ -190,6 +125,12 @@ function filterProductsByVariantOptions(
                         <ProductItemWithoutBTN key={index} product={product as GetSlugProduct & { defaultVariant?: string }}/>
                     ))}
                 </div>
+                {filteredProducts.length === 0 && (
+                    <p className="text-center text-[#6C6C6C] text-[clamp(14px,1.4vw,16px)] mb-20">
+                        {products.length ? "Żaden produkt nie pasuje do wybranych filtrów." : "W tej kategorii nie ma jeszcze produktów."}
+                    </p>
+                )}
+                <ListingSeoContent value={subCategoryDetails?.seoContent} title={subCategoryDetails?.title} />
             </div>
         </Container>
         </>

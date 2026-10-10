@@ -6,7 +6,9 @@ import { redis } from '@/lib/redis'
 import { sanityClient } from '@/sanity/sanityClient.server'
 import type { AdminCounters } from '@/components/admin/layout/navigation'
 
-export const LOW_STOCK_THRESHOLD = 10
+// Próg „niskiego stanu” (stan < 2 → 1 sztuka albo brak) — jedno źródło w lib/stock.ts.
+import { LOW_STOCK_THRESHOLD } from '@/lib/stock'
+export { LOW_STOCK_THRESHOLD }
 const LOW_STOCK_CACHE = 'admin:counters:lowStock'
 
 /**

@@ -170,6 +170,16 @@ export const HELP_DOCUMENTS: HelpDocumentLink[] = [
     group: "zakupy",
     description: "Jak możesz zapłacić za zamówienie i co dzieje się po płatności.",
   },
+  // Rozmiary produktów opisujemy rozmiarem PSA (mikro, mały, średni, duży) —
+  // ten dokument wyjaśnia, jak go dobrać. Link prowadzi tu z wyboru rozmiaru
+  // na karcie produktu; do czasu dodania treści w Sanity — „w przygotowaniu”.
+  {
+    title: "Jak dobrać rozmiar",
+    slug: "jak-dobrac-rozmiar",
+    column: 2,
+    group: "zakupy",
+    description: "Co oznacza rozmiar mikro, mały, średni i duży — i jak dopasować go do psa.",
+  },
   // Baner zgód linkuje do polityki cookies — dokument żyje w Sanity
   // (typ helpDocument, slug "polityka-cookies"); do czasu jego dodania
   // strona pokazuje stan „w przygotowaniu” zamiast 404.

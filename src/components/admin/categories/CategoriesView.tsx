@@ -5,8 +5,10 @@ import { useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import {
-  Check, ExternalLink, FolderTree, ImageOff, ImagePlus, Layers, Pencil, RefreshCw, Trash2, X,
+  Check, ExternalLink, FileText, FolderTree, ImageOff, ImagePlus, Layers, Pencil, RefreshCw, Trash2, X,
 } from 'lucide-react'
+import { TaxonomySeoModal } from './TaxonomySeoModal'
+import { hasRichText } from '@/lib/richText'
 import type { AdminCategory, AdminSubcategory } from '@/lib/admin/catalog'
 import {
   adminRemoveSubcategoryImage, adminRenameTaxonomy,
@@ -46,7 +48,7 @@ export function CategoriesView({
     const all = [
       ...categories,
       ...(orphans.length
-        ? [{ id: '__orphans', title: 'Bez kategorii nadrzędnej', slug: null, description: null, productCount: 0, subcategories: orphans }]
+        ? [{ id: '__orphans', title: 'Bez kategorii nadrzędnej', slug: null, description: null, metaTitle: null, metaDescription: null, seoContent: null, productCount: 0, subcategories: orphans }]
         : []),
     ]
     if (!needle) return all
@@ -108,6 +110,39 @@ export function CategoriesView({
   )
 }
 
+/** Przycisk „Opis i SEO” + okno edycji (kategoria albo subkategoria). */
+function SeoButton({
+  id,
+  title,
+  kind,
+  path,
+  seo,
+}: {
+  id: string
+  title: string
+  kind: 'category' | 'subcategory'
+  path: string | null
+  seo: { description: string | null; metaTitle: string | null; metaDescription: string | null; seoContent: unknown[] | null }
+}) {
+  const [open, setOpen] = useState(false)
+  const filled = hasRichText(seo.seoContent)
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="inline-flex items-center gap-1.5 rounded-xs border border-border bg-surface px-2 py-1 text-[11px] font-medium text-text-2 hover:text-text"
+        title={filled ? 'Opis SEO uzupełniony' : 'Brak opisu SEO'}
+      >
+        <FileText size={12} strokeWidth={1.5} />
+        Opis i SEO
+        <span className={cn('size-1.5 rounded-full', filled ? 'bg-success' : 'bg-border-strong')} aria-hidden />
+      </button>
+      {open && <TaxonomySeoModal id={id} title={title} kind={kind} path={path} initial={seo} onClose={() => setOpen(false)} />}
+    </>
+  )
+}
+
 function CategoryGroup({ category }: { category: AdminCategory }) {
   const isOrphans = category.id === '__orphans'
   return (
@@ -128,6 +163,12 @@ function CategoryGroup({ category }: { category: AdminCategory }) {
           <div className="flex flex-wrap items-center gap-1.5">
             <Badge tone={category.productCount ? 'success' : 'neutral'}>{`${category.productCount} produktów`}</Badge>
             <Badge tone="info">{`${category.subcategories.length} subkategorii`}</Badge>
+            <SeoButton id={category.id} title={category.title} kind="category" path={category.slug ? `/category/${category.slug}` : null} seo={category} />
+            {category.slug && (
+              <a href={`/category/${category.slug}`} target="_blank" rel="noopener noreferrer" className="text-[11px] font-medium text-text-2 hover:text-text">
+                w sklepie ↗
+              </a>
+            )}
           </div>
         )}
       </div>
@@ -314,6 +355,7 @@ function SubcategoryCard({ sub }: { sub: AdminSubcategory }) {
         <div className="flex flex-wrap items-center gap-1.5">
           <Badge tone={sub.productCount ? 'success' : 'neutral'}>{`${sub.productCount} w sklepie`}</Badge>
           {!image && <Badge tone="primary">bez zdjęcia</Badge>}
+          <SeoButton id={sub.id} title={sub.title} kind="subcategory" path={sub.slug ? `/subcategory/${sub.slug}` : null} seo={sub} />
         </div>
 
         <div className="mt-auto flex items-end justify-between gap-2 border-t border-border pt-2.5">

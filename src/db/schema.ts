@@ -188,8 +188,13 @@ export const newsletterSubscribers = mysqlTable('newsletter_subscribers', {
   consentAt:  timestamp('consent_at').defaultNow(),
   // false po wypisaniu się (hard opt-out zachowuje historię zgody)
   isActive:   boolean('is_active').notNull().default(true),
-  // token pod przyszły link wypisania (bez logowania)
+  // token linku wypisania (bez logowania) — /newsletter/wypisz?token=…
   unsubToken: varchar('unsub_token', { length: 64 }),
+  // Double opt-in: zapis jest aktywny dopiero po kliknięciu linku z maila
+  // (confirmed_at). Token potwierdzenia jest jednorazowy.
+  confirmToken:  varchar('confirm_token', { length: 64 }),
+  confirmSentAt: datetime('confirm_sent_at'),
+  confirmedAt:   datetime('confirmed_at'),
   createdAt:  timestamp('created_at').defaultNow(),
   updatedAt:  timestamp('updated_at').defaultNow().onUpdateNow(),
 })

@@ -12,8 +12,11 @@
  */
 
 import { effectivePrice, tilePriceKey } from '@/lib/omnibus'
+import type { ProductPromotion } from '@/lib/promotion'
+import { isProductAvailable } from '@/lib/stock'
 
 export const PRODUCT_SORTS = [
+  'relevance',
   'popular',
   'price-asc',
   'price-desc',
@@ -27,7 +30,11 @@ export type ProductSort = (typeof PRODUCT_SORTS)[number]
 
 export const DEFAULT_PRODUCT_SORT: ProductSort = 'popular'
 
+/** Sortowania dostępne na listingach kategorii (bez „Trafność” — ta jest tylko w wyszukiwarce). */
+export const LISTING_SORTS: ProductSort[] = PRODUCT_SORTS.filter((sort) => sort !== 'relevance')
+
 export const PRODUCT_SORT_LABELS: Record<ProductSort, string> = {
+  relevance: 'Trafność',
   popular: 'Popularne',
   'price-asc': 'Najtańsze',
   'price-desc': 'Najdroższe',
@@ -39,6 +46,7 @@ export const PRODUCT_SORT_LABELS: Record<ProductSort, string> = {
 
 /** Krótszy opis pod etykietą w menu wyboru. */
 export const PRODUCT_SORT_HINTS: Record<ProductSort, string> = {
+  relevance: 'Najlepiej pasujące do wpisanej frazy',
   popular: 'Polecane i najczęściej kupowane w ostatnich 90 dniach',
   'price-asc': 'Cena rosnąco',
   'price-desc': 'Cena malejąco',
@@ -66,7 +74,9 @@ export type SortableProduct = {
   title?: string | null
   _createdAt?: string | null
   price?: number | null
-  variants?: Array<{ _key?: string | null; price?: number | null } | null> | null
+  variants?: Array<{ _key?: string | null; price?: number | null; stock?: number | null } | null> | null
+  stock?: number | null
+  promotion?: ProductPromotion | null
   /** Wariant wybrany przez filtry — to jego cenę widzi klient na kafelku. */
   defaultVariant?: string
   /** Flagi z panelu (Katalog → Wyróżnienia) — podbijają produkt w „Popularne”. */
@@ -120,12 +130,27 @@ const createdAt = (product: SortableProduct) => {
 
 /**
  * Sortuje kopię listy. Produkty bez danej wartości (brak ceny, brak opinii,
- * brak obniżki) lądują na końcu — nigdy nie wypadają z listy.
+ * brak obniżki) lądują na końcu — nigdy nie wypadają z listy. Niedostępne
+ * (wszystkie warianty bez towaru) zawsze idą za dostępnymi, w tej samej
+ * kolejności — zostają na stronie (SEO, link z wyszukiwarki), ale nie
+ * zasłaniają produktów, które da się kupić.
  */
 export function sortProducts<T extends SortableProduct>(
   products: T[],
   sort: ProductSort,
   signals: SortSignals = {},
+): T[] {
+  const sorted = sortByCriterion(products, sort, signals)
+  const available: T[] = []
+  const soldOut: T[] = []
+  for (const product of sorted) (isProductAvailable(product) ? available : soldOut).push(product)
+  return soldOut.length ? [...available, ...soldOut] : sorted
+}
+
+function sortByCriterion<T extends SortableProduct>(
+  products: T[],
+  sort: ProductSort,
+  signals: SortSignals,
 ): T[] {
   const list = [...products]
   const popularity = (id: string) => signals.popularity?.get(id) ?? 0
@@ -171,6 +196,10 @@ export function sortProducts<T extends SortableProduct>(
 
     case 'title':
       return list.sort(byTitle)
+
+    case 'relevance':
+      // Kolejność z wyszukiwarki (lib/search.ts) — już ułożona od najlepszego trafienia.
+      return list
 
     case 'popular':
     default:

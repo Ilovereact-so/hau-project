@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import toast from 'react-hot-toast'
 import { Mail, RotateCcw, Save } from 'lucide-react'
-import { updateNewsletterWelcomeTemplate } from '@/actions/newsletterSettings'
+import { updateNewsletterTemplate } from '@/actions/newsletterSettings'
 import { Button } from '../kit/Button'
 import { Card, CardHeader } from '../kit/Card'
 import { ErrorBox } from '../kit/EmptyState'
@@ -11,15 +11,21 @@ import { TextAreaField, TextField } from '../kit/TextField'
 import { cn } from '../kit/utils'
 
 /**
- * Szablon maila powitalnego newslettera: edycja + podgląd na żywo.
- * Podgląd siedzi w `<iframe sandbox>` — HTML maila nie może uruchomić
- * skryptów ani odziedziczyć stylów panelu.
+ * Szablon maila newslettera (prośba o potwierdzenie albo powitalny z kodem):
+ * edycja + podgląd na żywo. Podgląd siedzi w `<iframe sandbox>` — HTML maila
+ * nie może uruchomić skryptów ani odziedziczyć stylów panelu.
  */
 export function NewsletterTemplateEditor({
+  templateKey,
+  title,
+  description,
   initial,
   defaults,
   shopUrl,
 }: {
+  templateKey: 'newsletter_confirm' | 'newsletter_welcome'
+  title: string
+  description: React.ReactNode
   initial: { subject: string; html: string }
   defaults: { subject: string; html: string }
   shopUrl: string
@@ -35,7 +41,7 @@ export function NewsletterTemplateEditor({
   const save = () =>
     startTransition(async () => {
       setError('')
-      const result = await updateNewsletterWelcomeTemplate({ subject, html })
+      const result = await updateNewsletterTemplate(templateKey, { subject, html })
       if (!result.ok) {
         setError(result.error)
         return
@@ -44,19 +50,18 @@ export function NewsletterTemplateEditor({
       toast.success('Szablon maila zapisany')
     })
 
-  const preview = html.replaceAll('{{email}}', previewEmail).replaceAll('{{shopUrl}}', shopUrl)
+  const preview = html
+    .replaceAll('{{email}}', previewEmail)
+    .replaceAll('{{shopUrl}}', shopUrl)
+    .replaceAll('{{confirmUrl}}', `${shopUrl}/newsletter/potwierdz?token=…`)
+    .replaceAll('{{unsubscribeUrl}}', `${shopUrl}/newsletter/wypisz?token=…`)
 
   return (
     <Card className="flex flex-col">
       <CardHeader
         icon={Mail}
-        title="Mail powitalny newslettera"
-        subtitle={
-          <>
-            Wysyłany po zapisie do newslettera. <code className="font-mono">{'{{email}}'}</code> — adres subskrybenta,{' '}
-            <code className="font-mono">{'{{shopUrl}}'}</code> — adres sklepu. Zapisany szablon ma pierwszeństwo przed domyślnym.
-          </>
-        }
+        title={title}
+        subtitle={description}
         actions={
           <>
             <Button

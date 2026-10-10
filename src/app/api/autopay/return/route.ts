@@ -84,5 +84,6 @@ async function handleReturn(
   const payment =
     order.status === 'paid' || order.status === 'processing' ? 'success' : 'pending'
 
-  return NextResponse.redirect(`${base}/profile/orders/${order.id}?payment=${payment}`)
+  // /orders/[id] kieruje zalogowanego do profilu, a gościa na /zamowienie/[id].
+  return NextResponse.redirect(`${base}/orders/${order.id}?payment=${payment}`)
 }
