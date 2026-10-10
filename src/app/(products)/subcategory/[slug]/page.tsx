@@ -11,6 +11,7 @@ import ListingSeoContent from "@/components/ListingSeoContent";
 import { filterListingProducts, listingPriceBounds, parseListingParams } from "@/lib/listingFilters";
 import ProductItemWithoutBTN from "@/components/ProductItemWithoutBTN";
 import SubcategoryFilterContainer from "@/components/SubcategoryFilterContainer";
+import ListingFilterEmpty, { LISTING_GRID_CLASS, listingHrefWithoutFilters } from "@/components/ListingFilterEmpty";
 import Container from "@/components/Container";
 import { headers } from "next/headers";
 import type { Metadata } from "next";
@@ -69,6 +70,10 @@ const SubCategoryProductPage = async ({
         sort,
     )
     const priceBounds = listingPriceBounds(products)
+    // Filtry nic nie zostawiły — pokazujemy resztę podkategorii (bez filtrów,
+    // w wybranej kolejności) pod komunikatem, zamiast pustej strony.
+    const noFilterMatches = filteredProducts.length === 0 && products.length > 0
+    const restProducts = noFilterMatches ? await sortProductsForListing(products, sort) : []
     // Podpowiedź z middleware (User-Agent), ten sam mechanizm co w NavbarContainer —
     // żeby SubcategoryFilterContainer od razu na pierwszym renderze (SSR + pierwsza
     // hydracja) wiedział czy jest mobile, zamiast zakładać desktop i dopiero po
@@ -120,14 +125,21 @@ const SubCategoryProductPage = async ({
                         </div>
                     </div>
                 </div>
-                <div className="grid justify-items-center 2.5xl:grid-cols-4 lg:grid-cols-4 sm:grid-cols-3 grid-cols-2 sm:gap-x-[18px] gap-x-3 md:gap-y-[75px] sm:gap-y-[65px] gap-y-[40px] sm:mt-12 mt-7 mb-15">
-                    {filteredProducts.map((product, index)=>(
-                        <ProductItemWithoutBTN key={index} product={product as GetSlugProduct & { defaultVariant?: string }}/>
-                    ))}
-                </div>
-                {filteredProducts.length === 0 && (
-                    <p className="text-center text-[#6C6C6C] text-[clamp(14px,1.4vw,16px)] mb-20">
-                        {products.length ? "Żaden produkt nie pasuje do wybranych filtrów." : "W tej kategorii nie ma jeszcze produktów."}
+                {filteredProducts.length > 0 ? (
+                    <div className={`${LISTING_GRID_CLASS} sm:mt-12 mt-7 mb-15`}>
+                        {filteredProducts.map((product, index)=>(
+                            <ProductItemWithoutBTN key={index} product={product as GetSlugProduct & { defaultVariant?: string }}/>
+                        ))}
+                    </div>
+                ) : noFilterMatches ? (
+                    <ListingFilterEmpty
+                        products={restProducts as Array<GetSlugProduct & { defaultVariant?: string }>}
+                        clearHref={listingHrefWithoutFilters(`/subcategory/${slug}`, resolvedSearchParams)}
+                        scope="z tej podkategorii"
+                    />
+                ) : (
+                    <p className="text-[#6C6C6C] text-[clamp(14px,1.4vw,16px)] sm:mt-12 mt-7 mb-20">
+                        W tej kategorii nie ma jeszcze produktów.
                     </p>
                 )}
                 <ListingSeoContent value={subCategoryDetails?.seoContent} title={subCategoryDetails?.title} />

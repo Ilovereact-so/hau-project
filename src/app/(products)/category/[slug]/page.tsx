@@ -8,6 +8,7 @@ import { getCategoryBySlug, getProductsByCategory, type SubcategoryWithCategory 
 import type { GetSlugProduct } from "../../../../../sanity.types";
 import SortSelect from "@/components/SortSelect";
 import ProductItemWithoutBTN from "@/components/ProductItemWithoutBTN";
+import ListingFilterEmpty, { LISTING_GRID_CLASS, listingHrefWithoutFilters } from "@/components/ListingFilterEmpty";
 import SubcategoryFilterContainer from "@/components/SubcategoryFilterContainer";
 import Container from "@/components/Container";
 import ListingSeoContent from "@/components/ListingSeoContent";
@@ -80,6 +81,9 @@ const CategoryPage = async ({ params, searchParams }: PageProps) => {
         sort,
     );
     const priceBounds = listingPriceBounds(products);
+    // Filtry nic nie zostawiły — pokazujemy resztę kategorii pod komunikatem.
+    const noFilterMatches = filteredProducts.length === 0 && products.length > 0;
+    const restProducts = noFilterMatches ? await sortProductsForListing(products, sort) : [];
     const initialMobile = (await headers()).get("x-is-mobile") === "1";
     const breadcrumb = breadcrumbJsonLd([
         { name: "Strona główna", path: "/" },
@@ -142,14 +146,21 @@ const CategoryPage = async ({ params, searchParams }: PageProps) => {
                         </div>
                     </div>
 
-                    <div className="grid justify-items-center 2.5xl:grid-cols-4 lg:grid-cols-4 sm:grid-cols-3 grid-cols-2 sm:gap-x-[18px] gap-x-3 md:gap-y-[75px] sm:gap-y-[65px] gap-y-[40px] sm:mt-12 mt-7 mb-15">
-                        {filteredProducts.map((product) => (
-                            <ProductItemWithoutBTN key={product._id} product={product as GetSlugProduct & { defaultVariant?: string }} />
-                        ))}
-                    </div>
-                    {filteredProducts.length === 0 && (
-                        <p className="text-center text-[#6C6C6C] text-[clamp(14px,1.4vw,16px)] mb-20">
-                            {products.length ? "Żaden produkt nie pasuje do wybranych filtrów." : "W tej kategorii nie ma jeszcze produktów."}
+                    {filteredProducts.length > 0 ? (
+                        <div className={`${LISTING_GRID_CLASS} sm:mt-12 mt-7 mb-15`}>
+                            {filteredProducts.map((product) => (
+                                <ProductItemWithoutBTN key={product._id} product={product as GetSlugProduct & { defaultVariant?: string }} />
+                            ))}
+                        </div>
+                    ) : noFilterMatches ? (
+                        <ListingFilterEmpty
+                            products={restProducts as Array<GetSlugProduct & { defaultVariant?: string }>}
+                            clearHref={listingHrefWithoutFilters(`/category/${slug}`, resolved)}
+                            scope="z tej kategorii"
+                        />
+                    ) : (
+                        <p className="text-[#6C6C6C] text-[clamp(14px,1.4vw,16px)] sm:mt-12 mt-7 mb-20">
+                            W tej kategorii nie ma jeszcze produktów.
                         </p>
                     )}
                     <ListingSeoContent value={category.seoContent} title={category.title} />

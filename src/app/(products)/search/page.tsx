@@ -10,6 +10,7 @@ import { sortProductsForListing } from "@/lib/productListing";
 import { filterListingProducts, listingPriceBounds, parseListingParams } from "@/lib/listingFilters";
 import ProductItemWithoutBTN from "@/components/ProductItemWithoutBTN";
 import SubcategoryFilterContainer from "@/components/SubcategoryFilterContainer";
+import ListingFilterEmpty, { LISTING_GRID_CLASS, listingHrefWithoutFilters } from "@/components/ListingFilterEmpty";
 import Container from "@/components/Container";
 import { headers } from "next/headers";
 import type { Metadata } from "next";
@@ -105,6 +106,9 @@ const SearchPage = async ({
     sort
   );
   const priceBounds = listingPriceBounds(products);
+  // Fraza coś znalazła, ale filtry wszystko odsiały — pokazujemy resztę wyników.
+  const noFilterMatches = filteredProducts.length === 0 && products.length > 0;
+  const restProducts = noFilterMatches ? await sortProductsForListing(products, sort) : [];
 
   // Ten sam mechanizm co w subcategory/[slug]/page.tsx — patrz komentarz tam.
   const initialMobile = (await headers()).get("x-is-mobile") === "1";
@@ -160,12 +164,21 @@ const SearchPage = async ({
             </div>
           </div>
         )}
-        <div className="grid justify-items-center 2.5xl:grid-cols-4 lg:grid-cols-4 sm:grid-cols-3 grid-cols-2 sm:gap-x-[18px] gap-x-3 md:gap-y-[75px] sm:gap-y-[65px] gap-y-[40px] sm:mt-12 mt-7 mb-15">
-          {filteredProducts.map((product, index) => (
-            <ProductItemWithoutBTN key={index} product={product as GetSlugProduct & { defaultVariant?: string }} />
-          ))}
-        </div>
-        {trimmedQuery && filteredProducts.length === 0 && (
+        {filteredProducts.length > 0 && (
+          <div className={`${LISTING_GRID_CLASS} sm:mt-12 mt-7 mb-15`}>
+            {filteredProducts.map((product, index) => (
+              <ProductItemWithoutBTN key={index} product={product as GetSlugProduct & { defaultVariant?: string }} />
+            ))}
+          </div>
+        )}
+        {trimmedQuery && noFilterMatches && (
+          <ListingFilterEmpty
+            products={restProducts as Array<GetSlugProduct & { defaultVariant?: string }>}
+            clearHref={listingHrefWithoutFilters("/search", resolvedSearchParams, ["q", "sort"])}
+            scope={`dla frazy „${trimmedQuery}”`}
+          />
+        )}
+        {trimmedQuery && products.length === 0 && (
           <p className="text-black text-[clamp(14px,1.6vw,16px)] mt-10 mb-15 text-center w-full">
             Nie znaleziono produktów dla frazy „{trimmedQuery}”.
           </p>
