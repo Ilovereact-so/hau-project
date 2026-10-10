@@ -294,9 +294,8 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
             {isOpenMenu && 
             <Portal>
                 {/* Wysokość szuflady zależy od WYSOKOŚCI okna, nie tylko szerokości:
-                    na niskich ekranach (laptopy ≤ 820 px wysokości, telefony) 90%
-                    z marginesem 5% od dołu, żeby zmieściło się jak najwięcej filtrów;
-                    na wysokich monitorach 80% i 10% od dołu (więcej „powietrza”).
+                    na niskich ekranach (≤ 820 px wysokości okna, telefony) 90%
+                    z marginesem 5% od dołu; na wysokich monitorach 80% i 10% od dołu.
                     Treść w środku przewija się, gdy i tak się nie zmieści. */}
                 <motion.div onClick={(e)=>handleContainerClick(e)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{opacity:0}} className={`fixed z-9999 top-0 left-0 w-[100vw] h-[100svh] bg-gradient-to-b from-white/60 from-[90%] to-transparent inset-0 flex ${
                     isOpenMenu ? "flex":"hidden"
@@ -314,7 +313,7 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
                                 {/**Price */}
                                 <div className='flex flex-col md:my-3 py-2 px-2 space-y-2'>
                                     <h1 className='text-[clamp(12px,2vw,16px)] text-black'>Cena:</h1>
-                                    <PriceRangeInputs draft={priceDraft} onChange={setPriceDraft} compact={true} bounds={priceBounds} />
+                                    <PriceRangeInputs draft={priceDraft} onChange={setPriceDraft} bounds={priceBounds} />
                                 </div>
                                 {comboAvailableFilters && comboAvailableFilters.map((item,i)=>(
                                     <div key={i} className='w-full flex flex-col'>
@@ -362,7 +361,7 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
                             <div className={`flex flex-col h-auto justify-between bg-fancy-black rounded-[20px] self-stretch overflow-hidden ease-in-out duration-200 ${
                                 hasAnySelection ? "w-full opacity-100 py-3 max-md:max-h-[200px]":"max-md:max-h-auto py-3"
                             }`}>
-                                <div className='w-full text-[clamp(13px,1.1vw,15px)] text-white pb-2 flex-1 min-h-0 filterOutscroll overflow-auto max-h-[200px]'>
+                                <div className='w-full text-[clamp(13px,1.1vw,15px)] text-white pb-2 flex-1 min-h-0 filterOutscroll overflow-auto max-h-[200px] max-w-[310px]'>
                                     <AnimatePresence key={hasAnySelection ? "selected":"empty"}>
                                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                                             {hasAnySelection ? (
@@ -641,7 +640,7 @@ function PriceRangeInputs({
     compact?: boolean
     onEnter?: () => void
 }) {
-    const inputClass = `w-[80px] min-w-0 text-center text-black rounded-[10px] focus:outline-none focus:ring-0 focus:ring-black/20 placeholder:text-[#8E8E8E] ${
+    const inputClass = `w-full min-w-0 text-center text-black rounded-[10px] focus:outline-none focus:ring-2 focus:ring-black/20 placeholder:text-[#8E8E8E] ${
         compact ? 'bg-white/80 text-[13px] leading-none h-[24px] py-0 px-1 rounded-[8px]' : 'bg-[#E1E1E1] text-[clamp(13px,2vw,16px)] py-2 px-2'
     }`
     const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -652,7 +651,7 @@ function PriceRangeInputs({
     }
     return (
         <div className={`flex items-center ${compact ? 'gap-1.5' : 'gap-2'}`}>
-            <label className='flex items-center gap-1 min-w-0'>
+            <label className='flex items-center gap-1 flex-1 min-w-0'>
                 <span className={`text-black ${compact ? 'text-[13px] font-normal' : 'text-[clamp(12px,2vw,15px)]'}`}>od</span>
                 <input
                     type='text'
@@ -666,7 +665,7 @@ function PriceRangeInputs({
                 />
             </label>
             <span className='text-black'>–</span>
-            <label className='flex items-center gap-1 min-w-0'>
+            <label className='flex items-center gap-1 flex-1 min-w-0'>
                 <span className={`text-black ${compact ? 'text-[13px] font-normal' : 'text-[clamp(12px,2vw,15px)]'}`}>do</span>
                 <input
                     type='text'
