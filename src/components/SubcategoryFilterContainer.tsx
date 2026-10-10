@@ -201,23 +201,36 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
         router.replace(buildUrl(params), { scroll: false })
     }
     const containerRef = useRef<HTMLDivElement>(null)
+    const priceBoxRef = useRef<HTMLDivElement>(null)
+    const moreRef = useRef<HTMLDivElement>(null)
     const widthsRef = useRef(new Map<string, number>());
     const [ready, setReady] = useState(false);
     const [visibleCount, setVisibleCount] = useState(avaibleFilters?.length || 0)
 
+    // Ile pigułek filtrów zmieści się w rzędzie. Miejsce zajęte przez pigułkę
+    // ceny i „Więcej..” jest MIERZONE (wcześniej stała 400 px, która nie
+    // wiedziała, że cena po otwarciu rośnie do 300 px — rząd wylewał się
+    // i wypychał sortowanie poza dock). Odstępy `space-x-3` też się liczą.
+    // Przy otwieraniu ceny od razu rezerwujemy jej docelową szerokość (pigułki,
+    // które się nie zmieszczą, znikają, zanim cena urośnie); przy zamykaniu
+    // ResizeObserver oddaje miejsce w miarę, jak pigułka ceny się kurczy.
     const calculateVisibleCount = useCallback(() => {
-        if (!containerRef.current || !avaibleFilters) return;
-        const containerWidth = containerRef.current.offsetWidth;
-        let used = 400;
+        const container = containerRef.current
+        if (!container || !avaibleFilters) return;
+        const containerWidth = container.clientWidth;
+        const measuredPrice = priceBoxRef.current?.offsetWidth ?? 0
+        const priceWidth = isOpenPrice ? Math.max(measuredPrice, PRICE_PILL_OPEN_WIDTH) : measuredPrice
+        const moreWidth = moreRef.current?.offsetWidth ?? 0
+        let used = priceWidth + moreWidth + (priceWidth ? PILL_GAP : 0);
         let count = 0;
         for (const f of avaibleFilters) {
             const w = widthsRef.current.get(f._id);
-            if (!w || used + w > containerWidth) break;
-            used += w;
+            if (!w || used + PILL_GAP + w > containerWidth) break;
+            used += PILL_GAP + w;
             count++;
         }
         setVisibleCount(count);
-    }, [avaibleFilters]);
+    }, [avaibleFilters, isOpenPrice]);
 
     const handleMeasure = (id: string, width: number) => {
         widthsRef.current.set(id, width);
@@ -238,6 +251,8 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
             calculateVisibleCount();
         });
         resizeObserver.observe(containerRef.current);
+        if (priceBoxRef.current) resizeObserver.observe(priceBoxRef.current);
+        if (moreRef.current) resizeObserver.observe(moreRef.current);
         return () => {
             resizeObserver.disconnect();
         };
@@ -251,7 +266,11 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
         }
     }
   return (
-    <div>
+    // `contain: inline-size` — szerokość tego bloku wynika z układu strony, a NIE
+    // z jego zawartości. Bez tego kolumna filtrów w docku (flex) rosła razem
+    // z rzędem pigułek i wypychała sortowanie poza obrys. W przeciwieństwie do
+    // overflow nie przycina rozwijanych list (patrz komentarz niżej).
+    <div className='w-full min-w-0 [contain:inline-size]'>
         {/* NIE dodawać tu overflow (ani overflow-x-auto, ani overflow-hidden).
             Rozwijana lista filtra (FilterCard niżej) jest pozycjonowana
             `absolute top-[calc(100%+8px)]` i MUSI wyjść poza ten kontener —
@@ -415,6 +434,7 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
             }
             </AnimatePresence>
             {!mobileSize &&
+                <div ref={priceBoxRef} className='shrink-0'>
                 <PricePill
                     open={isOpenPrice}
                     onOpen={() => setOpenPrice(true)}
@@ -426,6 +446,7 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
                     label={priceApplied ? formatPriceRange(appliedMin, appliedMax, true) : 'Cena'}
                     active={priceApplied}
                 />
+                </div>
             }
             {/* Rząd "pill" filtrów + system pomiaru szerokości (ready/visibleCount/
                 MeasureItem) to wyłącznie desktopowy skrót — mobile ma pełny panel
@@ -459,7 +480,7 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
                     </AnimatePresence>
                 </>
             )}
-            <div onClick={()=>setOpenMenu(true)} className={`md:bg-main bg-black md:mb-2 cursor-pointer py-2 text-[clamp(15px,1.4vw,17px)] md:text-black text-white font-medium whitespace-nowrap border-black border-1 ${!miniSize ? "px-8 rounded-[20px]":"px-4 rounded-[16px]"}`}>{!mobileSize ? "Więcej.." : !miniSize ? "Filtruj" : (
+            <div ref={moreRef} onClick={()=>setOpenMenu(true)} className={`shrink-0 md:bg-main bg-black md:mb-2 cursor-pointer py-2 text-[clamp(15px,1.4vw,17px)] md:text-black text-white font-medium whitespace-nowrap border-black border-1 ${!miniSize ? "px-8 rounded-[20px]":"px-4 rounded-[16px]"}`}>{!mobileSize ? "Więcej.." : !miniSize ? "Filtruj" : (
                 <div className='xs:py-[3px] py-[2px]'><FilterIcon className="w-[15px] h-[15px] text-white"/></div>
             )}</div>
 
@@ -501,7 +522,7 @@ const FilterCard = ({item, setSelectList, isSelectedList, changeFilter}: filterC
         )}
         
         <motion.div onClick={()=>setOpenInlineMenu(!isOpenInlineMenu)} 
-        className={`cursor-pointer px-8 py-2 text-[clamp(15px,1.4vw,17px)] font-medium`}
+        className={`cursor-pointer px-8 py-2 text-[clamp(15px,1.4vw,17px)] font-medium border-1 border-transparent whitespace-nowrap`}
         initial={{backgroundColor: "#000000", color: "#ffffff", borderRadius: "20px"}}
         animate={isOpenInlineMenu ? {backgroundColor: "var(--main)", color: "#000000", borderRadius: "20px 20px 0 0"}:{backgroundColor: "#000000", color: "#ffffff", borderRadius: "20px"}}
         transition={{duration: 0.2, ease:"easeInOut"}}
@@ -573,6 +594,11 @@ function MeasureItem({ id, onMeasure, children }: MeasureItemProps) {
   );
 }
 
+/** Odstęp między pigułkami w docku (`space-x-3`). */
+const PILL_GAP = 12
+/** Szerokość otwartej pigułki ceny (pola „od – do”). */
+const PRICE_PILL_OPEN_WIDTH = 300
+
 type PriceDraft = { min: string; max: string }
 
 const priceDraftFrom = (min: number | null, max: number | null): PriceDraft => ({
@@ -611,7 +637,7 @@ function PriceRangeInputs({
     onEnter?: () => void
 }) {
     const inputClass = `w-full min-w-0 text-center text-black rounded-[10px] focus:outline-none focus:ring-2 focus:ring-black/20 placeholder:text-[#8E8E8E] ${
-        compact ? 'bg-white/80 text-[15px] py-[3px] px-1' : 'bg-[#E1E1E1] text-[clamp(13px,2vw,16px)] py-2 px-2'
+        compact ? 'bg-white/80 text-[13px] leading-none h-[24px] py-0 px-1 rounded-[8px]' : 'bg-[#E1E1E1] text-[clamp(13px,2vw,16px)] py-2 px-2'
     }`
     const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
         if (event.key === 'Enter') {
@@ -622,7 +648,7 @@ function PriceRangeInputs({
     return (
         <div className={`flex items-center ${compact ? 'gap-1.5' : 'gap-2'}`}>
             <label className='flex items-center gap-1 flex-1 min-w-0'>
-                <span className={`text-black ${compact ? 'text-[14px]' : 'text-[clamp(12px,2vw,15px)]'}`}>od</span>
+                <span className={`text-black ${compact ? 'text-[13px] font-normal' : 'text-[clamp(12px,2vw,15px)]'}`}>od</span>
                 <input
                     type='text'
                     inputMode='decimal'
@@ -636,7 +662,7 @@ function PriceRangeInputs({
             </label>
             <span className='text-black'>–</span>
             <label className='flex items-center gap-1 flex-1 min-w-0'>
-                <span className={`text-black ${compact ? 'text-[14px]' : 'text-[clamp(12px,2vw,15px)]'}`}>do</span>
+                <span className={`text-black ${compact ? 'text-[13px] font-normal' : 'text-[clamp(12px,2vw,15px)]'}`}>do</span>
                 <input
                     type='text'
                     inputMode='decimal'
@@ -648,7 +674,7 @@ function PriceRangeInputs({
                     className={inputClass}
                 />
             </label>
-            <span className={`text-black ${compact ? 'text-[14px]' : 'text-[clamp(12px,2vw,15px)]'}`}>zł</span>
+            <span className={`text-black ${compact ? 'text-[13px] font-normal' : 'text-[clamp(12px,2vw,15px)]'}`}>zł</span>
         </div>
     )
 }
@@ -677,19 +703,23 @@ function PricePill({
 }) {
     const ref = useRef<HTMLDivElement>(null)
     useClickOutside(ref, () => open && onClose())
+    // Wysokość pigułki wyznacza ZAWSZE napis (po otwarciu niewidoczny), a pola
+    // leżą na nim warstwą `absolute` — otwarta cena ma więc dokładnie tę samą
+    // wysokość co pozostałe pigułki i nie rozpycha docka w pionie.
     return (
         <motion.div
             ref={ref}
             initial={false}
-            animate={{ width: open ? 300 : 'auto' }}
+            animate={{ width: open ? PRICE_PILL_OPEN_WIDTH : 'auto' }}
             transition={{ duration: 0.2, ease: 'easeInOut' }}
             onClick={() => !open && onOpen()}
-            className={`py-2 flex md:mb-2 relative items-center justify-center text-[clamp(15px,1.4vw,17px)] font-medium rounded-[20px] overflow-hidden whitespace-nowrap ${
-                open ? 'px-3 bg-main text-black border-white border-1' : active ? 'px-6 bg-main text-black border-1 border-main cursor-pointer' : 'px-6 text-white border-black border-1 bg-black cursor-pointer'
+            className={`py-2 flex md:mb-2 relative items-center justify-center text-[clamp(15px,1.4vw,17px)] font-medium rounded-[20px] overflow-hidden whitespace-nowrap border-1 ${
+                open ? 'px-3 bg-main text-black border-white' : active ? 'px-6 bg-main text-black border-main cursor-pointer' : 'px-6 text-white border-black bg-black cursor-pointer'
             }`}
         >
-            {open ? (
-                <div className='flex items-center gap-2 w-full'>
+            <p className={`text-center select-none ${open ? 'invisible' : ''}`} aria-hidden={open}>{label}</p>
+            {open && (
+                <div className='absolute inset-y-0 left-3 right-2 flex items-center gap-1.5'>
                     <div className='flex-1 min-w-0'>
                         <PriceRangeInputs draft={draft} onChange={onChange} bounds={bounds} compact onEnter={onApply} />
                     </div>
@@ -697,13 +727,11 @@ function PricePill({
                         type='button'
                         aria-label='Zastosuj cenę'
                         onClick={(e) => { e.stopPropagation(); onApply() }}
-                        className='p-1 rounded-full hover:scale-90 cursor-pointer bg-[#9898984d] ease-in-out duration-100 shrink-0'
+                        className='w-[24px] h-[24px] flex items-center justify-center rounded-full hover:scale-90 cursor-pointer bg-[#9898984d] ease-in-out duration-100 shrink-0'
                     >
-                        <Check className='w-[18px] h-[18px]' />
+                        <Check className='w-[15px] h-[15px]' />
                     </button>
                 </div>
-            ) : (
-                <p className='text-center select-none'>{label}</p>
             )}
         </motion.div>
     )
