@@ -70,7 +70,7 @@ Zustand store (`store.ts` w katalogu głównym) trzyma koszyk i wishlistę. Logi
 - Wejście gościa na `/profile/account|orders|payment` → middleware (i `requireUser` w stronach) przekierowuje na `/profile/wishlist?login=1&redirect_url=…`. `AuthQueryTrigger` (root layout) otwiera wtedy modal i po zalogowaniu wraca pod `redirect_url`.
 - `openModal(view, { redirectTo })` — cel po zalogowaniu (brak = zostajemy na stronie). `/sign-in` i `/sign-up` honorują `?redirect_url`. OAuth i weryfikacja e-maila zapamiętują cel w sessionStorage (`lib/authRedirect.ts`, tylko ta sama domena).
 - `/wishlist` → przekierowanie na `/profile/wishlist`; `/profile` → konto albo wishlista gościa.
-- Koszyk gościa: „Zaloguj się i przejdź do kasy” (modal z `redirectTo: '/checkout'`). `/checkout` nadal wymaga konta.
+- Koszyk gościa: „Kup bez logowania” → `/checkout` (kasa przyjmuje gości) + link „Masz konto? Zaloguj się” (modal z `redirectTo: '/checkout'`). Patrz „Zakup bez logowania”.
 
 Server actions for these operations live in `src/actions/`.
 
@@ -92,7 +92,7 @@ App routes are organized into groups under `src/app/`:
 ## Key Conventions
 
 - **Prices**: Product prices live in Sanity. Order prices are snapshotted into the `order_items` MySQL table at purchase time — never recalculate from Sanity for historical orders.
-- **Cena wariantu**: `effectivePrice(product, variantKey)` z `src/lib/omnibus.ts` (cena wariantu → cena produktu). Tej samej reguły używają koszyk, checkout, kafelki i rejestr cen — nie licz ceny inaczej.
+- **Cena wariantu**: `effectivePrice(product, variantKey)` z `src/lib/omnibus.ts` (cena wariantu → cena produktu, z aktywną promocją — `lib/promotion.ts`). Tej samej reguły używają koszyk, checkout, kafelki, filtry, sortowanie i rejestr cen — nie licz ceny inaczej. Każda projekcja GROQ, z której liczysz cenę, musi zawierać `promotion` (projekcje z `...` mają je same). Cena bez promocji: `regularPrice`.
 - **Images**: All product images are served from `cdn.sanity.io` via the `urlFor()` helper from `src/lib/`.
 - **Styling**: Tailwind CSS 4 is the default. `styled-components` is used for more complex component styling.
 - **TypeScript path alias**: `@/` maps to `src/`.
@@ -133,8 +133,14 @@ Autopay/Przelewy24, Furgonetka, SMTP).
   z konta Furgonetki (przycisk „Synchronizuj”). Checkout pokazuje wyłącznie
   metody z `active === true` (tak samo waliduje serwer).
 - **Autoryzacja Furgonetki (OAuth)**: Furgonetka przyjmuje tylko adres przekierowania zapisany w jej aplikacji OAuth — inny kończy się od razu `invalid_client` (bez logowania). Aplikacja HAU ma zarejestrowany `http://localhost:3000/api/furgonetka/callback`. Adres wybiera się w `/admin/settings` przy „Autoryzuj konto” (Redis `furgonetka:oauth_redirect_uri`, `FURGONETKA_REDIRECT_URI` to tylko zapas). Po zatwierdzeniu przeglądarka ląduje na `localhost…?code=…`; ten adres wkleja się w panelu, a serwer wymienia kod z `redirect_uri` wziętym z wklejonego linku (musi być identyczny z tym z `/oauth/authorize`). Refresh token jest rotowany i żyje w Redisie; martwy (`invalid_grant`) jest usuwany.
-- **Przesyłki**: kurier przez API Furgonetki; zamówienia do paczkomatu nadaje się
-  w panelu Furgonetki i rejestruje numer ręcznie (status też ręcznie).
+- **Furgonetka — wersje API**: wersję operacji wybiera typ mediów `application/vnd.furgonetka.vN+json` w `Accept`/`Content-Type` (nieznana wersja jest po cichu ignorowana). `POST /packages`, `GET /packages/{id}` i `/tracking` — v2, reszta v1 (`furgonetkaRequest` w `lib/furgonetka.ts`).
+- **Przesyłki kurierskie** (`adminCreateShipment`): `createShipment` (`POST /packages`: `service_id` = LICZBOWE id usługi wyliczone z kodu przez `/account/services` → `resolveServiceId`, `parcels[].type: package` — w v2 typ jest w paczce, nie na górze, `pickup`, `receiver.name`/`postcode`; puste pola pomijamy). Przesyłka ląduje w **KOSZYKU Furgonetki** (stan `waiting`) — sklep jej NIE zamawia: zamawia i opłaca się ją w panelu Furgonetki (zamawianie przez API wymagało akceptacji regulaminów przewoźników na koncie → 409 `terms_and_conditions_not_valid`, i pobierało opłatę bez kontroli admina).
+- **Zamówiona = ma numer listu** (`shipments.tracking_number`, bez zmiany schematu). Numer zapisują: webhook (każdy stan poza `waiting`/`canceled`), „Odśwież status” i otwarcie zamówienia w panelu (`syncFurgonetkaShipment` w `lib/shipmentStatus.ts`: `GET /packages/{id}` → stan poza `waiting`/`queued` + `parcels[].package_no`; strona zamówienia czeka na to najwyżej 4 s). Dopiero wtedy panel pokazuje „Etykieta (PDF)”, a trasa etykiety bez numeru zwraca 409. Nieopłaconą przesyłkę można usunąć (`adminDiscardShipment` → `DELETE /packages/{id}` + wiersz w bazie) i utworzyć od nowa.
+- **Adres odbioru** (`pickup`) = wpis z KSIĄŻKI ADRESOWEJ Furgonetki wybrany w `/admin/settings` (select; Redis `furgonetka:pickup_address_id`, pobierany świeżo przy każdej przesyłce). Bez wyboru: wpis z `default_pickup` w Furgonetce, na końcu `FURGONETKA_SENDER_*` z `.env`.
+- **Etykieta** to PLIK, nie JSON: `GET /packages/{id}/label` (PDF albo ZPL jako tekst; 204 = jeszcze nie ma). Panel otwiera ją przez `GET /api/admin/orders/[id]/label` (admin; token API nie wychodzi do przeglądarki).
+- **Statusy przesyłek są automatyczne**: webhook (`/api/webhooks/furgonetka`, logika `lib/furgonetkaWebhook.ts`) + przycisk „Odśwież status” (`adminRefreshShipment` → `GET /packages/{id}/tracking`, najświeższe zdarzenie po dacie). Oba nakładają stan przez `applyShipmentState` (`lib/shipmentStatus.ts`): przesyłka się nie cofa, zamówienie → „wysłane” po odbiorze/transporcie, → „doręczone” po doręczeniu. Przy przesyłce z Furgonetki panel NIE pokazuje ręcznych „Oznacz jako wysłane/Potwierdź doręczenie”.
+- **Webhook**: JSON lub XML, suma `control` = `md5(package_id . package_no . partner_order_id . state . description . datetime . branch . sól)` (to NIE HMAC). Sól = `FURGONETKA_WEBHOOK_SECRET`, a bez niej — pobierana z API (`GET /account/settings/notification/webhook`, cache Redis 10 min, przy niezgodności pobierana ponownie). Odpowiedź ZAWSZE w formacie powiadomienia: HTTP 200 + `{"status":"OK"}` / `<status>OK</status>` (gołe „OK” = test adresu nieudany). Powiadomienie o NIEZNANEJ przesyłce dostaje OK bez weryfikacji (nic nie zmienia; tak wygląda test adresu przy zapisie, gdy API nie zna jeszcze nowej soli). Stany z myślnikami (`collected`, `transit`, `delivery`, `delivered`, `delivery-problem`…) mapuje `TRACKING_STATE_MAP`. `/admin/settings` pokazuje, czy webhook w Furgonetce wskazuje na ten sklep.
+- Zamówienia do paczkomatu nadaje się w panelu Furgonetki i rejestruje numer ręcznie (status też ręcznie).
 - `/api/sanity/import-csv` wymaga roli admina (middleware przepuszcza `/api/sanity/*`),
   ZIP ze zdjęciami jest opcjonalny. `/upload` przekierowuje do `/admin/import`.
 - `next.config.ts`: `serverActions.bodySizeLimit = 12mb` (zdjęcia produktów i CSV).
@@ -193,6 +199,9 @@ NEXT_PUBLIC_FURGONETKA_MAP_API_KEY
 NEXT_PUBLIC_FURGONETKA_ENV  # sandbox | production (build-time; mapa + API, patrz niżej)
 # Newsletter — SMTP (wysyłka maili, np. Gmail/Brevo/Mailgun)
 SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM
+# Zamówienia bez logowania — podpis linku do zamówienia gościa (opcjonalny;
+# bez niego używany jest CLERK_SECRET_KEY)
+ORDER_LINK_SECRET
 # Rejestr cen (najniższa cena z 30 dni)
 CRON_SECRET                  # Bearer dla /api/cron/price-history
 SANITY_PRICE_WEBHOOK_SECRET  # sekret webhooka Sanity → /api/webhooks/sanity-prices
@@ -334,9 +343,18 @@ Kolekcja (`collection` w Sanity) to tematyczny zbiór produktów ze stroną `/ko
 - **Sortowanie** strony kolekcji: domyślne z pola `sort` kolekcji, nadpisywane `?sort=newest|price-asc|price-desc|title` (whitelista w `collectionOrderClause`).
 - **Typy**: po zmianie schematu `npm run typegen`. Gdy `sanity schema extract` nie łączy się z siecią, `schema.json` można wygenerować lokalnie przez `extractSchema` z `@sanity/schema/_internal` (tak powstał obecny plik).
 
+## Promocje (osobno od ceny)
+
+Zmiana pola `price` to ZWYKŁA zmiana ceny — sklep nie pokazuje wtedy przekreślenia ani informacji Omnibus. Obniżkę ogłasza się wyłącznie promocją: pole produktu `promotion` (`enabled`, `discountType` = `percent` | `price`, `value`, opcjonalnie `startsAt`/`endsAt` — promocja czasowa).
+
+- **Logika** (`src/lib/promotion.ts`, czysta): `promotionState` (none/disabled/scheduled/active/ended/invalid), `applyPromotion` (procent liczony w groszach dla każdego wariantu; cena promocyjna obowiązuje tylko warianty droższe od niej; nigdy 0 zł ani drożej), `normalizePromotionInput` (walidacja z panelu, procent 1–90). `effectivePrice` nakłada aktywną promocję, więc koszyk, kasa i rejestr cen liczą cenę promocyjną same.
+- **Panel**: okno produktu → sekcja „Promocja” (`components/admin/products/PromotionFields.tsx`, podgląd ceny, stan: trwa/zaplanowana/zakończona); katalog pokazuje etykietę pod ceną. Studio: obiekt „Promocja” w produkcie.
+- **Rejestr cen** zapisuje cenę z promocją. Promocja czasowa zmienia cenę bez edycji dokumentu — moment zmiany dla crona/wyświetlenia to granica promocji (`changeMoment` w `priceHistory.ts`), nie `_updatedAt`.
+- **Karuzela** pod opiniami na stronie produktu: „Produkty w promocji” (`getPromotedProducts`, GROQ + `isPromotionActive`), a bez promocji — „Zobacz też” z tej samej podkategorii.
+
 ## Najniższa cena z 30 dni (Omnibus)
 
-Sklep sam rejestruje historię cen i z niej wylicza „najniższą cenę z 30 dni” oraz obniżki. Ręczna „cena przekreślona” (`compareAtPrice`) jest wycofana — pole zostało w Sanity tylko do odczytu, sklep go nie używa.
+Sklep sam rejestruje historię cen i z niej wylicza „najniższą cenę z 30 dni” oraz obniżki. **Pokazuje je klientowi tylko w czasie aktywnej promocji** (`resolveOmnibus(..., promotionActive)`): przekreślona cena = najniższa z 30 dni przed promocją, procent, mała szara notka „Najniższa cena z 30 dni przed obniżką”. Bez promocji — sama cena (dane Omnibus nie są nawet pobierane). Gdy promocja dopiero ruszyła, a rejestr ma jeszcze cenę sprzed niej, odniesieniem jest najniższa cena z rejestru z ostatnich 30 dni. Gdy cena promocyjna nie jest niższa od tej najniższej — brak przekreślenia (nie wolno ogłosić obniżki). Ręczna „cena przekreślona” (`compareAtPrice`) jest wycofana — pole zostało w Sanity tylko do odczytu, sklep go nie używa.
 
 - **Rejestr**: tabela MySQL `product_price_history` — przedziały `[valid_from, valid_to)` (DATETIME w UTC), osobno dla ceny bazowej produktu (`variant_key = ''`) i dla każdego wariantu (cena efektywna: wariant → produkt). `valid_to IS NULL` = cena bieżąca; unikalny indeks na kolumnie generowanej `open_marker` pilnuje jednej bieżącej ceny. Wierszy nie usuwamy.
 - **Zapis** (`src/lib/priceHistory.ts`, `syncProductPrices`): uzgadnia rejestr ze ŚWIEŻYM (bez CDN) opublikowanym dokumentem — idempotentnie, w transakcji READ COMMITTED + `FOR UPDATE`, z ponawianiem przy konflikcie. Wywołują go:
@@ -394,11 +412,56 @@ Sklep sam rejestruje historię cen i z niej wylicza „najniższą cenę z 30 dn
 - **Produkty liczy SERWER** i podaje do `ProductCarusel2` jako props (bez zapytań z przeglądarki). Błąd sekcji = sekcja znika, strona działa. Pusta karuzela się nie pokazuje. Szkice nigdy nie trafiają na stronę główną.
 - Panel: lista sekcji, edytor karuzeli, wybór produktów z wyszukiwarką, **podgląd na żywo** liczony tą samą funkcją co sklep (świeże dane, bez cache), ostrzeżenia (`sectionProblems`), zapis → `revalidatePath('/')`. `components/admin/marketing/HomeLayoutEditor.tsx`, `lib/admin/homeLayout.ts`, `actions/adminHome.ts`.
 
+## Kategorie główne, menu i filtry listingów
+
+- **Menu**: nazwa kategorii głównej (Zabawki, Przysmaki…) jest linkiem do `/category/[slug]`; w rozwijanym panelu pierwsza pozycja „Wszystko z kategorii →” (także na telefonie, gdzie dotknięcie nazwy rozwija listę). Animacja panelu trwa ~0,35 s (`variants` w `NavRMenu.tsx`, `globalDelay` 0,06 s). Zmiana trasy zamyka menu na telefonie.
+- **Strona kategorii** (`app/(products)/category/[slug]`): produkty z `category` ALBO z podkategorii, której rodzicem jest kategoria (`getProductsByCategory`), pigułki podkategorii, filtry = suma `availableFilters` podkategorii, sortowanie, opis SEO na dole. W mapie strony i okruszkach (subkategoria, produkt).
+- **Filtry** (`src/lib/listingFilters.ts`, wspólne dla kategorii, subkategorii i wyszukiwarki): adres `cena_od` / `cena_do` (całe zł, oba opcjonalne — „od 100 zł” bez górnej granicy; stary `price` = górna granica), opcje `<filter.key>=<slug>`. Cena = `effectivePrice` (z promocją). Produkty bez wariantów sprawdzane po `filterValues` i cenie produktu (wcześniej znikały przy każdym filtrze). Granice pól (podpowiedzi) = `listingPriceBounds` z całej listy — nie ma już stałego maks. 300 zł. UI: pigułka „Cena” rozwija się w pola „od – do” (`PricePill` w `SubcategoryFilterContainer`), w szufladzie na telefonie te same pola.
+- **Kolejność wartości filtrów**: `lib/filterValueOrder.ts` — rozmiary psa (mikro → mały → średni → duży) i XS…XXL rosnąco, reszta jak w danych (filtry i wybór rozmiaru na karcie produktu).
+- Dekoracyjny obrazek `white-holo.png` przy docku filtrów został usunięty (nakładał się na filtry).
+
+## Opisy: produkt i kategorie (SEO)
+
+- **Produkt**: `shortDescription` = krótki opis przy cenie (zakładka „Opis”, otwarta od razu); `description` (Portable Text) = pełny opis w sekcji `#opis` pod galerią, przed opiniami. W panelu oba pola (pełny opis — `components/admin/kit/RichTextEditor.tsx`, ten sam format co Studio; zapis `sanitizeRichText` z `lib/richText.ts`, tylko bloki tekstu i zdjęcia).
+- **Kategoria i subkategoria**: `description` (nagłówek na górze listingu), `seoContent` (długi tekst na DOLE strony, `components/ListingSeoContent.tsx`), `metaTitle`/`metaDescription`. Pola schematu: `sanity/schemaTypes/seoContent.ts`. Panel: Kategorie → „Opis i SEO” (`TaxonomySeoModal`, akcja `adminUpdateTaxonomySeo`).
+- `RichTextEditor` renderuje się dopiero po zamontowaniu (PTE przy SSR nadaje losowe klucze → błąd hydracji).
+
+## Zakup bez logowania
+
+- `/checkout` działa dla gości (`isGuest` → baner „Kupujesz bez logowania”, bez zapamiętywania karty i zapisu adresu). Właścicielem zamówienia gościa jest ciasteczko `guest_id` (`getOrCreateGuestId` w kasie), `orders.guest_email` = e-mail z formularza.
+- **Powrót z płatności i linki**: wszystko idzie na `/orders/[id]` — zalogowany → `/profile/orders/[id]`, gość → `/zamowienie/[id]` (dostęp: ta sama przeglądarka po `guest_id` ALBO podpisany link `?t=` — `lib/orderAccess.ts`, HMAC z `ORDER_LINK_SECRET`, zapasowo `CLERK_SECRET_KEY`; zmiana sekretu unieważnia linki). Strona gościa = ten sam `Content` co w profilu (`variant="guest"`) + link do zachowania i komunikat `?payment=`.
+- **Mail z potwierdzeniem zamówienia** (`lib/orderEmails.ts`, `after()` w kasie — nie opóźnia płatności): pozycje, kwoty, dostawa, link do zamówienia (gość — z tokenem). Błąd SMTP tylko w logu.
+- **Logowanie po zakupie**: `hydrateUserSession` przepina zamówienia z `guest_id` tej przeglądarki na konto (`claimGuestOrders`).
+
+## Koszyk: darmowa dostawa, płatności, stany
+
+- **Darmowa dostawa od kwoty**: dokument Sanity `shopSettings` (`freeShippingEnabled`, `freeShippingThreshold`), edycja w panelu: Dostawy → „Darmowa dostawa od kwoty”. Liczona od wartości produktów PRZED kodem rabatowym (`lib/shopSettings.ts`). Kasa czyta świeżo (`getShopSettings({ fresh: true })`) i zeruje dostawę; koszyk/mini koszyk/kasa w przeglądarce — `GET /api/shop-settings` (`useShopSettings`). Pasek „Brakuje X zł do darmowej dostawy” (`components/cart/FreeShippingProgress.tsx`) w koszyku i w okienku po dodaniu produktu. „Dostawa od” w koszyku = najtańsza aktywna metoda.
+- **„Akceptujemy”** (`components/cart/AcceptedPayments.tsx`): lista z `/api/autopay/gateways` (BLIK, szybki przelew z liczbą banków, karta, Google/Apple Pay, jeśli włączone) + „Za pobraniem”. Znaki metod: `components/payment/PaymentLogos.tsx` (wspólne z kasą).
+- **Stany** (`lib/stock.ts`): stan wariantu → stan produktu; brak liczby = nieprowadzony (dostępny). „Dodaj do koszyka” i +/− w koszyku nie przekraczają stanu, wyprzedany wariant = „Chwilowo niedostępny”, kafelek pokazuje etykietę, listingi spychają wyprzedane na koniec (`sortProducts`). Kasa sprawdza stan i ilości (1–99) na danych z Sanity. **Sklep nie zdejmuje stanu po sprzedaży** — stan ustawia się w panelu.
+- **Niski stan w panelu** = 1 sztuka albo brak (`LOW_STOCK_THRESHOLD = 2` w `lib/stock.ts`, licznik w sidebarze, filtr katalogu, dashboard).
+
+## Newsletter (double opt-in)
+
+1. Formularz → `subscribeToNewsletter`: zapis NIEAKTYWNY + mail „Potwierdź zapis” (szablon `newsletter_confirm`, wymagany `{{confirmUrl}}`). Ponowny mail najwcześniej po 2 min, limit 10 zapisów/h na IP (Redis).
+2. `/newsletter/potwierdz?token=` → przycisk „Potwierdzam zapis” (akcja, nie samo wejście w link — skanery poczty) → `confirmed_at`, aktywny, mail powitalny z kodem (`newsletter_welcome`, `{{unsubscribeUrl}}`). Link ważny 7 dni, jednorazowy.
+3. `/newsletter/wypisz?token=` (`unsub_token`) — wypisanie bez logowania.
+- Migracja **`drizzle/0003_newsletter_double_optin.sql`** (ręcznie na bazie, przed wdrożeniem kodu): kolumny `confirm_token`, `confirm_sent_at`, `confirmed_at`; dotychczasowi aktywni = potwierdzeni.
+- Panel Marketing: oba szablony, statystyki (aktywni / czekają / wypisani), eksport CSV aktywnych (do Brevo/MailerLite — panel nie wysyła kampanii). Ręcznie da się przywrócić tylko adres, który kiedyś potwierdził zapis.
+
+## Wyszukiwarka
+
+- Dopasowanie (`lib/search.ts`, czyste): nazwa, marka, kategoria, podkategoria, tagi, SKU, podtytuł, krótki i pełny opis; KAŻDE słowo frazy musi pasować; bez polskich znaków; prosta odmiana (rdzeń bez 1–2 ostatnich liter dla słów 5+). Ranking: nazwa > marka/kategorie/tagi/SKU > opisy, premia za frazę na początku nazwy.
+- Indeks (`lib/searchIndex.server.ts`): wszystkie produkty z tekstami, pamięć procesu 5 min + cache Next. Podpowiedzi: `GET /api/search?q=` (8 trafień, `searchProductsByName` w `clientRequest.ts`). Strona `/search`: `getProductsBySearch` (pełna projekcja dla trafień), domyślne sortowanie „Trafność” (`relevance` — tylko w wyszukiwarce, `SortSelect options`).
+
+## Rozmiary psa
+
+Rozmiary to wartości filtra w Sanity. `scripts/migrate-dog-sizes.mjs` (sucha próba; `--apply` zapisuje) zmienia etykietę filtra na „Rozmiar psa”, przemianowuje S/M/L (XS) na Mały/Średni/Duży (Mikro) z zachowaniem `_id` (warianty i zdjęcia działają dalej), dodaje brakujące wartości i poprawia etykiety wariantów. Import CSV rozumie stare oznaczenia (`SIZE_ALIASES` w `productImport.ts`). Przy wyborze rozmiaru na karcie produktu jest link „Jak dobrać rozmiar?” → `/help/jak-dobrac-rozmiar` (dokument w `HELP_DOCUMENTS`; treść do dodania w Studio).
+
 ## Sortowanie listingów
 
 Listy produktów (`/subcategory/[slug]`, `/search`, `/kolekcje/[slug]`) mają wspólny mechanizm sortowania sterowany parametrem `?sort=`.
 
-- **Opcje** (`src/lib/productSort.ts`, czyste, bez importów serwerowych): `popular` (domyślne), `price-asc`, `price-desc`, `discount`, `rating`, `newest`, `title`. `parseProductSort` przepuszcza tylko wartości z whitelisty, więc śmieci w adresie nie psują listy.
+- **Opcje** (`src/lib/productSort.ts`, czyste, bez importów serwerowych): `relevance` (tylko wyszukiwarka — kolejność trafności), `popular` (domyślne), `price-asc`, `price-desc`, `discount`, `rating`, `newest`, `title`. `parseProductSort` przepuszcza tylko wartości z whitelisty, więc śmieci w adresie nie psują listy.
 - **Kolejność liczy SERWER** — komponent tylko zmienia adres, dzięki czemu wynik da się zalinkować, odświeżyć i cofnąć. Sortowanie obejmuje całą listę (nie ma paginacji), więc kolejność jest pełna, a nie „per ekran”.
 - **Sygnały** (`src/lib/productListing.ts`, server-only) pobierane są TYLKO dla wybranego sortowania (`signalsNeeded`):
   - popularność = sprzedane sztuki z ostatnich 90 dni (`order_items` + `orders` w statusach `paid|processing|shipped|delivered`), jedno zapytanie dla całego sklepu, cache w Redisie `products:popularity:v1` (30 min),

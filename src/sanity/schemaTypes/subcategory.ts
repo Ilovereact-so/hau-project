@@ -1,4 +1,5 @@
 import { defineType, defineField } from "sanity";
+import { metaFields, seoContentField } from "./seoContent";
 
 export default defineType({
   name: "subcategory",
@@ -7,7 +8,9 @@ export default defineType({
   fields: [
     defineField({ name: "title", title: "Title", type: "string", validation: (Rule) => Rule.required() }),
     defineField({ name: "slug", title: "Slug", type: "slug", options: { source: "title" } }),
-    defineField({ name: 'description', type: 'text', title: 'Description' }),
+    defineField({ name: 'description', type: 'text', rows: 2, title: 'Opis (nagłówek listingu)', description: 'Krótkie zdanie wyświetlane dużą czcionką na górze strony subkategorii.' }),
+    seoContentField(),
+    ...metaFields(),
     defineField({ name: 'availableFilters', type: 'array', of: [{type: 'reference',to: [{ type: 'filter' }],},], title: 'Available filters' }),
 
     defineField({

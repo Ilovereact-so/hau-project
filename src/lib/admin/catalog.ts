@@ -3,6 +3,8 @@ import { randomUUID } from 'crypto'
 import { sanityClient } from '@/sanity/sanityClient.server'
 import { redis } from '@/lib/redis'
 import { LOW_STOCK_THRESHOLD, invalidateLowStockCounter } from '@/lib/admin/counters'
+import { normalizePromotionInput, type ProductPromotion } from '@/lib/promotion'
+import { hasRichText, sanitizeRichText } from '@/lib/richText'
 
 /*
  * Warstwa Sanity dla panelu admina.
@@ -74,6 +76,10 @@ export type AdminProduct = {
   isBestseller: boolean
   intro: string | null
   shortDescription: string | null
+  /** Długi opis (Portable Text) — sekcja „Opis produktu” pod galerią. */
+  description: unknown[] | null
+  /** Promocja (lib/promotion.ts) — osobno od ceny regularnej. */
+  promotion: ProductPromotion | null
   category: { id: string; title: string } | null
   subcategory: { id: string; title: string; slug: string | null } | null
   /** Identyfikatory kolekcji (bazowe `_id`, także szkiców) — nazwy dokleja widok z listy kolekcji. */
@@ -101,6 +107,8 @@ type RawProduct = {
   isBestseller?: boolean
   intro?: string
   shortDescription?: string
+  description?: unknown[] | null
+  promotion?: ProductPromotion | null
   category?: { _id: string; title?: string } | null
   subcategory?: { _id: string; title?: string; slug?: string } | null
   collectionIds?: Array<string | null> | null
@@ -113,7 +121,7 @@ type RawProduct = {
 
 const PRODUCT_PROJECTION = `{
   _id, _updatedAt, title, subtitle, sku, "slug": slug.current, brand,
-  price, compareAtPrice, stock, isFeatured, isBestseller, intro, shortDescription,
+  price, compareAtPrice, stock, isFeatured, isBestseller, intro, shortDescription, description, promotion,
   "category": category->{ _id, title },
   "subcategory": type->{ _id, title, "slug": slug.current },
   "collectionIds": collections[]._ref,
@@ -172,6 +180,8 @@ function toAdminProduct(doc: RawProduct, status: PublishState): AdminProduct {
     isBestseller: Boolean(doc.isBestseller),
     intro: doc.intro ?? null,
     shortDescription: doc.shortDescription ?? null,
+    description: Array.isArray(doc.description) ? doc.description : null,
+    promotion: doc.promotion ?? null,
     category: doc.category?._id ? { id: doc.category._id, title: doc.category.title || '—' } : null,
     subcategory: doc.subcategory?._id
       ? { id: doc.subcategory._id, title: doc.subcategory.title || '—', slug: doc.subcategory.slug ?? null }
@@ -367,6 +377,10 @@ export type ProductInput = {
   collectionIds?: string[]
   /** Nowe kolekcje po nazwie — powstaną jako szkic. `undefined` = bez zmian. */
   newCollectionNames?: string[]
+  /** Długi opis (Portable Text). `undefined` = bez zmian, pusta lista = usuń. */
+  description?: unknown[] | null
+  /** Promocja. `undefined` = bez zmian, `null` = usuń. */
+  promotion?: ProductPromotion | null
 }
 
 /** Gotowe referencje `product.collections` (liczone w akcji — patrz lib/admin/collections.ts). */
@@ -398,6 +412,8 @@ export function validateProductInput(input: ProductInput): ProductInput {
     intro: cleanText(input.intro, 1000),
     shortDescription: cleanText(input.shortDescription, 2000),
     price: Math.round(input.price * 100) / 100,
+    description: input.description === undefined ? undefined : sanitizeRichText(input.description, { images: true }).value,
+    promotion: input.promotion === undefined ? undefined : normalizePromotionInput(input.promotion),
     compareAtPrice:
       input.compareAtPrice === null || input.compareAtPrice === undefined
         ? null
@@ -439,6 +455,8 @@ export async function createProductDraft(input: ProductInput, collections?: Coll
   if (data.brand) doc.brand = data.brand
   if (data.intro) doc.intro = data.intro
   if (data.shortDescription) doc.shortDescription = data.shortDescription
+  if (data.description && hasRichText(data.description)) doc.description = data.description
+  if (data.promotion) doc.promotion = { _type: 'object', ...data.promotion }
   if (data.compareAtPrice) doc.compareAtPrice = data.compareAtPrice
   if (data.stock !== null && data.stock !== undefined) doc.stock = data.stock
   if (data.categoryId) doc.category = ref(data.categoryId)
@@ -477,6 +495,14 @@ export async function updateProduct(id: string, input: ProductInput, collections
   if (input.compareAtPrice !== undefined) {
     if (data.compareAtPrice) set.compareAtPrice = data.compareAtPrice
     else unset.push('compareAtPrice')
+  }
+  if (data.description !== undefined) {
+    if (data.description && hasRichText(data.description)) set.description = data.description
+    else unset.push('description')
+  }
+  if (data.promotion !== undefined) {
+    if (data.promotion) set.promotion = data.promotion
+    else unset.push('promotion')
   }
   if (data.categoryId) set.category = ref(data.categoryId)
   else unset.push('category')
@@ -613,20 +639,27 @@ export async function makeImagePrimary(id: string, imageKey: string) {
 
 // ─── kategorie ────────────────────────────────────────────────────────────────
 
-export type AdminCategory = {
+/** Pola opisu i SEO kategorii/subkategorii (edycja: Kategorie → „Opis i SEO”). */
+export type TaxonomySeo = {
+  description: string | null
+  metaTitle: string | null
+  metaDescription: string | null
+  /** Długi opis na dole strony (Portable Text). */
+  seoContent: unknown[] | null
+}
+
+export type AdminCategory = TaxonomySeo & {
   id: string
   title: string
   slug: string | null
-  description: string | null
   productCount: number
   subcategories: AdminSubcategory[]
 }
 
-export type AdminSubcategory = {
+export type AdminSubcategory = TaxonomySeo & {
   id: string
   title: string
   slug: string | null
-  description: string | null
   parentId: string | null
   imageUrl: string | null
   productCount: number
@@ -640,11 +673,11 @@ export async function listAdminCategories(): Promise<{ categories: AdminCategory
   }>(
     `{
       "categories": *[_type == "category"] | order(lower(title) asc) {
-        "id": _id, "title": coalesce(title, "(bez nazwy)"), "slug": slug.current, description,
-        "productCount": count(*[_type == "product" && category._ref == ^._id])
+        "id": _id, "title": coalesce(title, "(bez nazwy)"), "slug": slug.current, description, metaTitle, metaDescription, seoContent,
+        "productCount": count(*[_type == "product" && (category._ref == ^._id || type->parent._ref == ^._id)])
       },
       "subcategories": *[_type == "subcategory"] | order(lower(title) asc) {
-        "id": _id, "title": coalesce(title, "(bez nazwy)"), "slug": slug.current, description,
+        "id": _id, "title": coalesce(title, "(bez nazwy)"), "slug": slug.current, description, metaTitle, metaDescription, seoContent,
         "parentId": parent._ref,
         "imageUrl": imageWithAlt.asset->url,
         "productCount": count(*[_type == "product" && type._ref == ^._id]),
@@ -693,6 +726,28 @@ export async function renameTaxonomy(id: string, title: string) {
   const value = title.trim().slice(0, 120)
   if (!value) throw new Error('Nazwa nie może być pusta.')
   await patchAllVersions(id, { set: { title: value } })
+}
+
+/** Opis (nagłówek listingu), tytuł/opis do Google i długi opis SEO na dole strony. */
+export async function updateTaxonomySeo(id: string, input: Partial<TaxonomySeo>) {
+  const set: Record<string, unknown> = {}
+  const unset: string[] = []
+  const text = (field: keyof TaxonomySeo, value: string | null | undefined, max: number) => {
+    if (value === undefined) return
+    const clean = (value ?? '').trim().slice(0, max)
+    if (clean) set[field] = clean
+    else unset.push(field)
+  }
+  text('description', input.description as string | null | undefined, 500)
+  text('metaTitle', input.metaTitle as string | null | undefined, 120)
+  text('metaDescription', input.metaDescription as string | null | undefined, 300)
+  if (input.seoContent !== undefined) {
+    const { value } = sanitizeRichText(input.seoContent)
+    if (hasRichText(value)) set.seoContent = value
+    else unset.push('seoContent')
+  }
+  if (!Object.keys(set).length && !unset.length) return
+  await patchAllVersions(id, { set, unset })
 }
 
 export async function setSubcategoryImage(id: string, file: File, alt: string) {
@@ -901,4 +956,37 @@ export async function bulkProductAction(ids: string[], action: BulkProductAction
   await Promise.all(Array.from({ length: Math.min(BULK_CONCURRENCY, unique.length) }, worker))
   await invalidateCatalogCache()
   return result
+}
+
+// ─── ustawienia sklepu (Sanity `shopSettings`, próg darmowej dostawy) ────────
+
+export type AdminShopSettings = { freeShippingEnabled: boolean; freeShippingThreshold: number | null }
+
+export async function getAdminShopSettings(): Promise<AdminShopSettings> {
+  const doc = await raw.fetch<{ freeShippingEnabled?: boolean; freeShippingThreshold?: number } | null>(
+    `*[_id == "shopSettings"][0]{ freeShippingEnabled, freeShippingThreshold }`,
+  )
+  return {
+    freeShippingEnabled: Boolean(doc?.freeShippingEnabled),
+    freeShippingThreshold: typeof doc?.freeShippingThreshold === 'number' ? doc.freeShippingThreshold : null,
+  }
+}
+
+/** Zapis od razu w wersji opublikowanej — sklep i kasa czytają ją bez szkiców. */
+export async function saveShopSettings(input: AdminShopSettings) {
+  const threshold = input.freeShippingThreshold
+  if (input.freeShippingEnabled) {
+    if (threshold === null || !Number.isFinite(threshold) || threshold <= 0 || threshold > 100_000) {
+      throw new Error('Podaj próg darmowej dostawy (kwota większa od 0 zł).')
+    }
+  }
+  const value = threshold !== null && Number.isFinite(threshold) ? Math.round(threshold * 100) / 100 : null
+  await raw.createIfNotExists({ _id: 'shopSettings', _type: 'shopSettings' })
+  await raw
+    .patch('shopSettings')
+    .set({ freeShippingEnabled: Boolean(input.freeShippingEnabled), ...(value !== null ? { freeShippingThreshold: value } : {}) })
+    .unset(value === null ? ['freeShippingThreshold'] : [])
+    .commit()
+  // Szkic z Studio przykryłby wartość w Studio — usuwamy go.
+  await raw.delete('drafts.shopSettings').catch(() => undefined)
 }

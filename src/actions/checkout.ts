@@ -2,6 +2,8 @@
 
 import { auth } from '@clerk/nextjs/server'
 import { cookies, headers } from 'next/headers'
+import { after } from 'next/server'
+import { sendOrderConfirmation } from '@/lib/orderEmails'
 import { db } from '@/lib/db'
 import { orders, orderItems, shippingAddresses, paymentTransactions } from '@/db/schema'
 import { cartItems as cartItemsTable } from '@/db/schema'
@@ -22,6 +24,10 @@ import { client } from '@/sanity/lib/client'
 import { upsertSavedAddress } from '@/actions/address'
 import { fetchSanityPrices, resolveProductPrice } from '@/lib/cartPricing'
 import { DiscountError, redeemDiscount } from '@/lib/discountServer'
+import { getOrCreateGuestId } from '@/lib/cartServer'
+import { getShopSettings } from '@/lib/shopSettings.server'
+import { qualifiesForFreeShipping } from '@/lib/shopSettings'
+import { maxOrderQty } from '@/lib/stock'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL!
 
@@ -142,10 +148,11 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
   }
 
   // ── resolve user ──────────────────────────────────────────────────────────
+  // Zakup bez logowania: gość dostaje (albo ma już) ciasteczko `guest_id`
+  // i to ono jest właścicielem zamówienia — po nim gość wraca na stronę
+  // zamówienia (/zamowienie/[id]); działa też podpisany link z tokenem.
   const { userId } = await auth()
-  const cookieStore = await cookies()
-  const guestId     = cookieStore.get('guest_id')?.value
-  const ownerId     = userId ?? guestId
+  const ownerId     = userId ?? (await getOrCreateGuestId())
 
   if (!ownerId) return { ok: false, error: 'Sesja wygasła. Odśwież stronę.' }
 
@@ -160,14 +167,35 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
   }
 
   // ── validate shipping price from Sanity ──────────────────────────────────
-  const shippingCents = await fetchShippingPriceCents(input.shippingMethod)
+  let shippingCents = await fetchShippingPriceCents(input.shippingMethod)
   if (shippingCents === null) {
     return { ok: false, error: 'Wybrany sposób dostawy jest niedostępny' }
   }
 
+  // Ilości z przeglądarki: tylko liczby całkowite 1–99; ta sama pozycja
+  // w kilku liniach liczy się łącznie do stanu magazynu.
+  const qtyByLine = new Map<string, number>()
   for (const item of input.items) {
-    if (resolveProductPrice(sanityPrices.get(item.productId)!, item.variantId) === null) {
+    if (!Number.isInteger(item.qty) || item.qty < 1 || item.qty > 99) {
+      return { ok: false, error: `Nieprawidłowa ilość produktu "${item.name}"` }
+    }
+    const key = `${item.productId}::${item.variantId}`
+    qtyByLine.set(key, (qtyByLine.get(key) ?? 0) + item.qty)
+  }
+
+  for (const item of input.items) {
+    const product = sanityPrices.get(item.productId)!
+    if (resolveProductPrice(product, item.variantId) === null) {
       return { ok: false, error: `Produkt "${item.name}" jest chwilowo niedostępny` }
+    }
+    // Stan magazynu — sklep ma niskie stany, więc sprawdzamy go przy każdym
+    // zamówieniu (stan nieprowadzony = bez limitu).
+    const available = maxOrderQty(product, item.variantId || null)
+    if (available <= 0) {
+      return { ok: false, error: `Produkt "${item.name}" jest już niedostępny — usuń go z koszyka.` }
+    }
+    if ((qtyByLine.get(`${item.productId}::${item.variantId}`) ?? item.qty) > available) {
+      return { ok: false, error: `Produktu "${item.name}" mamy tylko ${available} szt. — zmniejsz ilość w koszyku.` }
     }
   }
 
@@ -180,6 +208,12 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
     subtotalCents   += priceCents * item.qty
     return { ...item, priceCents, name: product.title, brand: product.brand ?? '' }
   })
+
+  // ── darmowa dostawa od progu (panel → Dostawy) ───────────────────────────
+  // Liczona od wartości produktów przed kodem rabatowym — tak samo pokazuje
+  // ją koszyk. Świeży odczyt, bez cache.
+  const shopSettings = await getShopSettings({ fresh: true })
+  if (qualifiesForFreeShipping(shopSettings, subtotalCents)) shippingCents = 0
 
   // ── persist to DB ─────────────────────────────────────────────────────────
   const orderId   = crypto.randomUUID()
@@ -293,6 +327,8 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
   // ── initiate payment ──────────────────────────────────────────────────────
   // UWAGA: koszyk czyścimy dopiero po udanym starcie płatności. BLIK-0 potrafi
   // odrzucić transakcję (zły/wygasły kod) i klient musi mieć do czego wrócić.
+  // /orders/[id] sam kieruje zalogowanego do profilu, a gościa na stronę
+  // zamówienia gościa (ciasteczko guest_id + podpisany link).
   const urlReturn = `${APP_URL}/orders/${orderId}?payment=success`
   const urlStatus = `${APP_URL}/api/webhooks/${input.paymentMethod}`
 
@@ -305,6 +341,9 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
       redis.del(`cart:${ownerId}`),
       db.delete(cartItemsTable).where(eq(cartItemsTable.ownerId, ownerId)),
     ])
+    // Mail z potwierdzeniem (dla gościa — z linkiem do zamówienia). Po
+    // odpowiedzi, żeby nie opóźniać przejścia do płatności.
+    after(() => sendOrderConfirmation(orderId).catch((err) => console.error('[checkout] confirmation mail', err)))
   }
 
   return result
@@ -402,7 +441,7 @@ async function initiatePayment(
   }
 
   await db.update(orders).set({ status: 'processing' }).where(eq(orders.id, orderId))
-  return { ok: true, redirectUrl: `${APP_URL}/profile/orders/${orderId}?payment=cod` }
+  return { ok: true, redirectUrl: `${APP_URL}/orders/${orderId}?payment=cod` }
 }
 
 // ─── ponowna próba BLIK-0 dla istniejącego zamówienia ─────────────────────────

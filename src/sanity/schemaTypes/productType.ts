@@ -19,17 +19,58 @@ const productType = {
     { name: "sku", title: "SKU", type: "string", description: "Unikalny kod produktu — przy imporcie używany jako źródłowy identyfikator" },
     { name: "slug", title: "Slug", type: "slug", options: { source: "title", maxLength: 96 } },
 
-    { name: "shortDescription", title: "Short description", type: "text" },
-    { name: "description", title: "Description", type: "array", of: [{ type: "block" },{ type: 'image', options: { hotspot: true } }] },
+    {
+      name: "shortDescription",
+      title: "Krótki opis (przy cenie)",
+      type: "text",
+      rows: 4,
+      description: "2–4 zdania widoczne obok zdjęć, w zakładce „Opis”. Najważniejsze korzyści produktu.",
+    },
+    {
+      name: "description",
+      title: "Opis produktu (pełny, pod zdjęciami)",
+      type: "array",
+      description: "Długi opis — wyświetla się w sekcji „Opis produktu” pod galerią. Ważny dla pozycjonowania (SEO).",
+      of: [{ type: "block" },{ type: 'image', options: { hotspot: true } }],
+    },
 
     // Pricing
     {
       name: "price",
       title: "Price",
       type: "number",
-      description: "Cena sprzedaży brutto. Każda zmiana po publikacji trafia do historii cen — sklep sam wylicza najniższą cenę z 30 dni i obniżkę.",
+      description: "Regularna cena sprzedaży brutto. Zmiana ceny NIE jest promocją (brak przekreślenia) — obniżkę ustawia się w polu „Promocja”.",
     },
     { name: "currency", title: "Currency", type: "string", initialValue: "PLN" },
+    // Promocja — OSOBNO od ceny. Zmiana pola `price` to zwykła zmiana ceny
+    // (bez przekreślenia); przekreśloną cenę, procent i informację Omnibus
+    // sklep pokazuje WYŁĄCZNIE w czasie trwania promocji. Logika: src/lib/promotion.ts.
+    {
+      name: "promotion",
+      title: "Promocja",
+      type: "object",
+      options: { collapsible: true, collapsed: true },
+      description: "Obniżka na określony czas. Sklep sam pokaże przekreśloną cenę (najniższą z 30 dni przed promocją), procent i informację Omnibus.",
+      fields: [
+        { name: "enabled", title: "Promocja włączona", type: "boolean", initialValue: false },
+        {
+          name: "discountType",
+          title: "Rodzaj obniżki",
+          type: "string",
+          initialValue: "percent",
+          options: { list: [{ title: "Procent od ceny", value: "percent" }, { title: "Cena promocyjna (zł)", value: "price" }], layout: "radio" },
+        },
+        {
+          name: "value",
+          title: "Wartość",
+          type: "number",
+          description: "Procent (1–90) albo cena promocyjna w zł. Cena promocyjna obowiązuje warianty droższe od niej — tańsze zostają bez zmian.",
+          validation: (Rule: any) => Rule.min(0.01),
+        },
+        { name: "startsAt", title: "Początek (opcjonalnie)", type: "datetime", description: "Puste = od razu." },
+        { name: "endsAt", title: "Koniec (opcjonalnie)", type: "datetime", description: "Puste = do odwołania." },
+      ],
+    },
     // Wycofane: obniżkę i cenę sprzed obniżki (najniższą z 30 dni) sklep
     // wylicza sam z rejestru cen (src/lib/priceHistory.ts). Pole zostaje, żeby
     // nie gubić starych danych, ale jest tylko do odczytu i ukryte, gdy puste.
@@ -39,7 +80,7 @@ const productType = {
       type: "number",
       readOnly: true,
       hidden: ({ value }: { value?: number }) => value === undefined || value === null,
-      description: "Nieużywane. Obniżkę wpisz jako nową cenę — sklep sam pokaże najniższą cenę z 30 dni przed obniżką.",
+      description: "Nieużywane. Obniżkę ustaw w polu „Promocja”.",
     },
 
     // Stock / visibility

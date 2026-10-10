@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState, useTransition } from 'react'
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import toast from 'react-hot-toast'
 import { ExternalLink, Save } from 'lucide-react'
 import type { AdminProduct } from '@/lib/admin/catalog'
@@ -13,6 +13,8 @@ import { Toggle } from '../kit/Toggle'
 import { CollectionPicker, type CollectionChoice, type CollectionSelection } from './CollectionPicker'
 import { PriceHistoryPanel } from './PriceHistoryPanel'
 import { ProductImagesManager } from './ProductImagesManager'
+import { PromotionFields, promotionDraftFrom, promotionFromDraft, type PromotionDraft } from './PromotionFields'
+import { RichTextEditor, type RichTextEditorHandle } from '../kit/RichTextEditor'
 
 export type CategoryOptions = {
   categories: Array<{ id: string; title: string }>
@@ -28,8 +30,9 @@ const numberOrNull = (value: string) => {
 }
 
 /**
- * Dodawanie i edycja produktu w Sanity — najczęściej zmieniane pola.
- * Zdjęcia przypisuje się tu do wariantów. Opis, filtry i warianty zostają w Studio (link na dole okna).
+ * Dodawanie i edycja produktu w Sanity — najczęściej zmieniane pola,
+ * promocja i oba opisy (krótki przy cenie, pełny pod zdjęciami).
+ * Zdjęcia przypisuje się tu do wariantów. Filtry i warianty zostają w Studio (link na dole okna).
  */
 export function ProductModal({
   product,
@@ -55,6 +58,12 @@ export function ProductModal({
   const [shortDescription, setShortDescription] = useState(product?.shortDescription ?? '')
   const [isFeatured, setIsFeatured] = useState(product?.isFeatured ?? false)
   const [isBestseller, setIsBestseller] = useState(product?.isBestseller ?? false)
+  const [promotion, setPromotion] = useState<PromotionDraft>(() => promotionDraftFrom(product?.promotion))
+  const [promotionTouched, setPromotionTouched] = useState(false)
+  // Długi opis żyje w stanie edytora — czytamy go dopiero przy zapisie
+  // i wysyłamy tylko, gdy ktoś go ruszył (inaczej pole zostaje bez zmian).
+  const descriptionRef = useRef<RichTextEditorHandle>(null)
+  const [descriptionTouched, setDescriptionTouched] = useState(false)
   // Tylko kolekcje znane z listy — wisząca referencja (kolekcja usunięta w Studio)
   // nie może zablokować zapisu produktu; zniknie przy pierwszej zmianie kolekcji.
   const [collections, setCollections] = useState<CollectionSelection>(() => ({
@@ -111,6 +120,8 @@ export function ProductModal({
       subcategoryId: subcategoryId || null,
       isFeatured,
       isBestseller,
+      ...(promotionTouched ? { promotion: promotionFromDraft(promotion) } : {}),
+      ...(descriptionTouched ? { description: descriptionRef.current?.getValue() ?? [] } : {}),
       // Niezmienione kolekcje nie są wysyłane — zapis nie ruszy pola `collections`.
       ...(collectionsTouched || (isNew && (collections.ids.length || collections.newNames.length))
         ? { collectionIds: collections.ids, newCollectionNames: collections.newNames }
@@ -181,7 +192,7 @@ export function ProductModal({
               value={price}
               onChange={(e) => setPrice(e.target.value)}
               placeholder="np. 49,99"
-              hint="Obniżkę wystarczy wpisać jako nową cenę — sklep sam pokaże cenę sprzed obniżki."
+              hint="Cena regularna. Jej zmiana nie jest promocją — obniżkę ustaw w sekcji „Promocja”."
             />
             <TextField
               label="Stan (szt.)"
@@ -216,6 +227,17 @@ export function ProductModal({
               setCollectionsTouched(true)
             }}
           />
+          <PromotionFields
+            draft={promotion}
+            regularPrice={(() => {
+              const value = numberOrNull(price)
+              return value !== null && Number.isFinite(value) && value > 0 ? value : null
+            })()}
+            onChange={(next) => {
+              setPromotion(next)
+              setPromotionTouched(true)
+            }}
+          />
           {product && <PriceHistoryPanel product={product} />}
           <div className="flex flex-wrap gap-4 rounded-xs border border-border bg-surface-muted px-3 py-2.5">
             <label className="flex items-center gap-2 text-xs font-medium text-text-2">
@@ -231,7 +253,14 @@ export function ProductModal({
 
         <div className="flex flex-col gap-3">
           <TextAreaField label="Intro (listing)" rows={3} value={intro} onChange={(e) => setIntro(e.target.value)} maxLength={1000} />
-          <TextAreaField label="Krótki opis" rows={4} value={shortDescription} onChange={(e) => setShortDescription(e.target.value)} maxLength={2000} />
+          <TextAreaField
+            label="Krótki opis (przy cenie)"
+            rows={4}
+            value={shortDescription}
+            onChange={(e) => setShortDescription(e.target.value)}
+            maxLength={2000}
+            hint="2–4 zdania w zakładce „Opis” obok zdjęć — najważniejsze korzyści."
+          />
 
           {isNew && (
             <p className="m-0 rounded-xs border border-dashed border-border-strong bg-bg px-3 py-4 text-center text-xs leading-[1.6] text-text-2">
@@ -239,6 +268,16 @@ export function ProductModal({
             </p>
           )}
         </div>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs font-medium text-text-2">Opis produktu (pełny — pod zdjęciami, ważny dla SEO)</span>
+        <RichTextEditor
+          ref={descriptionRef}
+          initialValue={product?.description ?? null}
+          placeholder="Szczegółowy opis: zastosowanie, materiały, rozmiary, pielęgnacja… „## ” tworzy śródtytuł, „- ” listę."
+          onEdit={() => setDescriptionTouched(true)}
+        />
       </div>
 
       {product && (

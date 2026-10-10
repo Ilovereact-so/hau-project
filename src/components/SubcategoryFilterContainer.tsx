@@ -9,11 +9,17 @@ import { Filter, FilterValue } from './OptionWidthImageFromVariant'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { useClickOutside } from '@/hooks/useClickOutside'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
+import { LEGACY_PRICE_PARAM, PRICE_MAX_PARAM, PRICE_MIN_PARAM } from '@/lib/listingFilters'
+import { sortFilterValues } from '@/lib/filterValueOrder'
 
 type Props ={
     subcategoryDetails: SubcategoryWithCategory;
     products: GetSlugProduct[];
     paramsFilter: Record<string, string[]>
+    /** Zakres cen całej listy (całe złote) — podpowiedzi w polach „od/do”. */
+    priceBounds?: { min: number; max: number } | null
+    /** Przedział ceny z adresu (`cena_od` / `cena_do`). */
+    priceRange?: { min: number | null; max: number | null }
     // Podpowiedź z middleware (User-Agent) przekazana z page.tsx (server component,
     // ten sam mechanizm co initialMobile w NavbarContainer/NavRMenu) — bez tego
     // useMediaQuery zakładał desktop na pierwszym renderze niezależnie od
@@ -36,15 +42,14 @@ const priceFormatter = new Intl.NumberFormat("pl-PL", {
         minimumFractionDigits: 0,
 })
 
-const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter, initialMobile = false}:Props) => {
+const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter, priceBounds = null, priceRange = { min: null, max: null }, initialMobile = false}:Props) => {
     const mobileSize = useMediaQuery('(max-width: 768px)', initialMobile)
     const miniSize = useMediaQuery('(max-width: 470px)', initialMobile)
     const avaibleFilters = subcategoryDetails?.availableFilters
-    const maxPrice = 300
-    const minPrice = 0
     const comboAvailableFilters = avaibleFilters?.map(item => ({
     ...item,
-    filters: (
+    // Rozmiary (mikro → duży, XS → XXL) rosnąco, reszta w kolejności z danych.
+    filters: sortFilterValues((
         products?.flatMap(Pitem =>
         Pitem.filterValues?.filter(
             PFitem => PFitem.filter?._ref === item._id
@@ -66,15 +71,13 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
         _id: v._id,
         value: v.value ?? undefined,
         slug: v.slug ?? undefined,
-    }))
+    })), (v) => v.value)
     }))
     
     type hydrated ={
         parent_id : string;
         filters: FilterValue[]
     }
-    //const [isPriceFilter, setPriceFilter] = useState<number>(maxPrice)
-    const isPriceFilter = paramsFilter && paramsFilter['price'] ? Number(paramsFilter['price'][0]) : maxPrice 
 
     function hydrateSelectedValues(
         filtersFromUrl: Record<string, string[]> 
@@ -108,68 +111,24 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
     //console.log(hydrateSelectedValues(paramsFilter), "initialParmsFilter")
     //console.log(comboAvailableFilters)
     const [isOpenPrice, setOpenPrice] = useState<boolean>(false)
-    const sliderRef = useRef<HTMLInputElement>(null)
-    const sliderRefOut = useRef<HTMLInputElement>(null)
-    const sliderNumRefOut = useRef<HTMLInputElement>(null)
-    const sliderNumRef = useRef<HTMLInputElement>(null)
 
-    // Cena w drawerze (Portal, sliderRefOut/sliderNumRefOut) była czysto
-    // niekontrolowana — żyła tylko w DOM-refach, nigdy w React state. Dlatego
-    // przycisk "Zastosuj"/"Wybrano:"/kosz działały wyłącznie na podstawie
-    // isSelectedList (filtry enum) i kompletnie ignorowały cenę: zmiana samej
-    // ceny nie odblokowywała "Zastosuj" (mimo że kliknięcie i tak by ją
-    // zaaplikowało — przycisk był tylko WIZUALNIE disabled i pointer-events-none,
-    // więc user fizycznie nie mógł go kliknąć), kosz nie resetował suwaka, a
-    // podsumowanie "Wybrano:" nigdy jej nie pokazywało. priceValue to jedno
-    // źródło prawdy dla "czy cena odbiega od domyślnej (maxPrice)", zsynchronizowane
-    // z URL tym samym efektem co dotąd synchronizował same refy.
-    const [priceValue, setPriceValue] = useState<number>(isPriceFilter)
-    const isPriceDefault = priceValue === maxPrice
+    // Filtr ceny „od – do”: dwa pola tekstowe (puste = bez granicy), więc da
+    // się szukać np. „od 100 zł” bez górnego limitu. Szkic w stanie, adres
+    // (cena_od / cena_do) zmienia dopiero „Zastosuj” / ✓.
+    const appliedMin = priceRange.min
+    const appliedMax = priceRange.max
+    const [priceDraft, setPriceDraft] = useState<PriceDraft>(() => priceDraftFrom(appliedMin, appliedMax))
+    useEffect(() => {
+        setPriceDraft(priceDraftFrom(appliedMin, appliedMax))
+    }, [appliedMin, appliedMax])
+    const draftMin = parsePriceInput(priceDraft.min)
+    const draftMax = parsePriceInput(priceDraft.max)
+    const isPriceDefault = draftMin === null && draftMax === null
+    const priceChanged = draftMin !== appliedMin || draftMax !== appliedMax
+    const priceApplied = appliedMin !== null || appliedMax !== null
 
-    const resetPrice = () => {
-        setPriceValue(maxPrice)
-        if (sliderRefOut.current) sliderRefOut.current.value = String(maxPrice)
-        if (sliderNumRefOut.current) sliderNumRefOut.current.value = priceFormatter.format(maxPrice)
-    }
+    const resetPrice = () => setPriceDraft({ min: '', max: '' })
 
-    useEffect(()=>{
-        if( sliderRef.current && sliderRefOut.current && sliderNumRef.current && sliderNumRefOut.current){
-            sliderRef.current.value = isPriceFilter.toString()
-            sliderRefOut.current.value = isPriceFilter.toString()
-            sliderNumRef.current.value = priceFormatter.format(isPriceFilter)
-            sliderNumRefOut.current.value = priceFormatter.format(isPriceFilter)
-        }
-        setPriceValue(isPriceFilter)
-    }, [paramsFilter,isPriceFilter])
-
-    const handleChange = (ref:  React.RefObject<HTMLInputElement | null>, currentRef: React.RefObject<HTMLInputElement | null> , e: React.ChangeEvent<HTMLInputElement>)=>{
-        if(ref.current && currentRef.current){
-            if(ref.current.type === "text"){
-                ref.current.value = priceFormatter.format(priceValidate(Number(e.target.value)))
-            }else{
-            ref.current.value = String(priceValidate(Number(e.target.value)))
-            }
-            // if(String(priceValidate(Number(e.target.value))) != e.target.value){
-            //     currentRef.current.value = String(priceValidate(Number(e.target.value)))
-            // }
-        }
-    }
-    const priceValidate = (value:number)=>{
-        return value > maxPrice ? maxPrice : value < minPrice ? minPrice : value
-    }
-    
-    const format = (refNum : React.RefObject<HTMLInputElement | null>, ref : React.RefObject<HTMLInputElement | null>) => {
-        if (!refNum.current || !ref.current) return
-        refNum.current.value = priceFormatter.format(Number(ref.current.value))
-    }
-
-    const unformat = (refNum : React.RefObject<HTMLInputElement | null>, ref : React.RefObject<HTMLInputElement | null>) => {
-        if (!refNum.current || !ref.current) return
-        refNum.current.value = ref.current.value
-    }
-    const returnFormat = (value: number) => {
-        return priceFormatter.format(value)
-    }
     const hydrated = hydrateSelectedValues(paramsFilter)
     const [isSelectedList, setSelectList] = useState<FilterStateItem[]>(
     avaibleFilters?.map(items => {
@@ -186,7 +145,7 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
     // "Czy jest cokolwiek do zastosowania/wyczyszczenia" — filtry enum ALBO cena
     // odbiegająca od domyślnej. Jedno miejsce prawdy używane przez "Wybrano:",
     // "Zastosuj" i kosz w drawerze (Portal), zamiast każdy z nich osobno sprawdzał
-    // tylko isSelectedList i ignorował priceValue.
+    // tylko isSelectedList i ignorował cenę.
     const hasAnySelection = isSelectedList.some(item => item.selected.length > 0) || !isPriceDefault
     // Czy stan w panelu różni się od zastosowanego (z adresu). Bez tego „Zastosuj”
     // znikał po odznaczeniu OSTATNIEGO filtra: nic nie było zaznaczone, więc
@@ -197,7 +156,7 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
     const hasPendingChanges =
         selectionKey(hydrated.map(h => [h.parent_id, h.filters.map(f => f._id)])) !==
             selectionKey(isSelectedList.map(item => [item._id, item.selected.map(v => v._id)])) ||
-        priceValue !== isPriceFilter
+        priceChanged
     const canApply = hasAnySelection || hasPendingChanges
 
     const [isOpenMenu, setOpenMenu] = useState(false)
@@ -205,53 +164,41 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
     const searchParams = useSearchParams()
     const pathname = usePathname()
     
-    const handlePriceUrl = (value: number) => {
-        const params = new URLSearchParams(searchParams.toString())
-        params.delete("price")
-        if (value !== maxPrice) params.append("price", value.toString())
-        const url = `${pathname}${
-            params.toString() ? `?${params.toString()}` : ""
-        }`
+    const buildUrl = (params: URLSearchParams) => `${pathname}${params.toString() ? `?${params.toString()}` : ""}`
 
-        router.replace(url, { scroll: false })
+    const writePrice = (params: URLSearchParams, min: number | null, max: number | null) => {
+        params.delete(PRICE_MIN_PARAM)
+        params.delete(PRICE_MAX_PARAM)
+        params.delete(LEGACY_PRICE_PARAM)
+        // Odwrócone granice (od 100 do 50) — zamieniamy, zamiast dać pustą listę.
+        const [lo, hi] = min !== null && max !== null && min > max ? [max, min] : [min, max]
+        if (lo !== null) params.set(PRICE_MIN_PARAM, String(lo))
+        if (hi !== null) params.set(PRICE_MAX_PARAM, String(hi))
     }
 
-    // `price` był wcześniej odczytywany bezpośrednio z DOM-refa suwaka
-    // (RefObject<HTMLInputElement>) — mieszało to "co ma trafić do URL" z
-    // konkretnym, niekontrolowanym elementem DOM. Teraz cena jest w React state
-    // (priceValue, patrz wyżej), więc changeFilter przyjmuje zwykłą liczbę —
-    // można ją wywołać z dowolnego miejsca (drawer, w przyszłości np. pill
-    // desktopowy) bez przeplatania z konkretnym inputem. Gdy cena == maxPrice
-    // (domyślna), w ogóle nie dopisujemy jej do URL, żeby nie zaśmiecać go
-    // martwym "price=300".
-    const changeFilter = (list : FilterStateItem[], price?: number) => {
+    const applyPrice = () => {
         const params = new URLSearchParams(searchParams.toString())
-        if (price != null) {
-        params.delete("price")
-        if (price !== maxPrice) params.append("price", price.toString())
-        }
-        // usuń WSZYSTKIE stare filtry
+        writePrice(params, draftMin, draftMax)
+        router.replace(buildUrl(params), { scroll: false })
+        setOpenPrice(false)
+    }
+
+    // Adres buduje się z bieżących parametrów (pathname zamiast stałego
+    // /subcategory/${slug}) — komponent działa też na /category i /search,
+    // a zmiana filtrów nie gubi sortowania ani frazy.
+    const changeFilter = (list : FilterStateItem[], price?: { min: number | null; max: number | null }) => {
+        const params = new URLSearchParams(searchParams.toString())
+        if (price) writePrice(params, price.min, price.max)
         list?.forEach(filter => {
         params.delete(filter.key)
         })
-
-        // dodaj aktualne
         list?.forEach(filter => {
         filter.selected.forEach(value => {
             const slug = value.slug?.current
             if (slug) params.append(filter.key, slug)
         })
         })
-
-  // 3️⃣ składamy URL — pathname zamiast hardkodowanego /subcategory/${slug}:
-  // ten komponent renderuje się teraz też na /search (wyniki wyszukiwania),
-  // więc URL filtrów musi podążać za bieżącą trasą, a nie zakładać z góry
-  // że zawsze jesteśmy na /subcategory/[slug].
-        const url = `${pathname}${
-            params.toString() ? `?${params.toString()}` : ""
-        }`
-
-        router.replace(url, { scroll: false })
+        router.replace(buildUrl(params), { scroll: false })
     }
     const containerRef = useRef<HTMLDivElement>(null)
     const widthsRef = useRef(new Map<string, number>());
@@ -298,13 +245,6 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
     
     
 
-    const handleChangePrice = (ref:  React.RefObject<HTMLInputElement | null>)=>{
-        if(ref.current){
-            const value = Number(ref.current.value)
-            handlePriceUrl(value)
-        }
-        setOpenPrice(false)
-    }
     const handleContainerClick = (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
         if (e.target == e.currentTarget) {
             setOpenMenu(false);
@@ -348,50 +288,9 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
                                            
                             <div className='flex flex-col items-stretch filterOutscroll overflow-auto'>
                                 {/**Price */}
-                                <div className='flex justify-between md:my-3 py-2 px-2'>
+                                <div className='flex flex-col md:my-3 py-2 px-2 space-y-2'>
                                     <h1 className='text-[clamp(12px,2vw,16px)] text-black'>Cena:</h1>
-                                    <div className="flex space-x-2 justify-center items-center ">
-                                    <input
-                                    ref={sliderRefOut}
-                                    onChange={(e) => {
-                                        handleChange(sliderNumRefOut, sliderRefOut, e)
-                                        setPriceValue(priceValidate(Number(e.target.value)))
-                                    }}
-                                    className="slider"
-                                    type="range"
-                                    defaultValue={isPriceFilter}
-                                    max={maxPrice}
-                                    min={minPrice}
-                                    />
-
-                                    <input
-                                    ref={sliderNumRefOut}
-                                    type="text"
-                                    onFocus={()=>unformat(sliderNumRefOut, sliderRefOut)}
-                                    onBlur={()=>format(sliderNumRefOut, sliderRefOut)}
-                                    onChange={(e) => {
-                                        handleChange(sliderRefOut, sliderNumRefOut, e)
-                                        setPriceValue(priceValidate(Number(e.target.value)))
-                                    }}
-                                    defaultValue={priceFormatter.format(isPriceFilter)}
-                                    max={maxPrice}
-                                    className="
-                                        slider-num
-                                        w-[6ch]
-                                        text-center
-                                        text-[clamp(12px,2vw,16px)]
-                                        text-black
-                                        focus:outline-none
-                                        focus:ring-0
-                                        bg-[#E1E1E1]
-                                        rounded-[10px]
-                                        disabled:cursor-not-allowed
-                                        [appearance:textfield]
-                                        [&::-webkit-outer-spin-button]:appearance-none
-                                        [&::-webkit-inner-spin-button]:appearance-none
-                                    "
-                                    />
-                                    </div>
+                                    <PriceRangeInputs draft={priceDraft} onChange={setPriceDraft} bounds={priceBounds} />
                                 </div>
                                 {comboAvailableFilters && comboAvailableFilters.map((item,i)=>(
                                     <div key={i} className='w-full flex flex-col'>
@@ -429,7 +328,7 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
                             </div>
                         </div>
                         <div className='flex flex-col mt-2'>
-                            {/* hasAnySelection = filtry enum ALBO cena różna od maxPrice (domyślnej).
+                            {/* hasAnySelection = filtry enum ALBO wpisany przedział ceny.
                                 Wcześniej to wszystko (rozwinięcie boksu, nagłówek "Wybrano:", odblokowanie
                                 "Zastosuj", odblokowanie kosza) patrzyło wyłącznie na isSelectedList — cena
                                 była całkowicie niewidoczna dla tego stanu. Efekt: zmiana samej ceny nie
@@ -453,7 +352,7 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
                                                 <div>
                                                     <h1 className='ml-3 md:mt-3 mt-1 px-7'>Cena:</h1>
                                                     <div className='pr-6 group pl-16 md:py-[6px] py-1 flex items-center justify-between hover:bg-[#121212] text-main bg-transparent ease-in-out duration-300'>
-                                                        <p>do {priceFormatter.format(priceValue)}</p>
+                                                        <p>{formatPriceRange(draftMin, draftMax)}</p>
                                                         <X onClick={resetPrice} className='text-red-900/80 mr-2 group-hover:opacity-100 opacity-0 w-[20px] h-[20px] cursor-pointer ease-in-out duration-300'></X>
                                                     </div>
                                                 </div>
@@ -490,7 +389,7 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
                                 </div>
                                 <hr className='mx-4 my-2'/>
                                 <div className='w-full flex justify-start space-x-5 px-5 items-center shrink-0 '>
-                                    <div onClick={()=>{changeFilter(isSelectedList, priceValue);setOpenMenu(false)}} className={`bg-black rounded-full cursor-pointer px-6 py-2 w-fit text-white font-medium text-[clamp(13px,1.4vw,15px)] ${
+                                    <div onClick={()=>{changeFilter(isSelectedList, { min: draftMin, max: draftMax });setOpenMenu(false)}} className={`bg-black rounded-full cursor-pointer px-6 py-2 w-fit text-white font-medium text-[clamp(13px,1.4vw,15px)] ${
                                         canApply ? "bg-black text-white cursor-pointer":"bg-[#00000031] text-white/50 cursor-not-allowed pointer-events-none"
                                     }`}>Zastosuj</div>
                                     <Trash
@@ -516,87 +415,17 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
             }
             </AnimatePresence>
             {!mobileSize &&
-                <motion.div
-                    initial={{ minWidth: "90px" }}
-                    animate={{ minWidth: isOpenPrice ? "250px" : "90px" }}
-                    transition={{ duration: 0.3, ease: "easeInOut" }}
-                    onClick={()=> !isOpenPrice && setOpenPrice(true)} 
-                    className={`py-2 flex md:mb-2 relative items-center justify-center text-[clamp(15px,1.4vw,17px)] font-medium rounded-[20px] overflow-hidden ease-in-out duration-300 ${ 
-                        isOpenPrice ? " px-4 bg-main text-black border-white border-1 ":" px-6 text-white border-black border-1 bg-black cursor-pointer "
-                    }
-                    `}>
-                    {isOpenPrice ? (
-                        <div className="flex absolute left-[50%] translate-x-[-50%] top-[50%] translate-y-[-50%] space-x-2 justify-center items-center w-[235px]">
-                            <input
-                            ref={sliderRef}
-                            onChange={(e) =>
-                                handleChange(sliderNumRef, sliderRef, e)
-                            }
-                            className="slider"
-                            type="range"
-                            defaultValue={isPriceFilter}
-                            max={maxPrice}
-                            min={minPrice}
-                            />
-
-                            {/* isOpenPrice && ref: te dwa inputy renderują się tylko wewnątrz
-                                {isOpenPrice ? (...) : ...} wyżej, więc warunek zawsze był prawdziwy
-                                tutaj — a `ref` prop nie przyjmuje boolean|RefObject (tylko
-                                Ref<T>|undefined), więc `isOpenPrice && sliderRef` ewaluujące się do
-                                `false` było błędem typu. Przekazujemy ref bezpośrednio. */}
-                            <input
-                            ref={sliderNumRef}
-                            type="text"
-                            onFocus={() => unformat(sliderNumRef, sliderRef)}
-                            onBlur={() => format(sliderNumRef, sliderRef)}
-                            onChange={(e) =>
-                                handleChange(sliderRef, sliderNumRef, e)
-                            }
-                            defaultValue={returnFormat(isPriceFilter)}
-                            max={maxPrice}
-                            className="
-                                slider-num
-                                w-[6ch]
-                                text-center
-                                text-[16px]
-                                focus:outline-none
-                                focus:ring-0
-                                disabled:cursor-not-allowed
-                                [appearance:textfield]
-                                [&::-webkit-outer-spin-button]:appearance-none
-                                [&::-webkit-inner-spin-button]:appearance-none
-                            "
-                            />
-
-                            <div
-                            onClick={() => isOpenPrice && handleChangePrice(sliderRef)}
-                            className="
-                                p-1
-                                rounded-full
-                                hover:scale-90
-                                cursor-pointer
-                                bg-[#9898984d]
-                                ease-in-out
-                                duration-100
-                            "
-                            >
-                            <Check className="w-[18px] h-[18px]" />
-                            </div>
-                        </div>
-                        ) : (
-                        <p
-                            onClick={() => setOpenPrice(true)}
-                            className="
-                            w-[50px]
-                            text-center
-                            cursor-pointer
-                            select-none
-                            "
-                        >
-                            Cena
-                        </p>
-                    )}                        
-                </motion.div>   
+                <PricePill
+                    open={isOpenPrice}
+                    onOpen={() => setOpenPrice(true)}
+                    onClose={() => { setOpenPrice(false); setPriceDraft(priceDraftFrom(appliedMin, appliedMax)) }}
+                    onApply={applyPrice}
+                    draft={priceDraft}
+                    onChange={setPriceDraft}
+                    bounds={priceBounds}
+                    label={priceApplied ? formatPriceRange(appliedMin, appliedMax, true) : 'Cena'}
+                    active={priceApplied}
+                />
             }
             {/* Rząd "pill" filtrów + system pomiaru szerokości (ready/visibleCount/
                 MeasureItem) to wyłącznie desktopowy skrót — mobile ma pełny panel
@@ -646,7 +475,7 @@ type filterCardProps = {
     item: Filter & {filters: FilterValue[]},
     setSelectList: React.Dispatch<React.SetStateAction<FilterStateItem[]>>,
     isSelectedList: FilterStateItem[],
-    changeFilter: (list: FilterStateItem[], price?: number) => void,
+    changeFilter: (list: FilterStateItem[], price?: { min: number | null; max: number | null }) => void,
 }
 
 const FilterCard = ({item, setSelectList, isSelectedList, changeFilter}: filterCardProps)=>{
@@ -742,6 +571,142 @@ function MeasureItem({ id, onMeasure, children }: MeasureItemProps) {
       {children}
     </div>
   );
+}
+
+type PriceDraft = { min: string; max: string }
+
+const priceDraftFrom = (min: number | null, max: number | null): PriceDraft => ({
+    min: min === null ? '' : String(min).replace('.', ','),
+    max: max === null ? '' : String(max).replace('.', ','),
+})
+
+/** Pole „od/do” → liczba (zł) albo `null` (puste / niepoprawne = bez granicy). */
+function parsePriceInput(value: string): number | null {
+    const text = value.trim().replace(/\s|zł/gi, '').replace(',', '.')
+    if (!text) return null
+    const number = Number(text)
+    return Number.isFinite(number) && number >= 0 ? Math.round(number * 100) / 100 : null
+}
+
+function formatPriceRange(min: number | null, max: number | null, short = false): string {
+    const fmt = (value: number) => priceFormatter.format(value)
+    if (min !== null && max !== null) return short ? `Cena: ${min}–${max} zł` : `od ${fmt(min)} do ${fmt(max)}`
+    if (min !== null) return short ? `Cena: od ${min} zł` : `od ${fmt(min)}`
+    if (max !== null) return short ? `Cena: do ${max} zł` : `do ${fmt(max)}`
+    return 'Cena'
+}
+
+/** Dwa pola „od – do”. Podpowiedzi = najniższa i najwyższa cena na liście. */
+function PriceRangeInputs({
+    draft,
+    onChange,
+    bounds,
+    compact = false,
+    onEnter,
+}: {
+    draft: PriceDraft
+    onChange: (next: PriceDraft) => void
+    bounds: { min: number; max: number } | null
+    compact?: boolean
+    onEnter?: () => void
+}) {
+    const inputClass = `w-full min-w-0 text-center text-black rounded-[10px] focus:outline-none focus:ring-2 focus:ring-black/20 placeholder:text-[#8E8E8E] ${
+        compact ? 'bg-white/80 text-[15px] py-[3px] px-1' : 'bg-[#E1E1E1] text-[clamp(13px,2vw,16px)] py-2 px-2'
+    }`
+    const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+        if (event.key === 'Enter') {
+            event.preventDefault()
+            onEnter?.()
+        }
+    }
+    return (
+        <div className={`flex items-center ${compact ? 'gap-1.5' : 'gap-2'}`}>
+            <label className='flex items-center gap-1 flex-1 min-w-0'>
+                <span className={`text-black ${compact ? 'text-[14px]' : 'text-[clamp(12px,2vw,15px)]'}`}>od</span>
+                <input
+                    type='text'
+                    inputMode='decimal'
+                    aria-label='Cena od (zł)'
+                    value={draft.min}
+                    onChange={(e) => onChange({ ...draft, min: e.target.value })}
+                    onKeyDown={onKeyDown}
+                    placeholder={bounds ? String(bounds.min) : '0'}
+                    className={inputClass}
+                />
+            </label>
+            <span className='text-black'>–</span>
+            <label className='flex items-center gap-1 flex-1 min-w-0'>
+                <span className={`text-black ${compact ? 'text-[14px]' : 'text-[clamp(12px,2vw,15px)]'}`}>do</span>
+                <input
+                    type='text'
+                    inputMode='decimal'
+                    aria-label='Cena do (zł)'
+                    value={draft.max}
+                    onChange={(e) => onChange({ ...draft, max: e.target.value })}
+                    onKeyDown={onKeyDown}
+                    placeholder={bounds ? String(bounds.max) : ''}
+                    className={inputClass}
+                />
+            </label>
+            <span className={`text-black ${compact ? 'text-[14px]' : 'text-[clamp(12px,2vw,15px)]'}`}>zł</span>
+        </div>
+    )
+}
+
+/** Pigułka „Cena” w docku filtrów (desktop): rozwija się w pola „od – do”. */
+function PricePill({
+    open,
+    onOpen,
+    onClose,
+    onApply,
+    draft,
+    onChange,
+    bounds,
+    label,
+    active,
+}: {
+    open: boolean
+    onOpen: () => void
+    onClose: () => void
+    onApply: () => void
+    draft: PriceDraft
+    onChange: (next: PriceDraft) => void
+    bounds: { min: number; max: number } | null
+    label: string
+    active: boolean
+}) {
+    const ref = useRef<HTMLDivElement>(null)
+    useClickOutside(ref, () => open && onClose())
+    return (
+        <motion.div
+            ref={ref}
+            initial={false}
+            animate={{ width: open ? 300 : 'auto' }}
+            transition={{ duration: 0.2, ease: 'easeInOut' }}
+            onClick={() => !open && onOpen()}
+            className={`py-2 flex md:mb-2 relative items-center justify-center text-[clamp(15px,1.4vw,17px)] font-medium rounded-[20px] overflow-hidden whitespace-nowrap ${
+                open ? 'px-3 bg-main text-black border-white border-1' : active ? 'px-6 bg-main text-black border-1 border-main cursor-pointer' : 'px-6 text-white border-black border-1 bg-black cursor-pointer'
+            }`}
+        >
+            {open ? (
+                <div className='flex items-center gap-2 w-full'>
+                    <div className='flex-1 min-w-0'>
+                        <PriceRangeInputs draft={draft} onChange={onChange} bounds={bounds} compact onEnter={onApply} />
+                    </div>
+                    <button
+                        type='button'
+                        aria-label='Zastosuj cenę'
+                        onClick={(e) => { e.stopPropagation(); onApply() }}
+                        className='p-1 rounded-full hover:scale-90 cursor-pointer bg-[#9898984d] ease-in-out duration-100 shrink-0'
+                    >
+                        <Check className='w-[18px] h-[18px]' />
+                    </button>
+                </div>
+            ) : (
+                <p className='text-center select-none'>{label}</p>
+            )}
+        </motion.div>
+    )
 }
 
 export default SubcategoryFilterContainer

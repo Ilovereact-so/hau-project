@@ -6,7 +6,8 @@ import { orderItems, orders } from '@/db/schema'
 import { getReviewSummaries } from '@/lib/reviews'
 import { getOmnibusForProducts } from '@/lib/priceHistory'
 import { REVIEW_SUMMARY_BATCH_MAX } from '@/lib/reviewsShared'
-import { isValidProductId, tilePriceKey } from '@/lib/omnibus'
+import { effectivePrice, isValidProductId, resolveOmnibus, tilePriceKey } from '@/lib/omnibus'
+import { isPromotionActive } from '@/lib/promotion'
 import {
   signalsNeeded,
   sortProducts,
@@ -85,15 +86,24 @@ export async function getRatings(productIds: string[]): Promise<Map<string, { av
   return result
 }
 
-/** Procent obniżki (z rejestru cen) dla ceny widocznej na kafelku. */
+/**
+ * Procent obniżki dla ceny widocznej na kafelku — liczony tak samo jak na
+ * kafelku (`resolveOmnibus`), więc tylko produkty z AKTYWNĄ promocją mają
+ * obniżkę (zwykła zmiana ceny nie jest promocją).
+ */
 export async function getDiscounts(products: SortableProduct[]): Promise<Map<string, number>> {
   const result = new Map<string, number>()
-  const ids = products.map((product) => product._id).filter(isValidProductId)
-  if (!ids.length) return result
-  const omnibus = await getOmnibusForProducts(ids)
-  for (const product of products) {
+  const now = new Date()
+  const promoted = products.filter(
+    (product) => isValidProductId(product._id) && isPromotionActive(product.promotion, now),
+  )
+  if (!promoted.length) return result
+  const omnibus = await getOmnibusForProducts(promoted.map((product) => product._id))
+  for (const product of promoted) {
     const key = product.defaultVariant || tilePriceKey(product)
-    const info = omnibus[product._id]?.[key] ?? omnibus[product._id]?.['']
+    const price = effectivePrice(product, key, now)
+    if (price === null) continue
+    const info = resolveOmnibus(omnibus[product._id] ?? null, key, price, true, now)
     if (info?.promo) result.set(product._id, info.promo.percent)
   }
   return result

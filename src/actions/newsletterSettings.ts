@@ -3,8 +3,10 @@
 
 import { auth } from '@clerk/nextjs/server'
 import {
+  NEWSLETTER_CONFIRM_KEY,
   NEWSLETTER_WELCOME_KEY,
   getEmailTemplate,
+  isEmailTemplateKey,
   setEmailTemplate,
   type EmailTemplate,
 } from '@/lib/emailTemplates'
@@ -36,11 +38,14 @@ export async function getNewsletterWelcomeTemplate(): Promise<{
   return getEmailTemplate(NEWSLETTER_WELCOME_KEY)
 }
 
-export async function updateNewsletterWelcomeTemplate(
+/** Zapis szablonu maila newslettera (powitalny z kodem albo prośba o potwierdzenie). */
+export async function updateNewsletterTemplate(
+  key: string,
   template: EmailTemplate
 ): Promise<NewsletterSettingsResult> {
   const denied = await requireAdmin()
   if (denied) return { ok: false, error: denied }
+  if (!isEmailTemplateKey(key)) return { ok: false, error: 'Nieznany szablon.' }
 
   const subject = (template?.subject ?? '').trim()
   const html = (template?.html ?? '').trim()
@@ -49,8 +54,17 @@ export async function updateNewsletterWelcomeTemplate(
   if (subject.length > MAX_SUBJECT) return { ok: false, error: `Temat może mieć max ${MAX_SUBJECT} znaków.` }
   if (!html)     return { ok: false, error: 'Treść maila (HTML) nie może być pusta.' }
   if (html.length > MAX_HTML) return { ok: false, error: `Treść może mieć max ${MAX_HTML} znaków.` }
+  // Bez linku potwierdzającego double opt-in nie zadziała.
+  if (key === NEWSLETTER_CONFIRM_KEY && !html.includes('{{confirmUrl}}')) {
+    return { ok: false, error: 'Mail z potwierdzeniem musi zawierać {{confirmUrl}} — bez tego linku nie da się potwierdzić zapisu.' }
+  }
 
-  await setEmailTemplate(NEWSLETTER_WELCOME_KEY, { subject, html })
+  await setEmailTemplate(key, { subject, html })
 
   return { ok: true }
+}
+
+/** @deprecated Zostawione dla zgodności — używaj `updateNewsletterTemplate`. */
+export async function updateNewsletterWelcomeTemplate(template: EmailTemplate): Promise<NewsletterSettingsResult> {
+  return updateNewsletterTemplate(NEWSLETTER_WELCOME_KEY, template)
 }

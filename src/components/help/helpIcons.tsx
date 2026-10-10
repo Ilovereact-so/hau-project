@@ -1,4 +1,4 @@
-import { Cookie, CreditCard, FileText, RotateCcw, ScrollText, ShieldCheck, Truck, type LucideIcon } from 'lucide-react'
+import { Cookie, CreditCard, FileText, RotateCcw, Ruler, ScrollText, ShieldCheck, Truck, type LucideIcon } from 'lucide-react'
 
 /**
  * Ikona dokumentu Centrum pomocy — po slugu, żeby kafelek na /help, sidebar
@@ -12,6 +12,7 @@ const ICONS: Record<string, LucideIcon> = {
     'zwroty-i-reklamacje': RotateCcw,
     dostawa: Truck,
     'formy-platnosci': CreditCard,
+    'jak-dobrac-rozmiar': Ruler,
 }
 
 export function helpIcon(slug: string): LucideIcon {

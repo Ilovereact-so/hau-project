@@ -6,6 +6,7 @@ import {
   orders, orderItems, shippingAddresses, paymentTransactions, shipments,
 } from '@/db/schema'
 import { eq, desc, and } from 'drizzle-orm'
+import { resolveOrderAccess } from '@/lib/orderAccess'
 
 // ─── customer queries ─────────────────────────────────────────────────────────
 
@@ -32,11 +33,19 @@ export async function getMyOrders() {
 export async function getOrderDetail(orderId: string) {
   const { userId } = await auth()
   if (!userId) return null
+  return loadOrderDetail(orderId, userId)
+}
 
+/**
+ * Szczegóły zamówienia dla właściciela `ownerId` (userId konta albo
+ * `guest_…`). NIE sprawdza sesji — wołający musi rozstrzygnąć dostęp
+ * (profil: zalogowany user; strona gościa: lib/orderAccess.ts).
+ */
+async function loadOrderDetail(orderId: string, ownerId: string) {
   const [order] = await db
     .select()
     .from(orders)
-    .where(and(eq(orders.id, orderId), eq(orders.userId, userId)))
+    .where(and(eq(orders.id, orderId), eq(orders.userId, ownerId)))
 
   if (!order) return null
 
@@ -59,6 +68,13 @@ export async function getOrderDetail(orderId: string) {
     payment:  payment[0] ?? null,
     shipment: shipment[0] ?? null,
   }
+}
+
+/** Zamówienie gościa — dostęp sprawdzony wcześniej przez `resolveOrderAccess`. */
+export async function getGuestOrderDetail(orderId: string, token?: string | null) {
+  const { access, ownerId } = await resolveOrderAccess(orderId, token)
+  if (!access || !ownerId) return null
+  return loadOrderDetail(orderId, ownerId)
 }
 
 // Akcje panelu admina (przesyłki, zmiana statusu, lista) mieszkają w

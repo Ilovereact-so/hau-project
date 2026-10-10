@@ -19,12 +19,17 @@
  *  - Obniżki stopniowe (100 → 90 → 80) liczymy ostrożnie: każda cena
  *    względem 30 dni przed JEJ wprowadzeniem (dla 80 odniesieniem jest 90).
  *    Nigdy nie zawyża to procentu obniżki.
- *  - BEZ OBNIŻKI pokazujemy informacyjnie najniższą cenę z ostatnich
- *    30 dni (okno kroczące, łącznie z ceną bieżącą).
+ *  - BEZ OBNIŻKI wyliczamy najniższą cenę z ostatnich 30 dni (okno
+ *    kroczące, łącznie z ceną bieżącą) — sklep jej nie wyświetla.
+ *  - Sklep POKAZUJE obniżkę tylko w czasie aktywnej promocji
+ *    (lib/promotion.ts, `resolveOmnibus`) — zwykła zmiana ceny nie jest
+ *    ogłaszaną obniżką.
  *  - Procent obniżki zaokrągla się w dół (19,6% → 19%).
  *  - Produkt bez historii sprzed bieżącej ceny (nowy w sklepie) nie ma
  *    obniżki, a najniższa cena to cena bieżąca.
  */
+
+import { applyPromotion, type ProductPromotion } from './promotion'
 
 export const OMNIBUS_WINDOW_DAYS = 30
 export const OMNIBUS_WINDOW_MS = OMNIBUS_WINDOW_DAYS * 24 * 60 * 60 * 1000
@@ -81,13 +86,16 @@ export function isValidPriceKey(key: unknown): key is string {
 type PricedProduct = {
   price?: number | null
   variants?: Array<{ _key?: string | null; price?: number | null } | null> | null
+  /** Promocja produktu (lib/promotion.ts) — brak pola = cena regularna. */
+  promotion?: ProductPromotion | null
 }
 
 /**
- * Cena, którą klient faktycznie zapłaci za wariant — tak samo liczą ją
- * koszyk i checkout: cena wariantu, a gdy jej brak — cena produktu.
+ * Cena REGULARNA wariantu (bez promocji): cena wariantu, a gdy jej brak —
+ * cena produktu. Panel pokazuje ją jako „cena”; sklep — tylko przez
+ * `effectivePrice`.
  */
-export function effectivePrice(product: PricedProduct | null | undefined, variantKey?: string | null): number | null {
+export function regularPrice(product: PricedProduct | null | undefined, variantKey?: string | null): number | null {
   if (!product) return null
   if (variantKey) {
     const variant = product.variants?.find((v) => v?._key === variantKey)
@@ -97,16 +105,33 @@ export function effectivePrice(product: PricedProduct | null | undefined, varian
 }
 
 /**
- * Wszystkie ceny sprzedażowe produktu, które rejestrujemy:
- * cena bazowa (klucz pusty) + efektywna cena każdego wariantu.
+ * Cena, którą klient faktycznie zapłaci za wariant — tak samo liczą ją
+ * koszyk, kasa, kafelki, sortowanie i rejestr cen: cena regularna
+ * (wariant → produkt) z nałożoną aktywną promocją.
  */
-export function priceKeysOf(product: PricedProduct): Map<string, number> {
+export function effectivePrice(
+  product: PricedProduct | null | undefined,
+  variantKey?: string | null,
+  now: Date = new Date(),
+): number | null {
+  const regular = regularPrice(product, variantKey)
+  if (regular === null) return null
+  return applyPromotion(regular, product?.promotion, now)
+}
+
+/**
+ * Wszystkie ceny sprzedażowe produktu, które rejestrujemy: cena bazowa
+ * (klucz pusty) + efektywna cena każdego wariantu — Z aktywną promocją,
+ * bo rejestr zapisuje ceny, które klient faktycznie płacił.
+ */
+export function priceKeysOf(product: PricedProduct, now: Date = new Date()): Map<string, number> {
   const result = new Map<string, number>()
-  if (isValidPrice(product.price)) result.set(BASE_PRICE_KEY, toCents(product.price))
+  const base = effectivePrice(product, null, now)
+  if (base !== null) result.set(BASE_PRICE_KEY, toCents(base))
   for (const variant of product.variants ?? []) {
     const key = variant?._key
     if (!key || !isValidPriceKey(key) || key === BASE_PRICE_KEY) continue
-    const price = effectivePrice(product, key)
+    const price = effectivePrice(product, key, now)
     if (price !== null) result.set(key, toCents(price))
   }
   return result
@@ -202,18 +227,42 @@ export type ResolvedPrice = {
 }
 
 /**
- * Łączy cenę z katalogu z danymi z rejestru. Gdy rejestr ma inną bieżącą
- * cenę (świeża zmiana, cache), nie pokazujemy obniżki, a najniższą cenę
- * liczymy ostrożnie z obu wartości.
+ * Łączy cenę z katalogu z danymi z rejestru.
+ *
+ * Obniżkę (przekreślenie, procent, informację Omnibus) pokazujemy TYLKO
+ * w czasie aktywnej promocji (`promotionActive`) — zwykła zmiana ceny nie
+ * jest ogłaszaną obniżką. Cena odniesienia to zawsze najniższa cena z 30 dni
+ * przed wprowadzeniem promocji:
+ *  - rejestr zna już cenę promocyjną → odniesienie wyliczone z historii
+ *    (`computeOmnibus`), zamrożone na czas promocji;
+ *  - promocja dopiero ruszyła i rejestr ma jeszcze cenę sprzed niej
+ *    (uzgadnia się w ciągu minut) → odniesieniem jest najniższa cena
+ *    z ostatnich 30 dni w rejestrze — czyli dokładnie okno sprzed promocji.
+ * Gdy cena promocyjna nie jest niższa od tej najniższej ceny, przekreślenia
+ * nie ma (nie wolno ogłosić obniżki względem ceny wyższej niż najniższa z 30 dni).
  */
 export function resolveOmnibus(
   data: ProductOmnibus | null | undefined,
   priceKey: string,
   price: number,
+  promotionActive = false,
+  now: Date = new Date(),
 ): OmnibusInfo | null {
   if (data === undefined) return null
   const info = data?.[priceKey]
   if (!info) return fallbackOmnibus(price)
-  if (toCents(info.price) === toCents(price)) return info
-  return { price, lowest30d: Math.min(price, info.lowest30d), promo: null }
+  const sameAsRegistry = toCents(info.price) === toCents(price)
+  const lowest30d = sameAsRegistry ? info.lowest30d : Math.min(price, info.lowest30d)
+  if (!promotionActive) return { price, lowest30d, promo: null }
+
+  if (sameAsRegistry) return { price, lowest30d, promo: info.promo }
+
+  const reference = info.lowest30d
+  if (toCents(reference) <= toCents(price)) return { price, lowest30d, promo: null }
+  const percent = Math.floor((1 - toCents(price) / toCents(reference)) * 100 + 1e-9)
+  return {
+    price,
+    lowest30d,
+    promo: percent >= 1 ? { referencePrice: reference, percent, since: now.toISOString() } : null,
+  }
 }

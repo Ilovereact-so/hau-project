@@ -2,7 +2,7 @@ import Container from "@/components/Container";
 import { Skeleton, ProductGridSkeleton } from "@/components/ui/Skeleton";
 
 // Automatyczny fallback Next podczas serwerowego renderu strony subkategorii —
-// geometria 1:1 ze stroną: breadcrumb, dock (holo + „Filtruj:" + chipsy +
+// geometria 1:1 ze stroną: breadcrumb, dock („Filtruj:" + chipsy +
 // „Sortuj:" + SortSelect), siatka ProductItemWithoutBTN (kwadrat, bez buttona).
 export default function Loading() {
   return (
@@ -20,7 +20,6 @@ export default function Loading() {
         </div>
         <div className="flex justify-center w-full mt-[clamp(30px,8vw,80px)]">
           <div className="flex subcategory-dock-shadow relative bg-fancy-black md:py-2 xs:py-3 py-2 md:pt-4 md:px-9 3xs:px-7 xs:px-4 px-3 rounded-full lg:w-[65vw] 2md:w-[70vw] w-[80vw] z-[1] min-h-[110px] max-w-[1350px] overflow-hidden">
-            <Skeleton className="3xs:w-[clamp(300px,33vw,400px)] w-[250px] absolute bottom-[0] xl:left-[-200px] lg:left-[-15vw] 2md:left-[-12vw] left-[-8vw] z-[2] opacity-80 rounded-none bg-white/10" />
             <div className="w-full flex justify-between">
               <div className="flex flex-col w-full z-[3] relative space-y-2 pr-4">
                 <Skeleton className="h-[18px] w-[70px] rounded-full bg-white/10 ml-1 max-md:hidden" />

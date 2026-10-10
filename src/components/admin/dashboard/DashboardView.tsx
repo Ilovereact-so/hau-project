@@ -408,7 +408,7 @@ export function DashboardView({ data }: { data: DashboardStats }) {
         <CardHeader
           icon={Boxes}
           title="Stany magazynowe"
-          subtitle="Produkty w sklepie z wariantami poniżej 10 szt."
+          subtitle="Produkty w sklepie z wariantami: 1 sztuka albo brak"
           actions={
             <Link href="/admin/products?filter=low" className="text-xs font-medium text-text-2 hover:text-text">
               Wszystkie →
@@ -438,17 +438,17 @@ export function DashboardView({ data }: { data: DashboardStats }) {
                       <span className="block truncate text-[11px] text-text-2">
                         {product.lowStock.length === 1 && product.lowStock[0].sku
                           ? `SKU: ${product.lowStock[0].sku}`
-                          : `${product.lowStock.length} wariantów poniżej progu`}
+                          : `${product.lowStock.length} wariantów: 1 szt. lub brak`}
                       </span>
                     </span>
-                    <b className="shrink-0 text-xs font-semibold text-danger">{lowest} szt.</b>
+                    <b className="shrink-0 text-xs font-semibold text-danger">{lowest === 0 ? "brak" : `${lowest} szt.`}</b>
                   </Link>
                 </li>
               )
             })}
           </ul>
         ) : (
-          <p className="px-4 pt-3 pb-4 text-sm text-text-2">Wszystkie warianty powyżej progu.</p>
+          <p className="px-4 pt-3 pb-4 text-sm text-text-2">Żaden wariant nie ma 1 sztuki ani braku towaru.</p>
         )}
       </Card>
     </div>

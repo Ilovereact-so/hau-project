@@ -28,7 +28,7 @@ export default function ProductPagePrice({
       />
       <OmnibusNote
         state={state}
-        className="text-[#6C6C6C] sm:text-[14px] text-[12px] line-clamp-2"
+        className="text-[#6C6C6C] sm:text-[12px] text-[11px] line-clamp-2 mt-0.5"
         labelClassName=""
       />
     </div>

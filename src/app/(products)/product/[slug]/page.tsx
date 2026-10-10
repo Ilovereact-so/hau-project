@@ -1,9 +1,13 @@
 import AddToCartButton from "@/components/AddToCardButton";
 import ImageView from "@/components/ImageView";
-import { getProductBySlug } from "@/sanity/helpers";
+import { getProductBySlug, getPromotedProducts, getRelatedProducts } from "@/sanity/helpers";
+import PortableTextContent from "@/components/PortableTextContent";
+import { isPromotionActive } from "@/lib/promotion";
+import { isVariantAvailable } from "@/lib/stock";
 import { Lock, RotateCcw, Truck } from "lucide-react";
 import { notFound } from "next/navigation";
 import React from "react";
+import Link from "next/link";
 import VariantManage from "@/components/VariantManage";
 import ProductDetailsList from "@/components/ProductDetailsList";
 import { GetSlugProduct } from "sanity.types";
@@ -130,29 +134,41 @@ const ProductPage = async ({
   const galleryImages = imagesForVariant(product.images, selectedVariant)
 
   const { userId } = await auth();
-  const [reviewData, omnibus] = await Promise.all([
+  // Omnibus (cena odniesienia) jest potrzebny tylko w czasie promocji.
+  const promotionActive = isPromotionActive(product.promotion);
+  const [reviewData, omnibus, promoted] = await Promise.all([
     loadReviewData(product._id, userId),
-    loadOmnibus(product._id),
+    promotionActive ? loadOmnibus(product._id) : Promise.resolve(null),
+    getPromotedProducts(12, product._id),
   ]);
+  // Karuzela pod opiniami: produkty w promocji, a gdy żadnej nie ma — inne
+  // produkty z tej samej podkategorii.
+  const promotedNow = promoted.filter((item) => isPromotionActive(item.promotion)).slice(0, 12);
+  const carousel = promotedNow.length
+    ? { title: "Produkty w promocji", products: promotedNow }
+    : product.type?._id
+      ? { title: "Zobacz też", products: await getRelatedProducts(product.type._id, product._id, 12) }
+      : null;
   // Do klienta tylko pola potrzebne do ceny — nie cały dokument.
   const pricedProduct = {
     _id: product._id,
     price: product.price ?? null,
     variants: product.variants?.map((v) => ({ _key: v._key, price: v.price ?? null })) ?? null,
+    promotion: product.promotion ?? null,
   };
 
   // Dane strukturalne produktu: cena i dostępność (wynik z ceną w Google),
   // ocena gdy są opinie. Cena to ta sama wartość, którą płaci klient.
   const price = effectivePrice(product, selectedVariant);
-  const inStock = (product.variants?.find((v) => v._key === selectedVariant)?.stock ?? product.stock ?? 0) > 0;
+  const inStock = isVariantAvailable(product, selectedVariant);
   const productUrl = absoluteUrl(`/product/${slug}`);
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Product",
     name: product.title,
     url: productUrl,
-    ...(product.shortDescription || product.intro
-      ? { description: (product.shortDescription || product.intro) as string }
+    ...(product.shortDescription || product.intro || product.metaDescription
+      ? { description: (product.shortDescription || product.intro || product.metaDescription) as string }
       : {}),
     ...(product.brand ? { brand: { "@type": "Brand", name: product.brand } } : {}),
     ...(product.sku ? { sku: product.sku } : {}),
@@ -186,6 +202,9 @@ const ProductPage = async ({
   // Okruszki: Strona główna → subkategoria → produkt.
   const breadcrumb = breadcrumbJsonLd([
     { name: "Strona główna", path: "/" },
+    ...(product.category?.slug?.current
+      ? [{ name: product.category.title ?? "Kategoria", path: `/category/${product.category.slug.current}` }]
+      : []),
     ...(product.type?.slug?.current
       ? [{ name: product.type.title ?? "Kategoria", path: `/subcategory/${product.type.slug.current}` }]
       : []),
@@ -209,9 +228,20 @@ const ProductPage = async ({
         <div className="flex flex-col md:justify-center md:flex-row md:px-10 2lg:space-x-16 md:space-x-8 relative">
           <div className="md:sticky md:top-4 h-full flex flex-col z-2">
             <div className="max-md:px-6 max-sm:px-5">
-              <p className="sm:text-[14px] text-[13px] text-[#6C6C6C] md:mb-6 mb-2 font-poppins">
-                {product?.type?.title}  /  <span className="text-black">{product?.title}</span> 
-              </p>
+              <nav aria-label="Ścieżka" className="sm:text-[14px] text-[13px] text-[#6C6C6C] md:mb-6 mb-2 font-poppins">
+                {product?.category?.slug?.current && (
+                  <>
+                    <Link href={`/category/${product.category.slug.current}`} className="hover:text-black">{product.category.title}</Link>
+                    {"  /  "}
+                  </>
+                )}
+                {product?.type?.slug?.current ? (
+                  <Link href={`/subcategory/${product.type.slug.current}`} className="hover:text-black">{product.type.title}</Link>
+                ) : (
+                  product?.type?.title
+                )}
+                {"  /  "}<span className="text-black">{product?.title}</span>
+              </nav>
             </div>
             {/* Galeria wybranego wariantu (jego zdjęcia + wspólne). `key` resetuje
                 aktywne zdjęcie przy zmianie wariantu — pierwsze = zdjęcie wariantu. */}
@@ -269,26 +299,18 @@ const ProductPage = async ({
             </p> */}
           </div>
         </div>
-        {/* <div className="w-full xl:px-26 2lg:px-20 md::px-16 sm:px-8 px-7 mt-10 pb-10 flex flex-col items-center">
-          <div className="grid lg:grid-cols-[auto_auto] grid-cols-1 w-fit 2lg:px-3 lg:space-x-10 border-t-[1px] border-[#7d7d7d] max-w-[1430px]">
-            <div className="flex flex-col font-poppins text-black text-[clamp(16px,1.4vw,20px)] mt-4">
-              <h1 className="font-medium">Opis</h1>
-              <h1 className="font-medium text-black text-[clamp(18px,1.4vw,24px)] mt-6">{product?.shortDescription}</h1>
-              <h1 className="text-black text-[clamp(16px,1.4vw,20px)] mt-3">{product?.description && <PortableText value={product.description} />}</h1>
+        {/* Pełny opis produktu — pod galerią, przed opiniami. Długi tekst
+            jest ważny dla SEO, a krótki opis zostaje obok ceny. */}
+        {Array.isArray(product.description) && product.description.length > 0 && (
+          <section id="opis" aria-labelledby="opis-heading" className="scroll-mt-24 w-full flex justify-center md:px-10 px-6 sm:px-7 mt-12">
+            <div className="w-full max-w-[1100px] border-t border-[#D9D9D9] pt-8 font-poppins">
+              <h2 id="opis-heading" className="text-black font-medium text-[clamp(18px,1.8vw,24px)] mb-2">Opis produktu</h2>
+              <div className="max-w-[820px]">
+                <PortableTextContent value={product.description as unknown[]} />
+              </div>
             </div>
-            <div className="flex flex-col md:min-w-[400px] mt-8">
-              <ProductDetailsList product={product} className={maxW}/>
-            </div>
-          </div>
-        </div> */}
-        {/* <div className="w-full flex flex-col lg:px-25 px-10 mt-15 mb-25 bg-main py-4 space-y-3">
-          <div className="font-poppins font-medium text-black text-[clamp(16px,1.4vw,24px)] ">
-              {product?.shortDescription}
-            </div>
-            <div className="font-poppins text-black text-[clamp(16px,1.4vw,20px)]">
-              {product?.description && <PortableText value={product.description} />}
-            </div>
-        </div> */}
+          </section>
+        )}
         <ProductReviews
           // Zmiana sesji (logowanie z modala odświeża stronę) montuje sekcję od nowa
           // z opinią nowego konta zamiast trzymać stan poprzedniego.
@@ -301,9 +323,9 @@ const ProductPage = async ({
           purchased={reviewData.purchased}
           signedIn={Boolean(userId)}
         />
-         <ProductCarusel2
-          title={"Produkty objęte promocją"}
-        />
+        {carousel && carousel.products.length > 0 && (
+          <ProductCarusel2 title={carousel.title} products={carousel.products} />
+        )}
       </div>
     </div>
   );

@@ -14,7 +14,7 @@ import { PillSearch } from '../kit/Pill'
 import { formatDateTime } from '../kit/format'
 import { downloadCsv } from '../ExportOrdersCsv'
 
-type Subscriber = { id: string; email: string; isActive: boolean; createdAt: Date | null }
+type Subscriber = { id: string; email: string; isActive: boolean; confirmedAt: Date | null; createdAt: Date | null }
 
 export function SubscribersCard({ subscribers }: { subscribers: Subscriber[] }) {
   const router = useRouter()
@@ -82,13 +82,23 @@ export function SubscribersCard({ subscribers }: { subscribers: Subscriber[] }) 
                 <Tr key={row.id}>
                   <Td className="font-medium">{row.email}</Td>
                   <Td>
-                    <Badge tone={row.isActive ? 'success' : 'neutral'}>{row.isActive ? 'Aktywny' : 'Wypisany'}</Badge>
+                    {row.isActive ? (
+                      <Badge tone="success">Aktywny</Badge>
+                    ) : row.confirmedAt ? (
+                      <Badge tone="neutral">Wypisany</Badge>
+                    ) : (
+                      <Badge tone="info">Czeka na potwierdzenie</Badge>
+                    )}
                   </Td>
                   <Td className="whitespace-nowrap text-text-2">{formatDateTime(row.createdAt)}</Td>
                   <Td>
-                    <Button size="sm" variant={row.isActive ? 'danger' : 'ghost'} disabled={pending} onClick={() => toggle(row)}>
-                      {row.isActive ? 'Wypisz' : 'Przywróć'}
-                    </Button>
+                    {row.isActive || row.confirmedAt ? (
+                      <Button size="sm" variant={row.isActive ? 'danger' : 'ghost'} disabled={pending} onClick={() => toggle(row)}>
+                        {row.isActive ? 'Wypisz' : 'Przywróć'}
+                      </Button>
+                    ) : (
+                      <span className="text-[11px] text-text-2">czeka na klik w mailu</span>
+                    )}
                   </Td>
                 </Tr>
               ))}

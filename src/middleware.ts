@@ -16,6 +16,8 @@ const isPublicRoute = createRouteMatcher([
   // product browsing is public
   '/(products)/(.*)',
   '/subcategory/(.*)',
+  // Strona kategorii głównej (klik w „Zabawki”, „Przysmaki”… w menu).
+  '/category/(.*)',
   // wyniki wyszukiwania — publiczne tak samo jak przeglądanie subkategorii.
   // (Bez tego i tak przechodziło, bo trasa nie łapie się na isProtectedRoute
   // ani isAdminRoute i spada do końcowego next() — ale lepiej mieć to wprost.)
@@ -44,6 +46,17 @@ const isPublicRoute = createRouteMatcher([
   '/api/prices(.*)',
   // Zadania okresowe — autoryzacja sekretem (CRON_SECRET) w samej trasie.
   '/api/cron/(.*)',
+  // Zakup bez logowania: kasa, zamówienie gościa (dostęp po ciasteczku
+  // guest_id albo podpisanym linku), status płatności i ustawienia koszyka.
+  '/checkout',
+  '/zamowienie/(.*)',
+  '/orders/(.*)',
+  '/api/orders/(.*)',
+  '/api/autopay/(.*)',
+  '/api/shop-settings',
+  '/api/search',
+  // Newsletter: potwierdzenie zapisu i wypisanie się linkiem z maila.
+  '/newsletter/(.*)',
 ])
 
 // `/upload` to dawny uploader CSV z grupy (admin) — dziś tylko przekierowuje

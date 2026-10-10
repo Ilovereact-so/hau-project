@@ -8,19 +8,24 @@ import { primaryImageForVariant } from '@/lib/variantImages'
 import Link from 'next/link'
 import { OmnibusNote, PriceRow, useProductPrice } from './price/ProductPrice'
 import ProductBadges from './ProductBadges'
+import { isProductAvailable } from '@/lib/stock'
 import { WishlistButton } from './WishlistButton'
 import { ProductRatingBadge } from './reviews/ProductRatingBadge'
 
 const ProductItemWithoutBTN = ({product}:{product: GetSlugProduct & { defaultVariant?: string }}) => {
-  const priceState = useProductPrice(product)
-  // Wariant wybrany filtrami listingu (np. kolor) — jego zdjęcie i link.
+  // Wariant wybrany filtrami listingu (np. kolor) — jego zdjęcie, cena i link.
   const variantKey = product.defaultVariant || product?.variants?.[0]?._key
+  const priceState = useProductPrice(product, variantKey ?? null)
+  const soldOut = !isProductAvailable(product)
   const image = primaryImageForVariant(product?.images, variantKey) ?? product?.images?.[0]
   return (
     <div className='relative w-max flex flex-col justify-between h-fit'>
       {product?.images && 
-        <Link href={`/product/${product?.slug?.current}?variant=${variantKey}`} className='' >
-          <Image src={urlFor(image!).url()} alt={String(product?.title)} width={290} height={290} className='max-sm:w-[calc((100vw-66px)/2))] max-md:w-[calc((100vw-110px)/3))] max-lg:w-[calc((100vw-156px)/3))] max-1.5xl:w-[calc((100vw-156px)/4))] w-[calc((100vw-156px)/5))] 4xl:w-[calc((1900px-156px)/5))] max-sm:h-[calc((100vw-100px)/2))] max-md:h-[calc((100vw-110px)/3))] max-lg:h-[calc((100vw-156px)/3))] max-1.5xl:h-[calc((100vw-156px)/4))] h-[calc((100vw-156px)/5))] 4xl:h-[calc((1900px-156px)/5))] brightness-92'/>
+        <Link href={`/product/${product?.slug?.current}?variant=${variantKey}`} className='relative block' >
+          <Image src={urlFor(image!).url()} alt={String(product?.title)} width={290} height={290} className={`${soldOut ? 'opacity-60 ' : ''}max-sm:w-[calc((100vw-66px)/2))] max-md:w-[calc((100vw-110px)/3))] max-lg:w-[calc((100vw-156px)/3))] max-1.5xl:w-[calc((100vw-156px)/4))] w-[calc((100vw-156px)/5))] 4xl:w-[calc((1900px-156px)/5))] max-sm:h-[calc((100vw-100px)/2))] max-md:h-[calc((100vw-110px)/3))] max-lg:h-[calc((100vw-156px)/3))] max-1.5xl:h-[calc((100vw-156px)/4))] h-[calc((100vw-156px)/5))] 4xl:h-[calc((1900px-156px)/5))] brightness-92`}/>
+          {soldOut && (
+            <span className='absolute left-1/2 -translate-x-1/2 bottom-3 rounded-full bg-white/90 sm:px-3 px-2 py-1 text-[11px] sm:text-[13px] text-black font-medium whitespace-nowrap'>Chwilowo niedostępny</span>
+          )}
         </Link>
       }
       <WishlistButton productId={product._id} product={product} className='absolute top-4 right-4'/>
@@ -44,7 +49,7 @@ const ProductItemWithoutBTN = ({product}:{product: GetSlugProduct & { defaultVar
         />
         <OmnibusNote
           state={priceState}
-          className='text-[#6C6C6C] sm:text-[14px] text-[12px] line-clamp-2'
+          className='text-[#6C6C6C] sm:text-[12px] text-[11px] line-clamp-2'
           labelClassName='mt-1'
         />
         <div className='mt-2'>

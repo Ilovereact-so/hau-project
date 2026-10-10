@@ -1,6 +1,7 @@
 import 'server-only'
 import { client } from '@/sanity/lib/client'
 import { effectivePrice } from '@/lib/omnibus'
+import type { ProductPromotion } from '@/lib/promotion'
 
 /*
  * Ceny pozycji koszyka liczone po stronie serwera z Sanity — jedno źródło dla
@@ -13,20 +14,22 @@ export interface SanityPricedProduct {
   title:    string
   price:    number | null
   brand:    string | null
-  variants: Array<{ _key: string; price: number | null }> | null
+  variants: Array<{ _key: string; price: number | null; stock: number | null }> | null
+  stock:    number | null
+  promotion: ProductPromotion | null
 }
 
 export async function fetchSanityPrices(productIds: string[]): Promise<Map<string, SanityPricedProduct>> {
   if (!productIds.length) return new Map()
   const data = await client.fetch<SanityPricedProduct[]>(
-    `*[_type == "product" && _id in $ids]{ _id, title, price, brand, variants[]{ _key, price } }`,
+    `*[_type == "product" && _id in $ids]{ _id, title, price, brand, stock, promotion, variants[]{ _key, price, stock } }`,
     { ids: productIds },
   )
   return new Map(data.map(p => [p._id, p]))
 }
 
 // Ta sama reguła co koszyk i rejestr cen (lib/omnibus.ts): cena wariantu,
-// a gdy wariant jej nie ma — cena produktu.
+// a gdy wariant jej nie ma — cena produktu; z aktywną promocją.
 export function resolveProductPrice(product: SanityPricedProduct, variantId: string): number | null {
   return effectivePrice(product, variantId || null)
 }

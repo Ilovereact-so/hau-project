@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import useCartStore from "../../store";
 import { motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
+import { isVariantAvailable, maxOrderQty } from "@/lib/stock";
 
 interface Props {
   product: GetSlugProduct;
@@ -15,17 +16,23 @@ interface Props {
 }
 
 const AddToCartButton = ({ product, className, variant, type = "top" }: Props) => {
-  const { addItem } = useCartStore();
+  const { addItem, getItemCount } = useCartStore();
   const [isClient, setIsClient] = useState(false);
 
-  const isOutOfStock = product?.stock === 0;
-  //const successAdded = getItemCount(product._id) > 0;
+  // Stan WYBRANEGO wariantu (wariant → produkt; brak liczby = nieprowadzony).
+  const isOutOfStock = !isVariantAvailable(product, variant);
+  const limit = maxOrderQty(product, variant);
   const [isClicked, setIsClicked] = useState(false);
 
   // Use useEffect to set isClient to true after component mounts
   // This ensures that the component only renders on the client-side
   // Preventing hydration errors due to server/client mismatch
   const handleClick = async () => {
+    if (isOutOfStock) return;
+    if (getItemCount(product._id, variant) >= limit) {
+      toast.error(limit === 1 ? "Mamy tylko 1 sztukę — jest już w Twoim koszyku." : `W koszyku masz już wszystkie dostępne sztuki (${limit}).`);
+      return;
+    }
     setIsClicked(true)
 
     await Promise.all([
@@ -53,10 +60,13 @@ const AddToCartButton = ({ product, className, variant, type = "top" }: Props) =
           disabled={isOutOfStock}
           className={cn(
             "w-auto bg-black hover:bg-fancy-black ease-in-out duration-100 rounded-full py-3 px-10 flex justify-center items-center font-poppins text-whie text-[clamp(16px,1.3vw,18px)] font-medium tracking-wide cursor-pointer",
-            className
+            className,
+            isOutOfStock && "bg-[#8E8E8E] hover:bg-[#8E8E8E] cursor-not-allowed"
           )}
         >
-          {isClicked ? (
+          {isOutOfStock ? (
+            <span>Chwilowo niedostępny</span>
+          ) : isClicked ? (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} className="flex items-center text-white">
               <Loader2 className=" animate-spin" /> 
             </motion.div>

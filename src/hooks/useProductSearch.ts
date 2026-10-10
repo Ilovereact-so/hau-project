@@ -28,7 +28,7 @@ export function useProductSearch(query: string) {
 
         const finaldata = data.map((d:ProductSearchResult) => ({
           ...d,
-          path: `${d.category.title} / ${d.type.title}`
+          path: [d.category?.title, d.type?.title].filter(Boolean).join(" / ")
         }))
         setResults(finaldata)
       } catch (err: any) {

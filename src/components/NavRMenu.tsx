@@ -12,6 +12,7 @@ import {useMediaQuery} from '@/hooks/useMediaQuery'
 import SubmenuPortal from './SubmenuPortal'
 import SearchBarContext from './SearchBarContext'
 import { CategoryNode } from '@/hooks/categories'
+import { usePathname } from 'next/navigation'
 
 const NavRMenu = ({ className, style, mode, categories, initialMobile = false}: { className: string, style: React.CSSProperties, mode: number, categories: CategoryNode[], initialMobile?: boolean }) => {
     // initialMobile — podpowiedź z middleware (User-Agent) przekazana z serwera,
@@ -45,6 +46,14 @@ const NavRMenu = ({ className, style, mode, categories, initialMobile = false}: 
     const navbarRef = useRef<HTMLDivElement>(null);
     const [showSearchBar, setShowSearchBar] = useState<boolean>(false);
 
+    // Przejście na inną stronę (kategoria, podkategoria) zamyka panel menu na
+    // telefonie — layout z menu zostaje zamontowany między stronami tej samej
+    // grupy tras, więc bez tego menu zostawało otwarte nad nową stroną.
+    const pathname = usePathname();
+    useEffect(() => {
+        setOpenMenu(false);
+    }, [pathname]);
+
     // Poradniki przestały być kategorią produktową — mają własną sekcję w Sanity
     // (typ `guide`) i własną podstronę /poradniki, więc znikają z listy kategorii
     // i wracają niżej jako osobny, wyróżniony link. filterProductCategories jest
@@ -71,7 +80,11 @@ const NavRMenu = ({ className, style, mode, categories, initialMobile = false}: 
         }
     },[autoMenu, mobile, mode, openMenu, showSearchBar])
 
-    const globalDelay = 0.2
+    // Opóźnienie otwarcia panelu po najechaniu. Krótkie, ale niezerowe — chroni
+    // przed „mruganiem” paneli, gdy kursor tylko przejeżdża przez menu.
+    // (Było 0.2 s + kolejne opóźnienia elementów, przez co lista podkategorii
+    // pokazywała się dopiero po ~0,9 s — feedback: za wolno przy zakupach.)
+    const globalDelay = 0.06
 
     const [isHover, setIsHover] = useState<boolean>(false)
 
@@ -526,18 +539,21 @@ const NavLink = ({ item, index, total, navRef, itemRef, isHoverExport, globalDel
         isHoverExport();
     }
 
+    // Cała sekwencja otwarcia trwa ~0,35 s (wcześniej ~0,9 s): tło zakładki,
+    // panel i tekst startują niemal razem, zamykanie jest natychmiastowe.
     const variants = {
-        borderOpen: { height: "100%", transition: { duration: 0.3 , delay: globalDelay} },
-        borderClosed: { height: 0, transition: { duration: 0.3 , delay: 0.3 } },
-        ListOpen: { maxHeight: 350, display: "block", transition: { duration: 0.3 , delay: 0.27 + globalDelay}},
-        ListClosed: { maxHeight: 0, display: "none", transition: { duration: 0.3 } },
-        shadowOpen: { height: "100%", width: 50, transition: { duration: 0.3, delay: 0.1 + globalDelay } },
-        shadowClosed: { height: 0, width: 0, transition: { duration: 0.3 , delay: 0.3 } },
-        textOpen:{opacity: 1, transition:{duration:0.3, delay:0.4 + globalDelay}},
-        textClosed:{opacity:0, transition:{duration:0.1}},
-        circleOpen:{backgroundColor: "#f6f6f62e", transition:{duration:0.3, delay:0.1 + globalDelay}},
-        circleClosed:{backgroundColor: "#f6f6f600", transition:{duration:0.3}},
+        borderOpen: { height: "100%", transition: { duration: 0.15 , delay: globalDelay} },
+        borderClosed: { height: 0, transition: { duration: 0.12 , delay: 0.08 } },
+        ListOpen: { maxHeight: 420, display: "block", transition: { duration: 0.2 , delay: 0.1 + globalDelay}},
+        ListClosed: { maxHeight: 0, display: "none", transition: { duration: 0.12 } },
+        shadowOpen: { height: "100%", width: 50, transition: { duration: 0.15, delay: 0.05 + globalDelay } },
+        shadowClosed: { height: 0, width: 0, transition: { duration: 0.12 , delay: 0.08 } },
+        textOpen:{opacity: 1, transition:{duration:0.15, delay:0.14 + globalDelay}},
+        textClosed:{opacity:0, transition:{duration:0.08}},
+        circleOpen:{backgroundColor: "#f6f6f62e", transition:{duration:0.15, delay:0.05 + globalDelay}},
+        circleClosed:{backgroundColor: "#f6f6f600", transition:{duration:0.15}},
     }
+    const categoryHref = `/category/${item.slug}`
     return (
     <motion.label ref={itemRef} tabIndex={index} onFocus={() => {setIsHover(true)}} onBlur={() => {setIsHover(false)}} onMouseEnter={(e) => {handleMouseEnter(e.currentTarget)}} onMouseLeave={() => setIsHover(false)} style={{ marginRight: index === total - 1 ? "0px" : "" }} key={index} className={`text-black outline-none relative sm:text-[clamp(15px,1.3vw,18px)] max-lg:py-1 text-[16px] font-poppins whitespace-nowrap max-sm:w-fit`}>
         {!mobile ? (
@@ -549,7 +565,11 @@ const NavLink = ({ item, index, total, navRef, itemRef, isHoverExport, globalDel
                     <div className='sh-nav-rounded rounded-bl-[20px]'></div>
                 </motion.div>
             </motion.div>
-            <motion.a initial={{backgroundColor: "#f6f6f600"}} animate={isHover ? "circleOpen" : "circleClosed"} variants={variants} className='p-1 rounded-[10px] z-10 '>{item.title}</motion.a>
+            {/* Główna kategoria jest klikalna — prowadzi na stronę kategorii
+                (/category/[slug]) z produktami ze wszystkich jej podkategorii. */}
+            <Link href={categoryHref} className='z-10 outline-none'>
+                <motion.span initial={{backgroundColor: "#f6f6f600"}} animate={isHover ? "circleOpen" : "circleClosed"} variants={variants} className='p-1 rounded-[10px] block'>{item.title}</motion.span>
+            </Link>
             
             <SubmenuPortal anchorRef={itemRef as React.RefObject<HTMLLabelElement>} scrollRef={navRef as React.RefObject<HTMLDivElement>} open={isHover} exit={()=>setIsHover(false)}>
                 <motion.div
@@ -559,6 +579,16 @@ const NavLink = ({ item, index, total, navRef, itemRef, isHoverExport, globalDel
                     transition={{ease:"linear"}}
                     className="space-y-3 z-[9999] bg-menu-content w-auto h-auto px-4 pb-3 pt-2 flex flex-col rounded-b-[20px] rounded-r-[20px] overflow-hidden shadow-lg shadow-black/25"
                 >
+                    <Link href={categoryHref} className="w-auto h-auto flex no-underline outline-none font-poppins">
+                        <motion.span
+                        initial={{ opacity: 0 }}
+                        animate={isHover ? "textOpen" : "textClosed"}
+                        variants={variants}
+                        className="text-black font-medium 2xl:text-[16px] text-[14px] hover:scale-[0.96] origin-left ease-in-out duration-300"
+                        >
+                        Wszystko z kategorii →
+                        </motion.span>
+                    </Link>
                     {item.subcategory?.map((subitem, subindex) => (
                     <Link key={subindex} href={`/subcategory/${subitem.slug}`} className="w-auto h-auto flex no-underline outline-none font-poppins">
                         <motion.h1
@@ -596,6 +626,16 @@ const NavLink = ({ item, index, total, navRef, itemRef, isHoverExport, globalDel
                     index == 1 ? "min-w-[65vw]":"min-w-auto"
                 }`}
             >
+                <Link href={categoryHref} className="w-auto h-auto flex">
+                    <motion.span
+                    initial={{ opacity: 0 }}
+                    animate={isHover ? "textOpen" : "textClosed"}
+                    variants={variants}
+                    className="text-black text-[14px] font-medium hover:underline"
+                    >
+                    Wszystko z kategorii →
+                    </motion.span>
+                </Link>
                 {item.subcategory?.map((subitem, subindex) => (
                 <Link key={subindex} href={`/subcategory/${subitem.slug}`} className="w-auto h-auto flex">
                     <motion.h1

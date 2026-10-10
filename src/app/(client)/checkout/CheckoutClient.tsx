@@ -28,6 +28,9 @@ import { buildVariantLabel, type Step } from './_components/utils'
 import type { PaymentMethod } from './_components/Step2PaymentForm'
 import { useDiscountPreview } from '@/hooks/useDiscountPreview'
 import { useDiscountStore } from '@/store/discountStore'
+import { useShopSettings } from '@/hooks/useShopSettings'
+import { qualifiesForFreeShipping } from '@/lib/shopSettings'
+import { useAuthModalStore } from '@/store/authModalStore'
 
 /**
  * Autopay wymaga startu transakcji POST-em (application/x-www-form-urlencoded),
@@ -56,6 +59,8 @@ interface Props {
   services:     Shipping_methods[]
   savedAddress: SavedAddress | null
   userSlot:     React.ReactNode
+  /** Zakup bez logowania. */
+  isGuest?:     boolean
 }
 
 const motionProps = {
@@ -65,7 +70,7 @@ const motionProps = {
   transition: { duration: 0.2 },
 }
 
-export default function CheckoutClient({ services, savedAddress, userSlot }: Props) {
+export default function CheckoutClient({ services, savedAddress, userSlot, isGuest = false }: Props) {
   const [isClient, setIsClient]      = useState(false)
   const [step, setStep]              = useState<Step>(0)
   const [isPending, startTransition] = useTransition()
@@ -88,6 +93,9 @@ export default function CheckoutClient({ services, savedAddress, userSlot }: Pro
   const discountCode    = useDiscountStore(s => s.code)
   const setDiscountCode = useDiscountStore(s => s.setCode)
   const discount        = useDiscountPreview()
+  const shopSettings    = useShopSettings()
+  const getSubTotal     = useStore(s => s.getSubTotalPrice)
+  const openModal       = useAuthModalStore(s => s.openModal)
 
   useEffect(() => {
     setServiceCode('')
@@ -115,11 +123,13 @@ export default function CheckoutClient({ services, savedAddress, userSlot }: Pro
   if (!cartItems.length && !inlinePayment) return <EmptyCart />
 
   const selectedService = services.find(s => s.furgonetka_service_id === serviceCode) ?? null
-  const shippingCents   = Math.round((selectedService?.internal_price ?? 0) * 100)
+  // Darmowa dostawa od progu (panel → Dostawy) — ta sama reguła co serwer.
+  const freeShipping    = shopSettings ? qualifiesForFreeShipping(shopSettings, Math.round(getSubTotal() * 100)) : false
+  const shippingCents   = freeShipping ? 0 : Math.round((selectedService?.internal_price ?? 0) * 100)
 
   async function handleStep1Continue(data: Step1Result) {
     setAddress(data.address)
-    await upsertSavedAddress(data.address)
+    if (!isGuest) await upsertSavedAddress(data.address)
     setPickupPoint(undefined)
     setStep(1)
   }
@@ -197,6 +207,18 @@ export default function CheckoutClient({ services, savedAddress, userSlot }: Pro
       <FurgonetkaMap />
       <Container className="px-6 sm:px-8 lg:px-15 mb-10 font-poppins max-w-[1500px] flex lg:gap-8 gap-4 md:justify-between md:flex-row flex-col">
           <div className='flex flex-col max-w-[700px] w-full'>
+            {isGuest && step === 0 && (
+              <div className="mt-4 rounded-[20px] bg-[#EDEDED] px-5 py-3 text-[clamp(13px,1.3vw,15px)] text-black">
+                Kupujesz bez logowania — wystarczą dane do wysyłki.{' '}
+                <button
+                  type="button"
+                  onClick={() => openModal('signIn', { redirectTo: '/checkout' })}
+                  className="underline underline-offset-2 cursor-pointer"
+                >
+                  Masz konto? Zaloguj się
+                </button>
+              </div>
+            )}
             {step < 2 && (
             <>
               <h2 className="text-[clamp(16px,1.5vw,20px)] font-medium text-black my-4">Dostawa</h2>
@@ -233,6 +255,8 @@ export default function CheckoutClient({ services, savedAddress, userSlot }: Pro
                       onEdit={() => setStep(0)}
                       onContinue={handleStep2Continue}
                       dynamicService={setServiceCode}
+                      freeShipping={freeShipping}
+                      isGuest={isGuest}
                     />
                 </div>
               </motion.div>
@@ -263,6 +287,7 @@ export default function CheckoutClient({ services, savedAddress, userSlot }: Pro
           <div className="top-10 sticky">
             <OrderSummary
               shippingCents={shippingCents}
+              freeShipping={freeShipping}
               deliveryName={selectedService?.name ?? null}
               discount={discount.state.status === 'ready' ? discount.state.preview : null}
               discountLoading={discount.state.status === 'loading'}

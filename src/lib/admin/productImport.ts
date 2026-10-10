@@ -12,6 +12,9 @@ import {
 import { buildCollectionRefs, ensureCollectionsByName } from '@/lib/admin/collections'
 import { normalizeToken, pruneVariantKeys } from '@/lib/variantImages'
 
+/** Dawne oznaczenia rozmiaru → slug rozmiaru psa (scripts/migrate-dog-sizes.mjs). */
+const SIZE_ALIASES: Record<string, string> = { xs: 'mikro', s: 'maly', m: 'sredni', l: 'duzy' }
+
 /*
  * Import produktów z CSV (jeden wiersz = jeden produkt). Wywoływany przez
  * /api/sanity/import-csv partiami — klient dzieli plik, więc duży CSV nie
@@ -103,7 +106,10 @@ export class ImportSession {
       inFilter.find((v) => normalizeToken(v.slug ?? '') === token) ??
       inFilter.find((v) => normalizeToken(v.value ?? '') === token) ??
       // Stare dane: wartość bez przypiętego filtra.
-      this.values!.find((v) => !v.filter && normalizeToken(v.slug ?? '') === token)
+      this.values!.find((v) => !v.filter && normalizeToken(v.slug ?? '') === token) ??
+      // Rozmiary z dawnych CSV (S / M / L) → rozmiar psa (mały / średni / duży),
+      // żeby stary plik nie tworzył z powrotem wartości „S”.
+      (SIZE_ALIASES[token] ? inFilter.find((v) => normalizeToken(v.slug ?? '') === SIZE_ALIASES[token]) : undefined)
     if (found) return { id: found._id, label: found.value || rawValue.trim(), slug: found.slug || token }
 
     const id = `filterValue-${normalizeToken(filter.key ?? filter._id)}-${token}`.slice(0, 120)

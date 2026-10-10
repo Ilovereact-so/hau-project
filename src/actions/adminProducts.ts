@@ -21,8 +21,10 @@ import {
   setVariantPrice,
   unpublishDocument,
   updateProduct,
+  updateTaxonomySeo,
   validateProductInput,
   type AdminProduct,
+  type TaxonomySeo,
   type ProductInput,
   bulkProductAction,
   type BulkProductAction,
@@ -256,6 +258,14 @@ export async function adminRenameTaxonomy(id: string, title: string): Promise<Ac
     refreshCatalogViews()
     return null
   }, 'Nie udało się zapisać nazwy.')
+}
+
+export async function adminUpdateTaxonomySeo(id: string, input: Partial<TaxonomySeo>): Promise<ActionResult> {
+  return runAdminAction(async () => {
+    await updateTaxonomySeo(assertDocId(id), input)
+    refreshCatalogViews()
+    return null
+  }, 'Nie udało się zapisać opisu.')
 }
 
 export async function adminUploadSubcategoryImage(formData: FormData): Promise<ActionResult<string>> {

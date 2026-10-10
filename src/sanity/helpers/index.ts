@@ -103,6 +103,10 @@ export type SubcategoryWithCategory = {
   title: string;
   slug: string;
   description: string;
+  metaTitle?: string | null;
+  metaDescription?: string | null;
+  /** Długi opis SEO (Portable Text) — na dole strony listingu. */
+  seoContent?: unknown[] | null;
   availableFilters?:Array<{
     _id:string,
     key:string,
@@ -126,6 +130,9 @@ export const getSubCategoryBySlug = async(slug: string) => {
       title, 
       "slug": slug.current, 
       description,
+      metaTitle,
+      metaDescription,
+      seoContent,
       availableFilters[]->{
         _id,
         key,
@@ -289,119 +296,124 @@ export const getProductsBySubCategory = async (subcategorySlug: string) => {
   }
 };
 
-// Tokenizacja + scoring identyczne jak w kliencie (clientRequest.ts,
-// searchProductsByName) — tam nie mogliśmy ich zaimportować wprost, bo ten
-// plik jest server-only (sanityFetch/next/headers), a clientRequest.ts celowo
-// zostaje czysto klienckim modułem (używanym też przez 'use client' hooki
-// jak useProductSearch). Zduplikowanie tej niewielkiej logiki jest tańsze niż
-// dzielenie jej między dwie różne warstwy fetchowania Sanity (client.fetch
-// vs sanityFetch/live).
-function parseSearchTokens(query: string) {
-  return query
-    .toLowerCase()
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 3);
-}
+// ── Projekcja kafelka/listingu ────────────────────────────────────────────────
+// Ten sam kształt co PRODUCT_BY_ID_QUERY / getProductsBySubCategory
+// (GetSlugProduct) — kafelki, filtry i ceny (z promocją) potrzebują
+// wariantów z opcjami, wartości filtrów i flag.
+const LISTING_PROJECTION = `{
+  ...,
+  category->{ _id, title, slug },
+  type->{ _id, title, slug },
+  productOptions[]->{ _id, key, label, type, UX_type },
+  filterValues[]->{ filter, _id, value, slug },
+  variants[]{
+    _key, price, sku, stock,
+    optionValues[]{
+      _key, label,
+      "name": name->{ _id, key, label, type, UX_type },
+      "value": value->{ _id, value, slug }
+    }
+  }
+}`;
 
-function rankProductsByTitle(products: any[], tokens: string[]) {
-  return products
-    .map(p => {
-      const name = String(p?.title ?? "").toLowerCase();
-      let score = 0;
-      tokens.forEach(t => {
-        if (name.startsWith(t)) score += 3;
-        else if (name.includes(t)) score += 1;
-      });
-      return { ...p, score };
-    })
-    .sort((a, b) => b.score - a.score);
-}
+// Aktywna promocja w GROQ — wstępny filtr; ostatecznie decyduje
+// isPromotionActive (lib/promotion.ts), bo wynik zapytania bywa z cache.
+const ACTIVE_PROMOTION_FILTER = `promotion.enabled == true && defined(promotion.value)
+  && (!defined(promotion.startsAt) || dateTime(promotion.startsAt) <= dateTime(now()))
+  && (!defined(promotion.endsAt) || dateTime(promotion.endsAt) > dateTime(now()))`;
 
-// Serwerowy odpowiednik searchProductsByName (clientRequest.ts) — ta sama
-// logika dopasowania (match po tokenach, prefix > substring w scoringu), ale
-// zwraca produkty w PEŁNEJ projekcji GetSlugProduct (filterValues, warianty
-// z optionValues itd. — dokładnie jak getProductsBySubCategory), bo strona
-// /search renderuje SubcategoryFilterContainer + ProductItemWithoutBTN, które
-// tego potrzebują. searchProductsByName zwraca okrojony ProductSearchResult i
-// nie nadaje się bezpośrednio do tego layoutu.
-export const getProductsBySearch = async (query: string) => {
-  const tokens = parseSearchTokens(query);
-  if (tokens.length === 0) return [];
+export type CategoryDetails = {
+  _id: string;
+  title: string;
+  slug: string;
+  description?: string | null;
+  metaTitle?: string | null;
+  metaDescription?: string | null;
+  seoContent?: unknown[] | null;
+  subcategories: Array<{
+    _id: string;
+    title: string;
+    slug: string;
+    availableFilters?: SubcategoryWithCategory["availableFilters"];
+  }>;
+};
 
-  const params: Record<string, string> = {
-    p0: "", c0: "", p1: "", c1: "", p2: "", c2: "",
-  };
-  tokens.forEach((t, i) => {
-    params[`p${i}`] = `${t}*`;
-    params[`c${i}`] = `*${t}*`;
-  });
-
-  const PRODUCT_SEARCH_QUERY = defineQuery(
-    `*[
-      _type == "product" &&
-      (
-        lower(title) match lower($p0) || lower(title) match lower($c0) ||
-        lower(title) match lower($p1) || lower(title) match lower($c1) ||
-        lower(title) match lower($p2) || lower(title) match lower($c2)
-      )
-    ]{
-      ...,
-      category->{
-      _id,
-      title,
-      slug
-      },
-      type->{
-      _id,
-      title,
-      slug
-      },
-      productOptions[]->{
-        _id,
-        key,
-        label,
-        type,
-        UX_type
-      },
-      filterValues[]->{
-        filter,
-        _id,
-        value,
-        slug
-      },
-      variants[]{
-        _key,
-        price,
-        sku,
-        stock,
-        optionValues[]{
-          _key,
-          label,
-          "name":name->{
-            _id,
-            key,
-            label,
-            type,
-            UX_type
-          },
-          "value":value->{
-            _id,
-            value,
-            slug
-          }
-        }
-      }
-    }`
-  );
-
+/** Kategoria główna (menu: Zabawki, Przysmaki…) z podkategoriami i ich filtrami. */
+export const getCategoryBySlug = async (slug: string): Promise<CategoryDetails | null> => {
+  const QUERY = `*[_type == "category" && slug.current == $slug][0]{
+    _id, title, "slug": slug.current, description, metaTitle, metaDescription, seoContent,
+    "subcategories": *[_type == "subcategory" && parent._ref == ^._id] | order(lower(title) asc) {
+      _id, title, "slug": slug.current,
+      availableFilters[]->{ _id, key, label, type, UX_type }
+    }
+  }`;
   try {
-    const products = await sanityFetch({
-      query: PRODUCT_SEARCH_QUERY,
-      params,
+    const res = await sanityFetch({ query: QUERY, params: { slug } });
+    return (res?.data as CategoryDetails | null) ?? null;
+  } catch (error) {
+    console.error("Error fetching category by slug:", error);
+    return null;
+  }
+};
+
+/**
+ * Produkty kategorii głównej: przypisane wprost (`category`) albo przez
+ * podkategorię, której rodzicem jest ta kategoria.
+ */
+export const getProductsByCategory = async (categoryId: string): Promise<GetSlugProduct[]> => {
+  const QUERY = `*[_type == "product" && (category._ref == $id || type->parent._ref == $id)] | order(lower(title) asc) [0...1000] ${LISTING_PROJECTION}`;
+  try {
+    const res = await sanityFetch({ query: QUERY, params: { id: categoryId } });
+    return (res?.data as GetSlugProduct[]) || [];
+  } catch (error) {
+    console.error("Error fetching products by category:", error);
+    return [];
+  }
+};
+
+/** Produkty z aktywną promocją (karuzela „Produkty w promocji”). */
+export const getPromotedProducts = async (limit = 12, excludeId?: string): Promise<GetSlugProduct[]> => {
+  const safeLimit = Math.max(1, Math.min(24, Math.floor(limit)));
+  const QUERY = `*[_type == "product" && _id != $exclude && ${ACTIVE_PROMOTION_FILTER}] | order(_updatedAt desc) [0...${safeLimit * 2}] ${LISTING_PROJECTION}`;
+  try {
+    const res = await sanityFetch({ query: QUERY, params: { exclude: excludeId ?? "" } });
+    return (res?.data as GetSlugProduct[]) || [];
+  } catch (error) {
+    console.error("Error fetching promoted products:", error);
+    return [];
+  }
+};
+
+/** Inne produkty z tej samej podkategorii (zapas, gdy nic nie jest w promocji). */
+export const getRelatedProducts = async (subcategoryId: string, excludeId: string, limit = 12): Promise<GetSlugProduct[]> => {
+  const safeLimit = Math.max(1, Math.min(24, Math.floor(limit)));
+  const QUERY = `*[_type == "product" && type._ref == $sub && _id != $exclude] | order(_updatedAt desc) [0...${safeLimit}] ${LISTING_PROJECTION}`;
+  try {
+    const res = await sanityFetch({ query: QUERY, params: { sub: subcategoryId, exclude: excludeId } });
+    return (res?.data as GetSlugProduct[]) || [];
+  } catch (error) {
+    console.error("Error fetching related products:", error);
+    return [];
+  }
+};
+
+// Wyszukiwarka: dopasowanie liczy lib/search.ts na indeksie wszystkich
+// produktów (nazwa, marka, kategorie, tagi, SKU, krótki i pełny opis —
+// lib/searchIndex.server.ts), a tu dociągamy PEŁNĄ projekcję (GetSlugProduct:
+// warianty z opcjami, filtry) dla trafień — strona /search renderuje ten sam
+// dock filtrów i kafelki co subkategoria. Kolejność = trafność.
+export const getProductsBySearch = async (query: string): Promise<GetSlugProduct[]> => {
+  const { searchProductIds } = await import("@/lib/searchIndex.server");
+  const ids = await searchProductIds(query, 200);
+  if (!ids.length) return [];
+  try {
+    const res = await sanityFetch({
+      query: `*[_type == "product" && _id in $ids] ${LISTING_PROJECTION}`,
+      params: { ids },
     });
-    return rankProductsByTitle(products?.data || [], tokens);
+    const products = (res?.data as GetSlugProduct[]) || [];
+    const order = new Map(ids.map((id, index) => [id, index]));
+    return products.sort((a, b) => (order.get(a._id) ?? 0) - (order.get(b._id) ?? 0));
   } catch (error) {
     console.error("Error fetching products by search:", error);
     return [];
@@ -691,6 +703,7 @@ export const getGuideBySlug = async (slug: string): Promise<Guide | null> => {
           "slug": slug.current,
           price,
           "variants": variants[]{ _key, price },
+          promotion,
           "imageUrl": images[0].asset->url
         })[defined(_id) && defined(slug)]
       }
@@ -826,6 +839,7 @@ export type SitemapEntry = { slug: string; updatedAt?: string | null }
 
 export type SitemapData = {
   products: SitemapEntry[]
+  categories: SitemapEntry[]
   subcategories: SitemapEntry[]
   collections: SitemapEntry[]
   guides: SitemapEntry[]
@@ -834,6 +848,7 @@ export type SitemapData = {
 
 const EMPTY_SITEMAP: SitemapData = {
   products: [],
+  categories: [],
   subcategories: [],
   collections: [],
   guides: [],
@@ -843,6 +858,7 @@ const EMPTY_SITEMAP: SitemapData = {
 export const getSitemapData = async (): Promise<SitemapData> => {
   const QUERY = `{
     "products": *[_type == "product" && defined(slug.current) && defined(price)]{ "slug": slug.current, "updatedAt": _updatedAt },
+    "categories": *[_type == "category" && defined(slug.current)]{ "slug": slug.current, "updatedAt": _updatedAt },
     "subcategories": *[_type == "subcategory" && defined(slug.current)]{ "slug": slug.current, "updatedAt": _updatedAt },
     "collections": *[_type == "collection" && defined(slug.current) && count(*[_type == "product" && ^._id in collections[]._ref]) > 0]{ "slug": slug.current, "updatedAt": _updatedAt },
     "guides": *[_type == "guide" && defined(slug.current) && publishedAt <= now()]{ "slug": slug.current, "updatedAt": _updatedAt },

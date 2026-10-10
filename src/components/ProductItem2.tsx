@@ -40,7 +40,7 @@ const ProductItem2 = memo(function ProductItem2({ product }: { product: GetSlugP
         />
         <OmnibusNote
           state={priceState}
-          className='text-[#6C6C6C] sm:text-[14px] text-[12px] line-clamp-2'
+          className='text-[#6C6C6C] sm:text-[12px] text-[11px] line-clamp-2'
           labelClassName=''
         />
         <div className='sm:mt-3 mt-2 flex'>

@@ -6,26 +6,29 @@ import PriceFormatter from '@/components/PriceFormatter'
 import { useOmnibus } from '@/hooks/useOmnibus'
 import {
   effectivePrice,
+  fallbackOmnibus,
   resolveOmnibus,
   tilePriceKey,
   type OmnibusInfo,
   type ProductOmnibus,
 } from '@/lib/omnibus'
+import { isPromotionActive, type ProductPromotion } from '@/lib/promotion'
 
 /*
  * Cena produktu + informacja o najniższej cenie z 30 dni (Omnibus).
  *
- * Cena wyświetlana = cena, którą zapłaci klient (wariant → produkt), tak jak
- * w koszyku i checkoucie. Obniżka i cena przekreślona pochodzą WYŁĄCZNIE
- * z rejestru cen (lib/omnibus.ts) — ręczne „compareAtPrice” nie jest już
- * używane w sklepie, bo procent obniżki musi się odnosić do najniższej
- * ceny z 30 dni przed obniżką.
+ * Cena wyświetlana = cena, którą zapłaci klient (wariant → produkt,
+ * z aktywną promocją), tak jak w koszyku i kasie. Przekreślenie, procent
+ * i informacja Omnibus pojawiają się WYŁĄCZNIE w czasie aktywnej promocji
+ * (lib/promotion.ts) — zwykła zmiana ceny nie jest ogłaszaną obniżką,
+ * więc klient nie dostaje wtedy dodatkowych informacji o cenach.
  */
 
 export type PricedProduct = {
   _id: string
   price?: number | null
   variants?: Array<{ _key?: string | null; price?: number | null } | null> | null
+  promotion?: ProductPromotion | null
 }
 
 export type ProductPriceState = {
@@ -33,6 +36,8 @@ export type ProductPriceState = {
   /** `null` — ładowanie albo brak ceny. */
   info: OmnibusInfo | null
   loading: boolean
+  /** Czy produkt ma teraz aktywną promocję. */
+  promotionActive: boolean
 }
 
 /** Cena + dane Omnibus dla wariantu (domyślnie wariant z kafelka). */
@@ -50,19 +55,24 @@ export function useProductPrice(
 ): ProductPriceState {
   const key = variantKey ?? tilePriceKey(product)
   const catalogPrice = effectivePrice(product, key)
-  const data = useOmnibus(catalogPrice === null && !options.preferRegistryPrice ? null : product._id, initial)
+  const promotionActive = isPromotionActive(product.promotion)
+  // Dane z rejestru są potrzebne tylko do promocji (cena odniesienia)
+  // albo gdy cena z produktu może być nieaktualna.
+  const needsRegistry = (promotionActive && catalogPrice !== null) || Boolean(options.preferRegistryPrice)
+  const data = useOmnibus(needsRegistry ? product._id : null, initial)
   const registry = options.preferRegistryPrice ? data?.[key] : undefined
   const price = registry ? registry.price : catalogPrice
-  if (price === null) return { price: null, info: null, loading: false }
-  const info = resolveOmnibus(data, key, price)
-  return { price, info, loading: info === null }
+  if (price === null) return { price: null, info: null, loading: false, promotionActive }
+  if (!needsRegistry) return { price, info: fallbackOmnibus(price), loading: false, promotionActive }
+  const info = resolveOmnibus(data, key, price, promotionActive)
+  return { price, info, loading: info === null, promotionActive }
 }
 
-export function omnibusLabel(info: OmnibusInfo | null) {
-  return info?.promo ? 'Najniższa cena z 30 dni:' : 'Najniższa cena z 30 dni:'
-}
-
-/** Dwie linijki „Najniższa cena z 30 dni: …” (etykieta + kwota). */
+/**
+ * „Najniższa cena z 30 dni przed obniżką: …” — wymagana przy ogłaszaniu
+ * obniżki (Omnibus), więc pokazujemy ją tylko w czasie promocji. Mniejsza,
+ * szara czcionka: to informacja prawna, nie element ceny.
+ */
 export const OmnibusNote = memo(function OmnibusNote({
   state,
   className,
@@ -75,15 +85,17 @@ export const OmnibusNote = memo(function OmnibusNote({
   labelClassName?: string
   amountClassName?: string
 }) {
-  if (state.price === null) return null
+  if (state.price === null || !state.promotionActive) return null
   const { info, loading } = state
-  const amount = info?.promo ? info.promo.referencePrice : info?.lowest30d
+  // Promocja bez obniżki względem najniższej ceny z 30 dni — nie ogłaszamy obniżki.
+  if (!loading && !info?.promo) return null
+  const amount = info?.promo?.referencePrice
   return (
-    <div className={twMerge('flex space-x-1 items-center flex-wrap')}>
-      <p className={twMerge(className, labelClassName)}>{omnibusLabel(info)}</p>
+    <div className={twMerge('flex gap-x-1 items-center flex-wrap leading-snug')}>
+      <p className={twMerge(className, labelClassName)}>Najniższa cena z 30 dni przed obniżką:</p>
       <p className={className} aria-busy={loading || undefined}>
         {loading || amount === undefined ? (
-          <span className="inline-block h-[1em] w-16 animate-pulse rounded bg-[#e3e3e3] align-middle" aria-label="Wczytywanie" />
+          <span className="inline-block h-[1em] w-12 animate-pulse rounded bg-[#e3e3e3] align-middle" aria-label="Wczytywanie" />
         ) : (
           <PriceFormatter amount={amount} className={twMerge('font-normal', amountClassName)} />
         )}

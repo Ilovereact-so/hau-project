@@ -60,7 +60,7 @@ export default function AutopayInlinePayment({ payload, onClose }: Props) {
         if (!active) return
 
         if (data.settled) {
-          window.location.href = `/profile/orders/${current.orderId}?payment=success`
+          window.location.href = `/orders/${current.orderId}?payment=success`
           return
         }
         if (data.failed) {

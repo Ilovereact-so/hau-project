@@ -12,6 +12,8 @@ interface Sent {
   alreadySubscribed: boolean
   mailSent:          boolean
 }
+// Zapis wymaga potwierdzenia linkiem z maila (double opt-in) — kod −10%
+// przychodzi dopiero po kliknięciu „Potwierdzam zapis”.
 
 const Newsletter = () => {
   const [email, setEmail] = useState('')
@@ -26,7 +28,7 @@ const Newsletter = () => {
         toast.error(result.error)
         return
       }
-      setSent({ email: address, alreadySubscribed: result.alreadySubscribed, mailSent: result.mailSent })
+      setSent({ email: address, alreadySubscribed: result.status === 'already', mailSent: result.status === 'already' || result.mailSent })
       setEmail('')
       setConsent(false)
     })
@@ -150,7 +152,7 @@ function NewsletterSent({
     headingRef.current?.focus({ preventScroll: true })
   }, [sent])
 
-  const title = failed ? 'Zapisaliśmy Cię' : sent.alreadySubscribed ? 'Już jesteś z nami' : 'Sprawdź skrzynkę'
+  const title = failed ? 'Nie wysłaliśmy maila' : sent.alreadySubscribed ? 'Już jesteś z nami' : 'Potwierdź zapis w mailu'
 
   return (
     <motion.div
@@ -173,7 +175,7 @@ function NewsletterSent({
           {failed ? <Mail size={13} strokeWidth={2.2} /> : <Check size={14} strokeWidth={3} />}
         </motion.span>
         <p className='text-black/60 text-[clamp(12px,1.1vw,14px)] font-medium'>
-          {failed ? 'Zapis przyjęty' : 'Zapisano do newslettera'}
+          {failed ? 'Coś poszło nie tak' : sent.alreadySubscribed ? 'Newsletter' : 'Jeszcze jeden krok'}
         </p>
       </div>
 
@@ -187,11 +189,11 @@ function NewsletterSent({
 
       <p className='mt-1.5 text-black/70 text-[clamp(13px,1.1vw,15px)] leading-snug max-w-[440px]'>
         {failed ? (
-          <>Adres <Address email={sent.email} /> jest na liście, ale nie udało się wysłać wiadomości z kodem −10%.</>
+          <>Nie udało się wysłać maila z linkiem potwierdzającym na <Address email={sent.email} />. Spróbuj ponownie za chwilę.</>
         ) : sent.alreadySubscribed ? (
-          <>Kod −10% wysłaliśmy ponownie na <Address email={sent.email} />.</>
+          <>Adres <Address email={sent.email} /> jest już zapisany do newslettera — kod −10% był w mailu powitalnym.</>
         ) : (
-          <>Kod −10% na pierwsze zamówienie wysłaliśmy na <Address email={sent.email} />. Nie widzisz go? Zajrzyj do Spamu lub Ofert.</>
+          <>Wysłaliśmy link na <Address email={sent.email} />. Kliknij „Potwierdzam zapis” — zaraz potem przyjdzie kod −10%. Nie widzisz maila? Zajrzyj do Spamu lub Ofert.</>
         )}
       </p>
 

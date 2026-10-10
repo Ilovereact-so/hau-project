@@ -73,8 +73,9 @@ export function PriceHistoryPanel({ product }: { product: AdminProduct }) {
         </IconButton>
       </div>
       <p className="m-0 text-[11px] leading-[1.5] text-text-2">
-        Liczona automatycznie z historii cen. Obniżka (cena przekreślona i procent w sklepie) pojawia się sama,
-        gdy nowa cena jest niższa od najniższej ceny z 30 dni przed zmianą.
+        Liczona automatycznie z historii cen (rejestr zapisuje też ceny promocyjne). Sklep pokazuje
+        przekreślenie, procent i tę informację tylko w czasie aktywnej promocji — kolumna „Obniżka” to
+        wyliczenie z historii, nie to, co widzi klient przy zwykłej zmianie ceny.
       </p>
 
       {error && <p className="m-0 text-[11px] text-danger">{error}</p>}

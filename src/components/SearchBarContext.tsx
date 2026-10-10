@@ -9,6 +9,7 @@ import { useProductSearch } from '@/hooks/useProductSearch'
 import { urlFor } from '@/sanity/lib/image'
 import Image from 'next/image'
 import { DiscountBadge, OmnibusNote, PriceRow, useProductPrice } from './price/ProductPrice'
+import type { ProductPromotion } from '@/lib/promotion'
 import Link from 'next/link'
 import { SearchOverlay } from './SearchOverlay'
 import SearchPortal from './SearchPortal'
@@ -296,7 +297,7 @@ const ProductCard = ({ product, mode, onClick }: { product: RecentProduct & { va
     // „Ostatnio oglądane” trzymają cenę z chwili zapisu w localStorage, więc dla
     // nich pokazujemy bieżącą cenę z rejestru, gdy jest znana.
     const priceState = useProductPrice(
-        { _id: product._id, price: product.price, variants: product.variants },
+        { _id: product._id, price: product.price, variants: product.variants, promotion: 'promotion' in product ? (product as { promotion?: ProductPromotion | null }).promotion ?? null : null },
         effectiveVariantKey || null,
         null,
         { preferRegistryPrice: !product.variants },
@@ -358,7 +359,7 @@ const ProductCard = ({ product, mode, onClick }: { product: RecentProduct & { va
                     />
                     <OmnibusNote
                         state={priceState}
-                        className='text-[#6C6C6C] text-[12px] max-md:hidden'
+                        className='text-[#6C6C6C] text-[11px] max-md:hidden'
                         labelClassName='mt-1'
                     />
                 </div>
