@@ -9,6 +9,7 @@ import { Card, CardHeader } from '../kit/Card'
 import { ErrorBox } from '../kit/EmptyState'
 import { TextAreaField, TextField } from '../kit/TextField'
 import { cn } from '../kit/utils'
+import { EMAIL_LOGO_PATH } from '@/lib/emailLayout'
 
 /**
  * Szablon maila newslettera (prośba o potwierdzenie albo powitalny z kodem):
@@ -53,6 +54,7 @@ export function NewsletterTemplateEditor({
   const preview = html
     .replaceAll('{{email}}', previewEmail)
     .replaceAll('{{shopUrl}}', shopUrl)
+    .replaceAll('{{logoUrl}}', `${shopUrl}${EMAIL_LOGO_PATH}`)
     .replaceAll('{{confirmUrl}}', `${shopUrl}/newsletter/potwierdz?token=…`)
     .replaceAll('{{unsubscribeUrl}}', `${shopUrl}/newsletter/wypisz?token=…`)
 

@@ -490,6 +490,14 @@ Model jak w dużych sklepach (Allegro, empik, Zalando): zamówienie złożone z 
 - Migracja **`drizzle/0003_newsletter_double_optin.sql`** (ręcznie na bazie, przed wdrożeniem kodu): kolumny `confirm_token`, `confirm_sent_at`, `confirmed_at`; dotychczasowi aktywni = potwierdzeni.
 - Panel Marketing: oba szablony, statystyki (aktywni / czekają / wypisani), eksport CSV aktywnych (do Brevo/MailerLite — panel nie wysyła kampanii). Ręcznie da się przywrócić tylko adres, który kiedyś potwierdził zapis.
 
+## Wygląd maili
+
+Wszystkie maile (newsletter: „Potwierdź zapis”, powitalny; zamówienia: potwierdzenie, przypomnienie o płatności, ostatnia szansa, anulowanie) składa `src/lib/emailLayout.ts`: logo na górze, biała karta na jasnym tle, stopka z linkami Sklep · Poradniki · Pomoc. Klocki: `emailEyebrow`, `emailHeading`, `emailParagraph`, `emailButton`, `emailNote` (mięta / bursztyn / szary), `emailCode`, `emailItems`, `emailTotals`, `emailDetails`, `emailDivider`; całość — `emailDocument`. Nowy mail buduj z tych klocków, nie pisz własnego HTML-a.
+
+- **Logo to PNG** `public/email/hau-logo.png` (240 px, wyświetlane w 72 × 60, kolor logo `#4ECCB5`) — Gmail i Outlook NIE pokazują SVG. Plik powstał z dużej wersji logo (`logo_hau_white.svg` ma w środku PNG 2084 px; `logo_hau.svg` tylko 107 px — za mały). Obrazek ładuje się z adresu sklepu (`absoluteUrl`), więc na lokalnym `localhost` klient poczty go nie zobaczy.
+- **HTML mailowy**: tabele + style inline, `bgcolor` dla Outlooka, `<style>` w `<head>` tylko jako dodatek (telefon: mniejsze marginesy, kolumny „Dostawa/Płatność” jedna pod drugą). Teksty od klienta escapuje wołający (`escapeHtml`).
+- **Szablony newslettera** (`DEFAULT_NEWSLETTER_*` w `lib/emailTemplates.ts`) też powstają z `emailDocument`, z placeholderami `{{shopUrl}}`, `{{logoUrl}}`, `{{email}}`, `{{confirmUrl}}`, `{{unsubscribeUrl}}`; podgląd w panelu podmienia `{{logoUrl}}`. Szablon zapisany w bazie ma pierwszeństwo — ALE zapis identyczny z jedną z WCZEŚNIEJSZYCH wersji domyślnych (odciski sha256 w `LEGACY_DEFAULT_HTML`) jest traktowany jak brak zapisu, więc nowy wygląd wchodzi sam. Zmieniając domyślny szablon, dopisz odcisk poprzedniego.
+
 ## Wyszukiwarka
 
 - Dopasowanie (`lib/search.ts`, czyste): nazwa, marka, kategoria, podkategoria, tagi, SKU, podtytuł, krótki i pełny opis; KAŻDE słowo frazy musi pasować; bez polskich znaków; prosta odmiana (rdzeń bez 1–2 ostatnich liter dla słów 5+). Ranking: nazwa > marka/kategorie/tagi/SKU > opisy, premia za frazę na początku nazwy.

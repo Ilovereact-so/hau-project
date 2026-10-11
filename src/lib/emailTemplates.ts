@@ -2,7 +2,11 @@ import 'server-only'
 import { db } from '@/lib/db'
 import { emailTemplates } from '@/db/schema'
 import { eq } from 'drizzle-orm'
-import { SITE_URL } from '@/lib/site'
+import { createHash } from 'node:crypto'
+import { absoluteUrl, SITE_URL } from '@/lib/site'
+import {
+  EMAIL_LOGO_PATH, emailButton, emailCode, emailDivider, emailDocument, emailEyebrow, emailHeading, emailParagraph,
+} from '@/lib/emailLayout'
 
 export const NEWSLETTER_WELCOME_KEY = 'newsletter_welcome'
 /** Mail z prośbą o potwierdzenie zapisu (double opt-in) — wysyłany jako pierwszy. */
@@ -15,135 +19,91 @@ export interface EmailTemplate {
   html:    string
 }
 
-// Domyślny szablon maila powitalnego — używany, dopóki nie zostanie zmieniony
-// w panelu admina (/admin/marketing → „Domyślny” wczytuje go do edytora).
-// Placeholdery: {{email}} (adres subskrybenta), {{shopUrl}} (adres sklepu).
+// Domyślne szablony newslettera — używane, dopóki nie zostaną zmienione
+// w panelu admina (/admin/marketing → „Domyślny” wczytuje je do edytora).
+// Wygląd wspólny z mailami o zamówieniach: `lib/emailLayout.ts`.
 //
-// HTML mailowy, nie stronowy: układ na tabelach i style inline (Outlook nie
-// zna flex/grid, Gmail wycina <style>), logo tekstowe (Gmail nie pokazuje SVG),
-// szerokość 600 px. Kod rabatowy musi istnieć w /admin/discounts
-// (NEWSLETTER10 zakłada migracja drizzle/0002_discount_codes.sql).
+// Placeholdery: {{email}} (adres subskrybenta), {{shopUrl}} (adres sklepu),
+// {{logoUrl}} (logo HAU w PNG), {{confirmUrl}} (link potwierdzający),
+// {{unsubscribeUrl}} (link wypisania). Kod rabatowy musi istnieć
+// w /admin/discounts (NEWSLETTER10 zakłada migracja drizzle/0002_discount_codes.sql).
+const TEMPLATE_URLS = { shopUrl: '{{shopUrl}}', logoUrl: '{{logoUrl}}' }
+
 export const DEFAULT_NEWSLETTER_WELCOME: EmailTemplate = {
-  subject: 'Witaj w społeczności e-hau.pl — Twój kod -10% 🐾',
-  html: `<!DOCTYPE html>
-<html lang="pl">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light">
-<title>Witaj w społeczności e-hau.pl!</title>
-</head>
-<body style="margin:0;padding:0;background:#f4f4f2;">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#f4f4f2;">Dziękujemy za zapis. Na start mamy dla Ciebie 10% rabatu na pierwsze zamówienie.</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f4f2;">
-  <tr>
-    <td align="center" style="padding:32px 16px;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;font-family:'Poppins',Helvetica,Arial,sans-serif;color:#20201f;">
-        <tr>
-          <td style="padding:0 8px 20px;font-size:22px;font-weight:700;letter-spacing:3px;color:#20201f;">HAU</td>
-        </tr>
-        <tr>
-          <td style="background:#ffffff;border:1px solid #e8e8e8;border-radius:24px;padding:40px 40px 36px;">
-            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-              <tr>
-                <td style="background:#e2f3f0;border-radius:999px;padding:6px 14px;font-size:12px;font-weight:600;color:#3f8f84;letter-spacing:0.3px;">Newsletter</td>
-              </tr>
-            </table>
-            <h1 style="margin:20px 0 12px;font-size:26px;line-height:1.25;font-weight:600;color:#20201f;">Witaj w społeczności e-hau.pl!</h1>
-            <p style="margin:0 0 24px;font-size:15px;line-height:1.65;color:#4a4a4a;">
-              Cieszymy się, że jesteś z nami. Od teraz jako pierwszy dowiesz się o nowościach, promocjach i poradnikach dla opiekunów psów — bez zasypywania skrzynki.
-            </p>
-
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f7faf9;border:1px dashed #6eb0a6;border-radius:18px;">
-              <tr>
-                <td align="center" style="padding:24px 20px;">
-                  <p style="margin:0 0 6px;font-size:13px;color:#6c6c6c;">Twój kod na pierwsze zamówienie</p>
-                  <p style="margin:0;font-size:28px;font-weight:700;letter-spacing:4px;color:#20201f;font-family:'Courier New',Courier,monospace;">NEWSLETTER10</p>
-                  <p style="margin:8px 0 0;font-size:14px;font-weight:600;color:#3f8f84;">-10% na produkty</p>
-                </td>
-              </tr>
-            </table>
-
-            <p style="margin:24px 0 28px;font-size:14px;line-height:1.6;color:#6c6c6c;">
-              Wpisz kod w koszyku w polu <strong style="color:#20201f;">„Masz kod promocyjny?”</strong>. Kod działa raz na konto.
-            </p>
-
-            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-              <tr>
-                <td style="background:#20201f;border-radius:999px;">
-                  <a href="{{shopUrl}}" style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;">Przejdź do sklepu</a>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:24px 16px 0;font-size:12px;line-height:1.6;color:#8e8e8e;text-align:center;">
-            Otrzymujesz tę wiadomość, ponieważ adres {{email}} został zapisany do newslettera e-hau.pl i potwierdzono zgodę na jego otrzymywanie.
-            <a href="{{unsubscribeUrl}}" style="color:#8e8e8e;">Wypisz się z newslettera</a><br>
-            <a href="{{shopUrl}}" style="color:#8e8e8e;">e-hau.pl</a>
-          </td>
-        </tr>
-      </table>
-    </td>
-  </tr>
-</table>
-</body>
-</html>`,
+  subject: 'Witaj w HAU — Twój kod -10% na pierwsze zamówienie 🐾',
+  html: emailDocument({
+    ...TEMPLATE_URLS,
+    title: 'Witaj w HAU',
+    preheader: 'Dziękujemy za potwierdzenie zapisu. Na start: -10% na pierwsze zamówienie.',
+    body: [
+      emailEyebrow('Witamy w HAU'),
+      emailHeading('Miło nam, że jesteś z nami'),
+      emailParagraph(
+        'Dziękujemy za potwierdzenie zapisu. Od teraz jako pierwszy dowiesz się o nowościach, promocjach i nowych poradnikach dla opiekunów psów — bez zasypywania skrzynki.',
+        { margin: '0 0 28px' },
+      ),
+      emailCode('NEWSLETTER10', 'Twój kod na pierwsze zamówienie', '-10% na wszystkie produkty'),
+      emailParagraph(
+        'Wpisz kod w koszyku, w polu <strong style="color:#1b1b1b;font-weight:600;">„Masz kod promocyjny?”</strong>. Kod można wykorzystać raz.',
+        { size: 14, margin: '0 0 28px' },
+      ),
+      emailButton('{{shopUrl}}', 'Przejdź do sklepu'),
+    ].join('\n'),
+    footer:
+      'Otrzymujesz tę wiadomość, ponieważ adres {{email}} został zapisany do newslettera HAU i zapis został potwierdzony.<br>' +
+      '<a href="{{unsubscribeUrl}}" style="color:#8a8a8a;text-decoration:underline;">Wypisz się z newslettera</a>',
+  }),
 }
 
-// Domyślny mail z prośbą o potwierdzenie zapisu (double opt-in).
-// Placeholdery: {{confirmUrl}} (link potwierdzający — WYMAGANY), {{email}}, {{shopUrl}}.
-// Kod rabatowy przychodzi dopiero w mailu powitalnym, po potwierdzeniu.
 export const DEFAULT_NEWSLETTER_CONFIRM: EmailTemplate = {
-  subject: 'Potwierdź zapis do newslettera e-hau.pl 🐾',
-  html: `<!DOCTYPE html>
-<html lang="pl">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light">
-<title>Potwierdź zapis do newslettera</title>
-</head>
-<body style="margin:0;padding:0;background:#f4f4f2;">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#f4f4f2;">Jedno kliknięcie i kod -10% jest Twój.</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f4f2;">
-  <tr>
-    <td align="center" style="padding:32px 16px;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;font-family:'Poppins',Helvetica,Arial,sans-serif;color:#20201f;">
-        <tr>
-          <td style="padding:0 8px 20px;font-size:22px;font-weight:700;letter-spacing:3px;color:#20201f;">HAU</td>
-        </tr>
-        <tr>
-          <td style="background:#ffffff;border:1px solid #e8e8e8;border-radius:24px;padding:40px 40px 36px;">
-            <h1 style="margin:0 0 12px;font-size:24px;line-height:1.3;font-weight:600;color:#20201f;">Potwierdź zapis do newslettera</h1>
-            <p style="margin:0 0 24px;font-size:15px;line-height:1.65;color:#4a4a4a;">
-              Ktoś (mamy nadzieję, że Ty!) zapisał adres <strong style="color:#20201f;">{{email}}</strong> do newslettera e-hau.pl.
-              Kliknij przycisk, żeby potwierdzić — zaraz potem wyślemy Ci kod rabatowy -10% na pierwsze zamówienie.
-            </p>
-            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-              <tr>
-                <td style="background:#20201f;border-radius:999px;">
-                  <a href="{{confirmUrl}}" style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;">Potwierdzam zapis</a>
-                </td>
-              </tr>
-            </table>
-            <p style="margin:24px 0 0;font-size:13px;line-height:1.6;color:#8e8e8e;">
-              Jeśli to nie Ty — po prostu zignoruj tę wiadomość. Bez potwierdzenia nie wyślemy Ci żadnego newslettera.
-            </p>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:24px 16px 0;font-size:12px;line-height:1.6;color:#8e8e8e;text-align:center;">
-            <a href="{{shopUrl}}" style="color:#8e8e8e;">e-hau.pl</a>
-          </td>
-        </tr>
-      </table>
-    </td>
-  </tr>
-</table>
-</body>
-</html>`,
+  subject: 'Potwierdź zapis do newslettera HAU',
+  html: emailDocument({
+    ...TEMPLATE_URLS,
+    title: 'Potwierdź zapis do newslettera',
+    preheader: 'Jedno kliknięcie i gotowe — po potwierdzeniu wyślemy Ci kod -10%.',
+    body: [
+      emailEyebrow('Newsletter'),
+      emailHeading('Potwierdź swój zapis'),
+      emailParagraph(
+        'Dziękujemy za zainteresowanie newsletterem HAU. Kliknij przycisk poniżej, aby potwierdzić, że adres <strong style="color:#1b1b1b;font-weight:600;">{{email}}</strong> należy do Ciebie.',
+        { margin: '0 0 28px' },
+      ),
+      emailButton('{{confirmUrl}}', 'Potwierdzam zapis'),
+      emailParagraph('Zaraz po potwierdzeniu wyślemy Ci kod -10% na pierwsze zamówienie.', { size: 14, muted: true, margin: '20px 0 0' }),
+      emailDivider(),
+      emailParagraph(
+        'Jeśli to nie Ty zapisałeś ten adres, po prostu zignoruj tę wiadomość — bez potwierdzenia nie wyślemy Ci niczego.',
+        { size: 13, muted: true, margin: '0 0 12px' },
+      ),
+      emailParagraph(
+        'Przycisk nie działa? Skopiuj ten adres do przeglądarki:<br><a href="{{confirmUrl}}" style="color:#1f7f6e;word-break:break-all;">{{confirmUrl}}</a>',
+        { size: 13, muted: true, margin: '0' },
+      ),
+    ].join('\n'),
+  }),
+}
+
+/*
+ * Odciski (sha256, 32 znaki) WCZEŚNIEJSZYCH domyślnych szablonów. Szablon
+ * zapisany w panelu bez zmian (np. ktoś kliknął „Zapisz” na domyślnym) nie
+ * powinien blokować nowego wyglądu — taki zapis traktujemy jak brak zapisu.
+ * Szablony zmienione ręcznie zostają nietknięte.
+ */
+const LEGACY_DEFAULT_HTML = new Set([
+  '02bf905a2b7d3c929aa8b67ad3df678e', // powitalny (double opt-in, 2026-10)
+  '8172c02789ee292b6ddfe994ed97c33d', // powitalny (przed double opt-in)
+  '78b01a909aa89ba1c9d3701f3f35d0e1', // powitalny (pierwsza wersja)
+  '36ab2218e30fb9b94a477c73baa7f2cb', // „Potwierdź zapis” (2026-10)
+])
+
+const LEGACY_DEFAULT_SUBJECTS = new Set([
+  'Witaj w społeczności e-hau.pl — Twój kod -10% 🐾',
+  'Potwierdź zapis do newslettera e-hau.pl 🐾',
+])
+
+function isLegacyDefaultHtml(html: string): boolean {
+  const digest = createHash('sha256').update(html.replace(/\r\n/g, '\n').trim()).digest('hex').slice(0, 32)
+  return LEGACY_DEFAULT_HTML.has(digest)
 }
 
 export const DEFAULT_EMAIL_TEMPLATES: Record<EmailTemplateKey, EmailTemplate> = {
@@ -166,9 +126,12 @@ export async function getEmailTemplate(key: string): Promise<EmailTemplate> {
 
   if (!rows[0]) return fallback
 
+  // Niezmieniony stary domyślny szablon → nowy domyślny (wygląd z logo).
+  const legacyHtml = !rows[0].html || isLegacyDefaultHtml(rows[0].html)
+  const legacySubject = !rows[0].subject || (legacyHtml && LEGACY_DEFAULT_SUBJECTS.has(rows[0].subject))
   return {
-    subject: rows[0].subject || fallback.subject,
-    html:    rows[0].html || fallback.html,
+    subject: legacySubject ? fallback.subject : rows[0].subject,
+    html:    legacyHtml ? fallback.html : rows[0].html,
   }
 }
 
@@ -192,7 +155,7 @@ export async function setEmailTemplate(
     })
 }
 
-// Podmienia placeholdery {{email}}, {{shopUrl}} oraz dodatkowe (np.
+// Podmienia placeholdery {{email}}, {{shopUrl}}, {{logoUrl}} oraz dodatkowe (np.
 // {{confirmUrl}}, {{unsubscribeUrl}}) w treści i temacie. Wartości trafiające
 // do HTML-a są escapowane.
 export function renderTemplate(
@@ -201,7 +164,13 @@ export function renderTemplate(
   extra: Record<string, string> = {},
 ): EmailTemplate {
   const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
-  const vars: Record<string, string> = { email, shopUrl: SITE_URL, unsubscribeUrl: SITE_URL, ...extra }
+  const vars: Record<string, string> = {
+    email,
+    shopUrl: SITE_URL,
+    logoUrl: absoluteUrl(EMAIL_LOGO_PATH),
+    unsubscribeUrl: SITE_URL,
+    ...extra,
+  }
   let subject = template.subject
   let html = template.html
   for (const [name, value] of Object.entries(vars)) {
