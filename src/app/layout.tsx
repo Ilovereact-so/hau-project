@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Poppins, Fredoka } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import { StoreHydration } from "@/components/StoreHydration";
@@ -11,20 +11,30 @@ import CookieConsent from "@/components/consent/CookieConsent";
 import { reportEnvOnce } from "@/lib/env";
 import Analytics from "@/components/consent/Analytics";
 
-const poppins = Poppins({
-  weight: ['400', '500', '600'],
-  subsets: ['latin'],
+/* Fonty są w repozytorium (src/fonts, scripts/build-fonts.py), nie z Google:
+   `next/font/google` pobierał je przy każdym buildzie i zmiana odpowiedzi Google
+   wywracała build w CI. Fredoka nie ma polskich znaków (także u Google) —
+   „ą/ę/ś…” przeglądarka bierze z fontu zapasowego. */
+const poppins = localFont({
+  src: [
+    { path: '../fonts/poppins-400.woff2', weight: '400', style: 'normal' },
+    { path: '../fonts/poppins-500.woff2', weight: '500', style: 'normal' },
+    { path: '../fonts/poppins-600.woff2', weight: '600', style: 'normal' },
+  ],
   display: 'swap',
   variable: '--font-poppins',
   preload: false,
+  fallback: ['system-ui', 'sans-serif'],
 });
 
-const fredoka = Fredoka({
-  weight: ['400', '500', '600'],
-  subsets: ['latin'],
+const fredoka = localFont({
+  src: '../fonts/fredoka-variable.woff2',
+  weight: '400 600',
+  style: 'normal',
   display: 'swap',
   variable: '--font-fredoka',
   preload: false,
+  fallback: ['system-ui', 'sans-serif'],
 });
 
 export const viewport: Viewport = {
@@ -101,4 +111,4 @@ export default function RootLayout({
       </html>
     </ClerkProvider>
   );
-}
+}

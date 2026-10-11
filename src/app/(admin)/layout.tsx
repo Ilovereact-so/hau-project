@@ -1,23 +1,29 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter, JetBrains_Mono } from 'next/font/google'
+import localFont from 'next/font/local'
 
-/* Fonty panelu z meblove: Inter (tekst) + JetBrains Mono (identyfikatory).
+/* Fonty panelu z meblove: Inter (tekst) + JetBrains Mono (identyfikatory),
+   z repozytorium (src/fonts) — patrz komentarz w src/app/layout.tsx.
    Podpięte jako zmienne CSS i użyte w `.hau-admin` (admin-theme.css),
    żeby nie nadpisywać fontów sklepu. */
-const inter = Inter({
-  weight: ['400', '500', '600', '700', '800'],
-  subsets: ['latin', 'latin-ext'],
+const inter = localFont({
+  src: '../../fonts/inter-variable.woff2',
+  weight: '400 800',
+  style: 'normal',
   display: 'swap',
   variable: '--font-adm-sans',
   preload: false,
+  fallback: ['system-ui', 'sans-serif'],
 })
 
-const mono = JetBrains_Mono({
-  weight: ['400', '500'],
-  subsets: ['latin', 'latin-ext'],
+const mono = localFont({
+  src: '../../fonts/jetbrains-mono-variable.woff2',
+  weight: '400 500',
+  style: 'normal',
   display: 'swap',
   variable: '--font-adm-mono',
   preload: false,
+  adjustFontFallback: false,
+  fallback: ['ui-monospace', 'monospace'],
 })
 
 export const viewport: Viewport = {
