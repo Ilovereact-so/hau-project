@@ -189,7 +189,7 @@ AUTOPAY_BASE_URL            # opcjonalny override adresu bramki
 AUTOPAY_HASH_ALGO           # domyślnie sha256
 AUTOPAY_HASH_SEPARATOR      # domyślnie |
 AUTOPAY_SEND_RETURN_URL     # true = wysyłamy dynamiczny ReturnURL (wymaga włączenia u Autopay)
-AUTOPAY_RECURRING_ENABLED   # true = tokenizacja kart (wymaga włączenia usługi)
+AUTOPAY_RECURRING_ENABLED   # true = zapisane karty / One Click (wymaga kanału 1503 u Autopay)
 AUTOPAY_BLIK0_ENABLED       # false = powrót do przekierowania zamiast BLIK-0 (domyślnie true)
 AUTOPAY_CARD_IFRAME_ENABLED # false = karta przez przekierowanie zamiast iframe (domyślnie true)
 # Wysyłka — Furgonetka (InPost)
@@ -302,10 +302,37 @@ i historia przeglądarek) — `/orders/[id]` przenosi też parametry zapytania, 
 (`/profile/orders/[id]`) względne `href="orders"` rozwijało się do
 `/profile/orders/orders`.
 
-Zapisane karty: `saved_cards` trzyma wyłącznie token płatności automatycznej
-i dane do wyświetlenia (maska, ważność, wydawca). Usunięcie karty dezaktywuje ją
-u nas (`isActive = false`); wycofanie zgody po stronie Autopay
-(`RecurringAction: DEACTIVATE`) czeka na włączenie usługi płatności automatycznych.
+### Zapisane karty (Autopay „Płatność kartą One Click”, kanał 1503)
+
+Numeru karty NIE przechowujemy (PCI DSS) — kartę trzyma Autopay, a `saved_cards`
+ma token (`ClientHash`) i dane do wyświetlenia: wydawca, 4 ostatnie cyfry, ważność.
+Token nie wychodzi do przeglądarki: kasa wysyła `savedCardId`, serwer szuka tokenu
+po id I właścicielu (`findCardTokenForUser`). Całość za flagą `AUTOPAY_RECURRING_ENABLED`.
+
+- **Zapis**: zalogowany klient płaci kartą z zaznaczonym „Zapamiętaj kartę” (pod
+  checkboksem pełna treść zgody `SAVE_CARD_AGREEMENT`) → transakcja kanałem **1503**
+  z `RecurringAcceptanceState=ACCEPTED` + `RecurringAction=INIT_WITH_PAYMENT`
+  (formularz w ramce, 3-D Secure). `payment_transactions.save_card_consent` = zgoda.
+- **Dane karty przychodzą OSOBNYM komunikatem** na adres ITN: pole `recurring` =
+  base64 XML `<recurringActivation>` (cardData: index, mask, issuer, validity…)
+  albo `<recurringDeactivation>`. Hash jak ITN (liście w kolejności dokumentu),
+  odpowiedź `<recurringConfirmations>` z hashem `serviceID|clientHash|status|klucz`
+  (`parseRecurringNotification` / `buildRecurringConfirmation`). Karta trafia na
+  konto tylko zalogowanego właściciela zamówienia ze zgodą — inaczej NOTCONFIRMED.
+  Zapis bez duplikatów (`upsertSavedCard`: ten sam token albo ta sama karta).
+- **Płatność zapisaną kartą**: `RecurringAction=MANUAL` + `ClientHash`, kanał 1503,
+  przedtransakcja z `ScreenType=IFRAME` → ramka z 3-D Secure albo od razu wynik
+  (brak `redirecturl` → `/orders/[id]?payment=pending`, rozstrzyga ITN).
+- **Kolejność hasha**: `RecurringAcceptanceState`, `RecurringAction`, `ClientHash`
+  stoją PO `LinkValidityTime`, PRZED `AuthorizationCode`/`ScreenType`/`ReturnURL`
+  (pozycje 35–37 specyfikacji; zgodne z oficjalną wtyczką Autopay do Magento).
+- **Front**: profil → Płatności (`/profile/payment`) — karty z wydawcą, ostatnimi
+  cyframi, ważnością („Wkrótce wygaśnie”, „Wygasła”) i usuwaniem z potwierdzeniem;
+  kasa — sekcja „Twoje zapisane karty” (wygasłe wyłączone). Kanał 1503 nie jest
+  pokazywany jako osobna metoda. Wspólne: `lib/savedCardsShared.ts`, serwer:
+  `lib/savedCards.server.ts`, znak wydawcy `CardBrandMark` (`PaymentLogos`).
+- Usunięcie w profilu = `isActive=false` (karta znika z profilu i kasy, token nie jest
+  używany). Tabela `saved_cards` jest w migracji `0000` — bez nowej migracji.
 
 ## Opinie o produktach
 

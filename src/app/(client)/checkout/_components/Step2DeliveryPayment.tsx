@@ -33,6 +33,8 @@ export interface Step2Result {
   gatewayId?:    number
   gatewayName?:  string
   saveCard?:     boolean
+  /** Płatność zapisaną kartą (`saved_cards.id`). */
+  savedCardId?:  string
   /** „Inne metody płatności” — kanał wybierany po stronie Autopay. */
   other?:        boolean
   /** BLIK-0 aktywny — kod zbieramy w podsumowaniu zamówienia. */
@@ -320,6 +322,7 @@ export default function Step2DeliveryPayment({ address, deliveryType, services, 
       gatewayId:     payment.gatewayId,
       gatewayName:   payment.gatewayName,
       saveCard:      payment.saveCard,
+      savedCardId:   payment.savedCardId,
       other:         payment.other,
       blik0:         payment.blik0,
     })

@@ -2,13 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import {
   parseItn,
   buildItnConfirmation,
+  parseRecurringNotification,
+  buildRecurringConfirmation,
   isAutopayConfigured,
-  AUTOPAY_RECURRING_ENABLED,
   type AutopayItnTransaction,
+  type AutopayRecurringNotification,
 } from '@/lib/autopay'
 import { db } from '@/lib/db'
-import { orders, paymentTransactions, savedCards } from '@/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { orders, paymentTransactions } from '@/db/schema'
+import { eq, and, desc } from 'drizzle-orm'
+import { deactivateCardByToken, isGuestOwner, upsertSavedCard } from '@/lib/savedCards.server'
 
 export const dynamic = 'force-dynamic'
 export const runtime  = 'nodejs'
@@ -21,6 +24,10 @@ const XML_HEADERS = { 'Content-Type': 'text/xml; charset=utf-8' }
  * Format wejścia: POST application/x-www-form-urlencoded, pole `transactions`
  * zawierające XML zakodowany base64. Jeden komunikat może nieść wiele transakcji.
  *
+ * Na ten sam adres przychodzą też komunikaty o ZAPISANYCH KARTACH — pole
+ * `recurring` (base64 XML `<recurringActivation>` / `<recurringDeactivation>`).
+ * Dopiero z nich dostajemy token karty i jej dane do wyświetlenia.
+ *
  * Odpowiedź musi być XML-em <confirmationList> z poprawnym hashem — inaczej
  * Autopay ponawia komunikat w nieskończoność.
  */
@@ -31,6 +38,7 @@ export async function POST(req: NextRequest) {
   }
 
   let encoded: string | null = null
+  let recurringEncoded: string | null = null
 
   try {
     const contentType = req.headers.get('content-type') ?? ''
@@ -38,17 +46,26 @@ export async function POST(req: NextRequest) {
       const form = await req.formData()
       const value = form.get('transactions')
       encoded = typeof value === 'string' ? value : null
+      const recurring = form.get('recurring')
+      recurringEncoded = typeof recurring === 'string' ? recurring : null
     } else {
       // Zapasowo: niektóre konfiguracje wysyłają samo base64 w body.
       const body = (await req.text()).trim()
-      encoded = body.startsWith('transactions=')
-        ? decodeURIComponent(body.slice('transactions='.length).replace(/\+/g, ' '))
-        : body || null
+      if (body.startsWith('recurring=')) {
+        recurringEncoded = decodeURIComponent(body.slice('recurring='.length).replace(/\+/g, ' '))
+      } else {
+        encoded = body.startsWith('transactions=')
+          ? decodeURIComponent(body.slice('transactions='.length).replace(/\+/g, ' '))
+          : body || null
+      }
     }
   } catch (err) {
     console.error('[Autopay ITN] Nie udało się odczytać treści żądania', err)
     return new NextResponse('Bad request', { status: 400 })
   }
+
+  // Base64 w formularzu bywa z zamienionym „+” na spację (tak robią wtyczki Autopay).
+  if (recurringEncoded) return handleRecurring(recurringEncoded.replace(/ /g, '+'))
 
   if (!encoded) {
     console.warn('[Autopay ITN] Brak pola "transactions"')
@@ -163,34 +180,108 @@ async function applyTransaction(transaction: AutopayItnTransaction): Promise<boo
       .update(orders)
       .set({ status: 'paid' })
       .where(eq(orders.id, orderId))
-
-    const shouldSaveCard =
-      AUTOPAY_RECURRING_ENABLED &&
-      txRecord?.saveCardConsent &&
-      transaction.recurringToken &&
-      order.userId
-
-    if (shouldSaveCard) {
-      const [month, year] = (transaction.cardExpiry ?? '').split('/')
-      const expiryMonth = month ? Number.parseInt(month, 10) : NaN
-      const expiryYearRaw = year ? Number.parseInt(year, 10) : NaN
-      const expiryYear = Number.isFinite(expiryYearRaw)
-        ? (expiryYearRaw < 100 ? 2000 + expiryYearRaw : expiryYearRaw)
-        : NaN
-
-      await tx.insert(savedCards).values({
-        id:           crypto.randomUUID(),
-        userId:       order.userId as string,
-        provider:     'autopay',
-        token:        transaction.recurringToken as string,
-        maskedNumber: transaction.cardMask,
-        expiryMonth:  Number.isFinite(expiryMonth) ? expiryMonth : null,
-        expiryYear:   Number.isFinite(expiryYear)  ? expiryYear  : null,
-        cardBrand:    transaction.cardIssuer,
-        isActive:     true,
-      })
-    }
   })
 
+  // Część konfiguracji Autopay dokleja dane karty także do ITN transakcji.
+  // Główną drogą zapisu jest jednak komunikat `recurringActivation` (niżej).
+  if (txRecord?.saveCardConsent && transaction.recurringToken && !isGuestOwner(order.userId)) {
+    const [month, year] = (transaction.cardExpiry ?? '').split('/')
+    const expiryMonth = month ? Number.parseInt(month, 10) : Number.NaN
+    const expiryYearRaw = year ? Number.parseInt(year, 10) : Number.NaN
+    const expiryYear = Number.isFinite(expiryYearRaw) && expiryYearRaw < 100 ? 2000 + expiryYearRaw : expiryYearRaw
+    try {
+      await upsertSavedCard({
+        userId:      order.userId as string,
+        token:       transaction.recurringToken,
+        mask:        transaction.cardMask,
+        brand:       transaction.cardIssuer,
+        expiryMonth: Number.isFinite(expiryMonth) ? expiryMonth : null,
+        expiryYear:  Number.isFinite(expiryYear) ? expiryYear : null,
+      })
+    } catch (err) {
+      // Płatność jest rozliczona — błąd zapisu karty nie może jej cofnąć.
+      console.error('[Autopay ITN] Nie udało się zapisać karty z ITN', { orderId, err })
+    }
+  }
+
+  return true
+}
+
+// ─── zapisane karty ───────────────────────────────────────────────────────────
+
+async function handleRecurring(encoded: string): Promise<NextResponse> {
+  let notification: AutopayRecurringNotification
+  try {
+    notification = parseRecurringNotification(encoded)
+  } catch (err) {
+    console.warn('[Autopay recurring] Odrzucony komunikat:', (err as Error).message)
+    return new NextResponse('Invalid recurring notification', { status: 400 })
+  }
+
+  let confirmed = false
+  try {
+    confirmed = notification.type === 'activation'
+      ? await activateCard(notification)
+      : await deactivateCard(notification)
+  } catch (err) {
+    console.error('[Autopay recurring] Błąd przetwarzania', { type: notification.type, err })
+    confirmed = false
+  }
+
+  return new NextResponse(buildRecurringConfirmation(notification.clientHash, confirmed), { headers: XML_HEADERS })
+}
+
+/**
+ * Karta zapisana w Autopay po udanej płatności. Przypisujemy ją do właściciela
+ * zamówienia — tylko zalogowanego klienta, który zaznaczył zgodę na zapis.
+ * Bez tego odpowiadamy NOTCONFIRMED (tak jak wtyczka Autopay do Magento).
+ */
+async function activateCard(notification: AutopayRecurringNotification): Promise<boolean> {
+  if (!notification.orderId) {
+    console.warn('[Autopay recurring] Aktywacja bez numeru zamówienia', { clientHash: notification.clientHash.slice(0, 8) })
+    return false
+  }
+
+  const [order] = await db
+    .select({ id: orders.id, userId: orders.userId })
+    .from(orders)
+    .where(eq(orders.id, notification.orderId))
+    .limit(1)
+
+  if (!order) {
+    console.error('[Autopay recurring] Nie znaleziono zamówienia', { orderId: notification.orderId })
+    return false
+  }
+  if (isGuestOwner(order.userId)) {
+    console.warn('[Autopay recurring] Zamówienie gościa — karty nie zapisujemy', { orderId: order.id })
+    return false
+  }
+
+  const [payment] = await db
+    .select({ saveCardConsent: paymentTransactions.saveCardConsent })
+    .from(paymentTransactions)
+    .where(eq(paymentTransactions.orderId, order.id))
+    .orderBy(desc(paymentTransactions.createdAt))
+    .limit(1)
+
+  if (!payment?.saveCardConsent) {
+    console.warn('[Autopay recurring] Brak zgody na zapis karty w zamówieniu', { orderId: order.id })
+    return false
+  }
+
+  await upsertSavedCard({
+    userId:      order.userId,
+    token:       notification.clientHash,
+    mask:        notification.card.mask,
+    brand:       notification.card.issuer,
+    expiryMonth: notification.card.validityMonth,
+    expiryYear:  notification.card.validityYear,
+  })
+  return true
+}
+
+/** Karta usunięta po stronie Autopay / banku — znika z konta klienta. */
+async function deactivateCard(notification: AutopayRecurringNotification): Promise<boolean> {
+  await deactivateCardByToken(notification.clientHash)
   return true
 }

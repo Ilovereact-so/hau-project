@@ -3,6 +3,9 @@
  * w kodzie (bez plików graficznych), wspólne dla kasy i koszyka.
  */
 
+import { CreditCard } from 'lucide-react'
+import { cardBrandKey } from '@/lib/savedCardsShared'
+
 export function LogoBlik() {
   return (
     <span className="inline-flex items-center justify-center bg-black text-white text-[11px] font-black tracking-wide px-2.5 py-1 rounded-[6px] leading-none select-none">
@@ -46,4 +49,29 @@ export function LogoApplePay() {
       <span className="text-[13px] font-medium text-black"> Pay</span>
     </span>
   )
+}
+
+/**
+ * Znak wydawcy zapisanej karty (profil → Płatności, kasa). Ten sam prosty
+ * styl co `LogoCards`; nieznany wydawca = ikona karty.
+ */
+export function CardBrandMark({ brand, size = 'md' }: { brand: string | null | undefined; size?: 'sm' | 'md' }) {
+  const key = cardBrandKey(brand)
+  const circle = size === 'sm' ? 'w-4 h-4' : 'w-5 h-5'
+  const overlap = size === 'sm' ? '-mr-2' : '-mr-2.5'
+  if (key === 'visa') {
+    return <span className="text-[11px] font-bold italic text-[#1A1F71] border border-[#1A1F71] px-1.5 py-0.5 rounded leading-none bg-white">VISA</span>
+  }
+  if (key === 'mastercard' || key === 'maestro') {
+    return (
+      <span className="inline-flex items-center" aria-hidden="true">
+        <span className={`${circle} rounded-full inline-block ${overlap} ${key === 'maestro' ? 'bg-[#E21B2D]' : 'bg-[#EB001B]'}`} />
+        <span className={`${circle} rounded-full inline-block ${key === 'maestro' ? 'bg-[#009DDD]' : 'bg-[#F79E1B]'} opacity-90`} />
+      </span>
+    )
+  }
+  if (key === 'amex') {
+    return <span className="text-[10px] font-bold text-white bg-[#2E77BC] px-1.5 py-1 rounded leading-none">AMEX</span>
+  }
+  return <CreditCard className={size === 'sm' ? 'w-4 h-4 text-[#6C6C6C]' : 'w-5 h-5 text-[#6C6C6C]'} aria-hidden="true" />
 }

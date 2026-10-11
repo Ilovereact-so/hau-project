@@ -83,6 +83,7 @@ export default function CheckoutClient({ services, savedAddress, userSlot, isGue
   const [gatewayName, setGatewayName]     = useState<string | undefined>()
   const [otherPayment, setOtherPayment]   = useState(false)
   const [saveCard, setSaveCard]           = useState(false)
+  const [savedCardId, setSavedCardId]     = useState<string | undefined>()
   const [blik0, setBlik0]                 = useState(false)
   const [blikCode, setBlikCode]           = useState('')
   const [inlinePayment, setInlinePayment] = useState<AutopayInlinePayload | null>(null)
@@ -143,6 +144,7 @@ export default function CheckoutClient({ services, savedAddress, userSlot, isGue
     setGatewayName(data.gatewayName)
     setOtherPayment(data.other ?? false)
     setSaveCard(data.saveCard ?? false)
+    setSavedCardId(data.savedCardId)
     setBlik0(data.blik0 ?? false)
     setBlikCode('')
     setStep(2)
@@ -167,7 +169,8 @@ export default function CheckoutClient({ services, savedAddress, userSlot, isGue
         shippingMethod: serviceCode,
         deliveryType,   pickupPoint,
         gatewayId,
-        saveCard:  saveCard ? true : undefined,
+        saveCard:  saveCard && !savedCardId ? true : undefined,
+        savedCardId,
         blikCode:  blik0 ? blikCode.replace(/\D/g, '') : undefined,
         discountCode: discountCode ?? undefined,
       })
@@ -270,6 +273,7 @@ export default function CheckoutClient({ services, savedAddress, userSlot, isGue
                         gatewayName,
                         other: otherPayment,
                         saveCard,
+                        savedCardId,
                         blik0,
                       }}
                       freeShipping={freeShipping}
@@ -288,6 +292,8 @@ export default function CheckoutClient({ services, savedAddress, userSlot, isGue
                     paymentMethod={paymentMethod}
                     gatewayId={gatewayId}
                     gatewayName={gatewayName}
+                    savedCard={Boolean(savedCardId)}
+                    saveCard={saveCard && !savedCardId}
                     pickupPoint={pickupPoint}
                     submitError={submitError}
                     blik0={blik0}

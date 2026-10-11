@@ -19,6 +19,10 @@ interface Props {
   paymentMethod: string
   gatewayId?:    number
   gatewayName?:  string
+  /** Płatność zapisaną kartą (Autopay One Click). */
+  savedCard?:    boolean
+  /** Nowa karta zostanie zapamiętana po udanej płatności. */
+  saveCard?:     boolean
   pickupPoint?:  CheckoutPickupPoint
   /** BLIK-0 aktywny — zbieramy kod tutaj, tuż przed wysłaniem. */
   blik0?:        boolean
@@ -41,7 +45,7 @@ interface Props {
  */
 export default function Step3SummaryCards({
   address, deliveryType, serviceName: _serviceName, paymentMethod,
-  gatewayId, gatewayName, pickupPoint,
+  gatewayId, gatewayName, savedCard = false, saveCard = false, pickupPoint,
   blik0, blikCode, onBlikCode,
   onEdit, handleSubmit, isPending, submitError,
 }: Props) {
@@ -49,7 +53,7 @@ export default function Step3SummaryCards({
   const paymentLabel = isAutopay ? (gatewayName ?? 'Autopay') : 'Za pobraniem'
 
   const isBlik0 = isAutopay && blik0 === true && gatewayId === BLIK_GATEWAY_ID
-  const isCard  = isAutopay && gatewayId === CARD_GATEWAY_ID
+  const isCard  = isAutopay && (gatewayId === CARD_GATEWAY_ID || savedCard)
 
   // Kod BLIK żyje ~2 minuty, więc zbieramy go dopiero tutaj — tuż przed wysłaniem.
   const blikReady   = !isBlik0 || blikCode.replace(/\D/g, '').length === 6
@@ -125,9 +129,11 @@ export default function Step3SummaryCards({
         <div className="flex items-start gap-3 rounded-2xl py-3">
           <ShieldCheck size={18} className="text-[#6C6C6C] mt-[2px] flex-shrink-0" />
           <p className="text-[14px] text-[#3D3D3D] leading-relaxed">
-            {isCard
-              ? 'Formularz karty otworzy się na tej stronie — obsługuje go Autopay, więc dane karty nie trafiają na serwer sklepu.'
-              : 'Po kliknięciu „Zamawiam i płacę” przejdziesz na bezpieczną stronę Autopay, gdzie dokończysz płatność.'}
+            {savedCard
+              ? 'Zapłacisz zapisaną kartą. Jeśli bank poprosi o potwierdzenie (3-D Secure), okienko otworzy się na tej stronie.'
+              : isCard
+                ? `Formularz karty otworzy się na tej stronie — obsługuje go Autopay, więc dane karty nie trafiają na serwer sklepu.${saveCard ? ' Po udanej płatności karta zapisze się na Twoim koncie.' : ''}`
+                : 'Po kliknięciu „Zamawiam i płacę” przejdziesz na bezpieczną stronę Autopay, gdzie dokończysz płatność.'}
           </p>
         </div>
       )}
