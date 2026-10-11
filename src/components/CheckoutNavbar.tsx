@@ -6,7 +6,15 @@ import { Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { STEPS, type Step } from '@/app/(client)/checkout/_components/utils'
 
-export default function CheckoutNavbar({ step, userSlot }: { step: Step; userSlot: React.ReactNode }) {
+export default function CheckoutNavbar({
+  step,
+  userSlot,
+  onStepClick,
+}: {
+  step: Step
+  userSlot: React.ReactNode
+  onStepClick: (step: Step) => void
+}) {
 
   return (
     <header className="w-full z-10 max-w-[1500px] mx-auto">
@@ -31,17 +39,22 @@ export default function CheckoutNavbar({ step, userSlot }: { step: Step; userSlo
                     done ? 'bg-black' : 'bg-[#D9D9D9]',
                   )} />
                 )}
-                <div className={`flex flex-col items-center gap-1  ${
-                  i < step && "cursor-pointer"
-                }`}>
-                  <div className={cn(
+                <button
+                  type="button"
+                  disabled={!done}
+                  onClick={() => done && onStepClick(i as Step)}
+                  className={cn('flex flex-col items-center gap-1', done && 'cursor-pointer')}
+                  aria-current={active ? 'step' : undefined}
+                  aria-label={done ? `Wróć do kroku: ${label}` : `Krok: ${label}`}
+                >
+                  <span className={cn(
                     'w-[28px] h-[28px] rounded-full flex items-center justify-center text-[clamp(14px,1.4vw,16px)] font-medium transition-colors',
                     active  ? 'bg-[#E4E4E4] text-black' : '',
                     done    ? 'bg-[#E4E4E4] text-[#767676]' : '',
                     pending ? 'bg-[#D9D9D9] text-[#B7B7B7] opacity-50' : '',
                   )}>
                     {done ? <Check size={14} strokeWidth={2.5} /> : i + 1}
-                  </div>
+                  </span>
                   <span className={cn(
                     'text-[11px] sm:text-[clamp(12px,1.4vw,16px)] transition-colors',
                     active  && 'text-black font-medium',
@@ -50,7 +63,7 @@ export default function CheckoutNavbar({ step, userSlot }: { step: Step; userSlo
                   )}>
                     {label}
                   </span>
-                </div>
+                </button>
               </div>
             )
           })}

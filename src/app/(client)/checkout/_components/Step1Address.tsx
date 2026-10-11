@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { ChevronRight, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import toast from 'react-hot-toast'
 import type { CheckoutAddress } from '@/actions/checkout'
 import type { SavedAddress } from '@/actions/address'
 import Field from './Field'
@@ -89,7 +88,7 @@ export default function Step1Address({ savedAddress, onContinue, deliveryType }:
   }
 
   function handleContinue() {
-    if (!validate()) { toast.error('Uzupełnij wymagane pola'); return }
+    if (!validate()) return
     onContinue({address})
   }
 

@@ -96,10 +96,12 @@ export default function CookieConsent() {
         className={cn(
           'mx-auto w-full bg-background text-black shadow-[0_-10px_40px_rgba(0,0,0,0.18)]',
           settings
-            ? 'max-h-[85vh] max-w-[620px] overflow-auto rounded-[32px] p-6 sm:p-8'
-            : 'max-w-[1350px] rounded-t-[28px] p-5 sm:rounded-[28px] sm:p-6 sm:mb-4',
+            ? 'max-w-[620px] overflow-hidden rounded-[25px]'
+            : 'max-w-[1350px] rounded-t-[28px] sm:rounded-[28px]',
         )}
-      >
+      > <div className={`flex flex-col cookie-settings-scroll overflow-auto max-h-[85vh]  ${
+        settings ? " p-6 sm:p-8 ":" p-5 sm:p-6 sm:mb-4 "
+      }`}>
         <div className="flex items-start gap-3">
           
           <div className="flex-1">
@@ -200,6 +202,7 @@ export default function CookieConsent() {
           >
             Akceptuję wszystkie
           </button>
+        </div>
         </div>
       </div>
     </div>

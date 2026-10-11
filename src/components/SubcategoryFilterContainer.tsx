@@ -319,7 +319,7 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
                                 {/**Price */}
                                 <div className='flex flex-col md:my-3 py-2 px-2 space-y-2'>
                                     <h1 className='text-[clamp(12px,2vw,16px)] text-black'>Cena:</h1>
-                                    <PriceRangeInputs draft={priceDraft} onChange={setPriceDraft} bounds={priceBounds} />
+                                    <PriceRangeInputs draft={priceDraft} onChange={setPriceDraft} bounds={priceBounds} compact={false} />
                                 </div>
                                 {comboAvailableFilters && comboAvailableFilters.map((item,i)=>(
                                     <div key={i} className='w-full flex flex-col'>
@@ -651,8 +651,8 @@ function PriceRangeInputs({
     compact?: boolean
     onEnter?: () => void
 }) {
-    const inputClass = `w-full min-w-0 text-center text-black rounded-[10px] focus:outline-none focus:ring-2 focus:ring-black/20 placeholder:text-[#8E8E8E] ${
-        compact ? 'bg-white/80 text-[13px] leading-none h-[24px] py-0 px-1 rounded-[8px]' : 'bg-[#E1E1E1] text-[clamp(13px,2vw,16px)] py-2 px-2'
+    const inputClass = `w-full min-w-0 text-center text-black rounded-[10px] focus:outline-none focus:ring-0 focus:ring-black/20 placeholder:text-[#8E8E8E] ${
+        compact ? 'bg-white/80 text-[13px] leading-none h-[24px] py-0 mx-3 rounded-[8px]' : 'bg-[#E1E1E1] text-[clamp(11px,2vw,14px)] py-0.5 px-1 mx-3'
     }`
     const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
         if (event.key === 'Enter') {

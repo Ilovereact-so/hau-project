@@ -12,6 +12,7 @@ import Link from 'next/link'
 
 type Props =  {
     title : string,
+    id?: string
     className?: string
     // Patrz komentarz przy tym samym propie w ProductCarusel.tsx — wcześniej
     // "feeding" było na sztywno wpisane tutaj, więc WSZYSTKIE karuzele na
@@ -26,7 +27,7 @@ type Props =  {
     moreHref?: string | null
 }
 
-const ProductCarusel2 = ({title, className, categorySlug = 'feeding', products: initialProducts, subtitle, moreHref}:Props) => {
+const ProductCarusel2 = ({title, id, className, categorySlug = 'feeding', products: initialProducts, subtitle, moreHref}:Props) => {
     const [products, setProducts] = useState<GetSlugProduct[]>(initialProducts ?? [])
     const [loading, setLoading] = useState<boolean>(!initialProducts)
 
@@ -47,7 +48,7 @@ const ProductCarusel2 = ({title, className, categorySlug = 'feeding', products: 
     const leftChevronRef = React.useRef<HTMLDivElement>(null);
     const rightChevronRef = React.useRef<HTMLDivElement>(null);
     return (
-    <Container className={twMerge('w-full h-auto font-poppins lg:mt-12 mt-8', className)}>
+    <Container id={id} className={twMerge('w-full h-auto font-poppins lg:mt-12 mt-8 scroll-mt-6', className)}>
         <div className='flex justify-between sm:items-end items-center lg:mx-15 sm:mx-10 mx-6 mb-6'>
             <div className='flex flex-col'>
                 <h2 className='text-black sm:text-[clamp(16px,1.9vw,20px)] text-[16px]'>{title}: </h2>
