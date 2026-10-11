@@ -207,6 +207,12 @@ export interface AutopayTransactionParams {
   /** Dynamiczny adres powrotu — wysyłany tylko gdy AUTOPAY_SEND_RETURN_URL=true. */
   returnUrl?:     string
   /**
+   * Ważność transakcji = termin płatności zamówienia. Po nim bramka nie
+   * przyjmie wpłaty (zamówienie jest już anulowane). Format bramki:
+   * `YYYY-MM-DD HH:MM:SS` w czasie polskim — patrz `autopayDateTime`.
+   */
+  validityTime?:  Date
+  /**
    * Zapisane karty (kanał 1503) — tylko gdy AUTOPAY_RECURRING_ENABLED=true.
    * Zapis nowej karty: `ACCEPTED` + `INIT_WITH_PAYMENT`; płatność zapisaną
    * kartą: `MANUAL` + `clientHash`.
@@ -238,6 +244,24 @@ export function normalizeDescription(description: string): string {
     .slice(0, 79)
 }
 
+/**
+ * Data w formacie bramki (`YYYY-MM-DD HH:MM:SS`, czas polski) — tak samo jak
+ * w oficjalnej wtyczce Autopay do Magento (`ValidityTime` w strefie Europe/Warsaw).
+ */
+export function autopayDateTime(date: Date): string {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/Warsaw',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hourCycle: 'h23',
+    })
+      .formatToParts(date)
+      .map((part) => [part.type, part.value]),
+  )
+  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`
+}
+
 export function buildTransactionRequest(params: AutopayTransactionParams): AutopayTransactionRequest {
   assertConfigured()
 
@@ -263,6 +287,7 @@ export function buildTransactionRequest(params: AutopayTransactionParams): Autop
     AuthorizationCode: params.authorizationCode,
     ScreenType:        params.screenType,
     ReturnURL:     SEND_RETURN_URL ? params.returnUrl : undefined,
+    ValidityTime:  params.validityTime ? autopayDateTime(params.validityTime) : undefined,
   }
 
   if (AUTOPAY_RECURRING_ENABLED && params.recurringAction) {

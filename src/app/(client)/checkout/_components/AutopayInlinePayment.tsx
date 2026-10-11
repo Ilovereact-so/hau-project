@@ -10,6 +10,11 @@ interface Props {
   payload: AutopayInlinePayload
   /** Zamknięcie panelu — zamówienie zostaje w stanie „oczekuje na płatność”. */
   onClose: () => void
+  /**
+   * „Wybierz inną metodę płatności” po nieudanej płatności. Domyślnie strona
+   * zamówienia z sekcją „Zapłać” (tak samo jak zamknięcie okna w kasie).
+   */
+  onChooseAnother?: () => void
 }
 
 interface StatusResponse {
@@ -28,7 +33,7 @@ const POLL_TIMEOUT_MS  = 5 * 60 * 1000
  * sygnałem o wyniku płatności jest ITN zapisany przez webhook — odpytujemy więc
  * status zamówienia, dopóki się nie rozstrzygnie.
  */
-export default function AutopayInlinePayment({ payload, onClose }: Props) {
+export default function AutopayInlinePayment({ payload, onClose, onChooseAnother }: Props) {
   const [current, setCurrent] = useState(payload)
   const [failed,  setFailed]  = useState(false)
   const [expired, setExpired] = useState(false)
@@ -54,13 +59,14 @@ export default function AutopayInlinePayment({ payload, onClose }: Props) {
       if (!active) return
 
       try {
-        const res  = await fetch(`/api/orders/${current.orderId}/status`, { cache: 'no-store' })
+        const query = current.accessToken ? `?t=${encodeURIComponent(current.accessToken)}` : ''
+        const res  = await fetch(`/api/orders/${current.orderId}/status${query}`, { cache: 'no-store' })
         const data = (await res.json()) as StatusResponse
 
         if (!active) return
 
         if (data.settled) {
-          window.location.href = `/orders/${current.orderId}?payment=success`
+          window.location.href = `/orders/${current.orderId}?payment=success${current.accessToken ? `&t=${encodeURIComponent(current.accessToken)}` : ''}`
           return
         }
         if (data.failed) {
@@ -81,12 +87,12 @@ export default function AutopayInlinePayment({ payload, onClose }: Props) {
 
     timer = setTimeout(poll, POLL_INTERVAL_MS)
     return () => { active = false; clearTimeout(timer) }
-  }, [current.orderId, current.url, failed, expired])
+  }, [current.orderId, current.url, current.accessToken, failed, expired])
 
   function handleRetry() {
     setRetryError(null)
     startRetry(async () => {
-      const result = await retryBlikPayment(current.orderId, retryCode)
+      const result = await retryBlikPayment(current.orderId, retryCode, current.accessToken)
       if (!result.ok) { setRetryError(result.error); return }
       if (result.autopayInline) {
         setRetryCode('')
@@ -96,6 +102,11 @@ export default function AutopayInlinePayment({ payload, onClose }: Props) {
   }
 
   const isBlik = current.mode === 'blik'
+
+  const chooseAnother = onChooseAnother ?? (() => {
+    const token = current.accessToken ? `&t=${encodeURIComponent(current.accessToken)}` : ''
+    window.location.href = `/orders/${current.orderId}?payment=unpaid${token}#platnosc`
+  })
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 font-poppins">
@@ -119,9 +130,10 @@ export default function AutopayInlinePayment({ payload, onClose }: Props) {
               onRetry={handleRetry}
               isRetrying={isRetrying}
               error={retryError}
+              onChooseAnother={chooseAnother}
             />
           ) : (
-            <CardPanel url={current.url} failed={failed} expired={expired} />
+            <CardPanel url={current.url} failed={failed} expired={expired} onChooseAnother={chooseAnother} />
           )}
         </div>
       </div>
@@ -132,7 +144,7 @@ export default function AutopayInlinePayment({ payload, onClose }: Props) {
 // ─── BLIK ─────────────────────────────────────────────────────────────────────
 
 function BlikPanel({
-  failed, expired, code, onCode, onRetry, isRetrying, error,
+  failed, expired, code, onCode, onRetry, isRetrying, error, onChooseAnother,
 }: {
   failed:     boolean
   expired:    boolean
@@ -141,6 +153,7 @@ function BlikPanel({
   onRetry:    () => void
   isRetrying: boolean
   error:      string | null
+  onChooseAnother: () => void
 }) {
   if (failed || expired) {
     return (
@@ -165,6 +178,13 @@ function BlikPanel({
         >
           {isRetrying ? 'Wysyłam…' : 'Zapłać ponownie'}
         </Button>
+        <button
+          type="button"
+          onClick={onChooseAnother}
+          className="w-full text-center text-[14px] text-fancy-black underline underline-offset-4 cursor-pointer"
+        >
+          Wybierz inną metodę płatności
+        </button>
       </div>
     )
   }
@@ -194,7 +214,7 @@ function BlikPanel({
 
 // ─── karta ────────────────────────────────────────────────────────────────────
 
-function CardPanel({ url, failed, expired }: { url: string; failed: boolean; expired: boolean }) {
+function CardPanel({ url, failed, expired, onChooseAnother }: { url: string; failed: boolean; expired: boolean; onChooseAnother: () => void }) {
   if (failed || expired) {
     return (
       <div className="space-y-4">
@@ -202,9 +222,16 @@ function CardPanel({ url, failed, expired }: { url: string; failed: boolean; exp
           {failed ? 'Płatność nie doszła do skutku' : 'Czas na płatność minął'}
         </h2>
         <p className="text-[14px] text-[#6C6C6C] leading-relaxed">
-          Zamówienie czeka na płatność — możesz spróbować ponownie z poziomu
-          szczegółów zamówienia w swoim profilu.
+          Zamówienie czeka na płatność — nie musisz składać go od nowa.
+          Spróbuj jeszcze raz kartą albo wybierz inną metodę.
         </p>
+        <Button
+          type="button"
+          onClick={onChooseAnother}
+          className="w-full rounded-full font-bold bg-fancy-black text-white text-[15px] py-6 hover:bg-fancy-black/90 transition-colors"
+        >
+          Zapłać ponownie
+        </Button>
       </div>
     )
   }

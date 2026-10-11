@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyReturnHash, fromAutopayOrderId, isAutopayConfigured } from '@/lib/autopay'
 import { db } from '@/lib/db'
-import { orders } from '@/db/schema'
-import { eq } from 'drizzle-orm'
+import { orders, paymentTransactions } from '@/db/schema'
+import { desc, eq } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
 export const runtime  = 'nodejs'
@@ -80,9 +80,21 @@ async function handleReturn(
     return NextResponse.redirect(`${base}/cart?payment=error`)
   }
 
-  // ITN potrafi dotrzeć po powrocie klienta — dlatego "pending", a nie "failed".
+  // ITN potrafi dotrzeć po powrocie klienta — dlatego domyślnie "pending".
+  // Gdy ITN zdążył już zgłosić odrzuconą płatność, mówimy to wprost: strona
+  // zamówienia od razu pokaże wyróżnione „Zapłać ponownie”.
+  const [latest] = await db
+    .select({ status: paymentTransactions.status })
+    .from(paymentTransactions)
+    .where(eq(paymentTransactions.orderId, order.id))
+    .orderBy(desc(paymentTransactions.createdAt))
+    .limit(1)
   const payment =
-    order.status === 'paid' || order.status === 'processing' ? 'success' : 'pending'
+    order.status === 'paid' || order.status === 'processing'
+      ? 'success'
+      : order.status === 'awaiting_payment' && latest?.status === 'failed'
+        ? 'failed'
+        : 'pending'
 
   // /orders/[id] kieruje zalogowanego do profilu, a gościa na /zamowienie/[id].
   return NextResponse.redirect(`${base}/orders/${order.id}?payment=${payment}`)

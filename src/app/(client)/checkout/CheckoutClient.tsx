@@ -12,7 +12,7 @@ import { primaryImageForVariant } from '@/lib/variantImages'
 import { checkout } from '@/actions/checkout'
 import useStore from 'store'
 import type {
-  CheckoutAddress, CheckoutPickupPoint, AutopayFormPayload, AutopayInlinePayload,
+  CheckoutAddress, CheckoutPickupPoint, AutopayInlinePayload,
 } from '@/actions/checkout'
 import { upsertSavedAddress, type SavedAddress } from '@/actions/address'
 import type { Shipping_methods } from 'sanity.types'
@@ -30,29 +30,7 @@ import { useDiscountStore } from '@/store/discountStore'
 import { useShopSettings } from '@/hooks/useShopSettings'
 import { qualifiesForFreeShipping } from '@/lib/shopSettings'
 import { useAuthModalStore } from '@/store/authModalStore'
-
-/**
- * Autopay wymaga startu transakcji POST-em (application/x-www-form-urlencoded),
- * więc budujemy ukryty formularz i wysyłamy go z przeglądarki.
- */
-function submitAutopayForm({ url, fields }: AutopayFormPayload) {
-  const form = document.createElement('form')
-  form.method         = 'POST'
-  form.action         = url
-  form.acceptCharset  = 'UTF-8'
-  form.style.display  = 'none'
-
-  for (const [name, value] of Object.entries(fields)) {
-    const input = document.createElement('input')
-    input.type  = 'hidden'
-    input.name  = name
-    input.value = value
-    form.appendChild(input)
-  }
-
-  document.body.appendChild(form)
-  form.submit()
-}
+import { submitAutopayForm } from '@/lib/autopayForm'
 
 interface Props {
   services:     Shipping_methods[]
@@ -323,7 +301,10 @@ export default function CheckoutClient({ services, savedAddress, userSlot, isGue
       {inlinePayment && (
         <AutopayInlinePayment
           payload={inlinePayment}
-          onClose={() => setInlinePayment(null)}
+          // Koszyk jest już pusty (produkty są w zamówieniu), więc zamknięcie
+          // okna płatności prowadzi do zamówienia z przyciskiem „Zapłać” —
+          // nie do pustej kasy.
+          onClose={() => { window.location.href = `/orders/${inlinePayment.orderId}?payment=unpaid#platnosc` }}
         />
       )}
     </>

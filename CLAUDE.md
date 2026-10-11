@@ -202,8 +202,9 @@ SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM
 # Zamówienia bez logowania — podpis linku do zamówienia gościa (opcjonalny;
 # bez niego używany jest CLERK_SECRET_KEY)
 ORDER_LINK_SECRET
-# Rejestr cen (najniższa cena z 30 dni)
-CRON_SECRET                  # Bearer dla /api/cron/price-history
+ORDER_PAYMENT_DEADLINE_HOURS # termin płatności nieopłaconego zamówienia (domyślnie 72, 2–720)
+# Rejestr cen (najniższa cena z 30 dni) i zadania cykliczne
+CRON_SECRET                  # Bearer dla /api/cron/price-history i /api/cron/unpaid-orders
 SANITY_PRICE_WEBHOOK_SECRET  # sekret webhooka Sanity → /api/webhooks/sanity-prices
 # Produkcja — SEO, analityka, bezpieczeństwo
 NEXT_PUBLIC_GA_MEASUREMENT_ID        # G-XXXXXXXXXX — GA4; skrypt ładuje się DOPIERO po zgodzie
@@ -460,6 +461,18 @@ Sklep sam rejestruje historię cen i z niej wylicza „najniższą cenę z 30 dn
 - **Powrót z płatności i linki**: wszystko idzie na `/orders/[id]` — zalogowany → `/profile/orders/[id]`, gość → `/zamowienie/[id]` (dostęp: ta sama przeglądarka po `guest_id` ALBO podpisany link `?t=` — `lib/orderAccess.ts`, HMAC z `ORDER_LINK_SECRET`, zapasowo `CLERK_SECRET_KEY`; zmiana sekretu unieważnia linki). Strona gościa = ten sam `Content` co w profilu (`variant="guest"`) + link do zachowania i komunikat `?payment=`.
 - **Mail z potwierdzeniem zamówienia** (`lib/orderEmails.ts`, `after()` w kasie — nie opóźnia płatności): pozycje, kwoty, dostawa, link do zamówienia (gość — z tokenem). Błąd SMTP tylko w logu.
 - **Logowanie po zakupie**: `hydrateUserSession` przepina zamówienia z `guest_id` tej przeglądarki na konto (`claimGuestOrders`).
+
+## Nieopłacone zamówienia (przerwana / nieudana płatność)
+
+Model jak w dużych sklepach (Allegro, empik, Zalando): zamówienie złożone z płatnością online, której klient nie dokończył (zamknął okno, wrócił „wstecz” z banku, odrzucony BLIK, błąd karty), **zostaje** w statusie `awaiting_payment` i czeka na płatność do terminu. Koszyk jest wtedy już pusty (czyszczony po starcie płatności) — klient płaci za ZAMÓWIENIE, nie składa go od nowa.
+
+- **Termin**: `createdAt + ORDER_PAYMENT_DEADLINE_HOURS` (domyślnie 72 h, zakres 2–720) — `lib/paymentDeadline.ts` (czyste: `paymentDeadline`, `isPaymentOverdue`, `formatPaymentDeadline` składany z `formatToParts`, żeby serwer i przeglądarka dały ten sam tekst, `timeLeftLabel`) i `lib/unpaidOrders.server.ts` (`PAYMENT_DEADLINE_HOURS`, `orderPaymentDeadline`). Ten sam termin idzie do Autopay jako `ValidityTime` (`autopayDateTime` — `YYYY-MM-DD HH:MM:SS` czasu polskiego), więc link bramki wygasa razem z zamówieniem.
+- **Zapłać ponownie**: strona zamówienia (`/profile/orders/[id]` i `/zamowienie/[id]`) ma sekcję `#platnosc` (`components/orders/PayOrderPanel.tsx`): kwota, „Opłać do … · zostało …”, wybór metody (`Step2PaymentForm` bez pobrania; zapisane karty i „zapamiętaj kartę” tylko dla zalogowanego właściciela), BLIK-0 z kodem. Akcja `payExistingOrder(orderId, selection, accessToken?)` (`actions/checkout.ts`): dostęp przez `resolveOrderAccess` (konto, `guest_id` albo token `?t=` z maila — także na innym urządzeniu), odrzuca opłacone/anulowane/po terminie i gdy zostało < 5 min; stare transakcje `pending` → `expired`, nowa transakcja → `initiatePayment` (te same trzy tryby co kasa). `retryBlikPayment` deleguje do niej.
+- **Gdzie klient trafia**: zamknięcie okienka BLIK/karty w kasie → `/orders/[id]?payment=unpaid#platnosc`; okienko ma „Wybierz inną metodę płatności”; powrót z bramki z nieudaną transakcją → `payment=failed` (`/api/autopay/return`). Panel jest wtedy czerwony („Płatność nie została dokończona”). Pusty koszyk i pusta kasa (`EmptyCart`) pokazują `PendingPaymentNotice` — „Masz nieopłacone zamówienie #… → Zapłać” (`getPendingPaymentOrder`, konto albo ciasteczko gościa). Lista zamówień w profilu ma „Opłać do …” + „Zapłać”. Status API (`/api/orders/[id]/status`) przyjmuje `?t=` dla gościa z linku.
+- **Maile** (`sendUnpaidOrderEmail`, `lib/orderEmails.ts`): przypomnienie po 1 h, „ostatnia szansa” 12 h przed terminem (tylko gdy termin > 24 h), informacja o anulowaniu. Każdy najwyżej raz — flaga Redis `orders:payment-reminder:v1:<rodzaj>:<id>` (SET NX); nieudana wysyłka zwalnia flagę, więc następne uruchomienie ponowi. Mail potwierdzenia zamówienia czekającego na płatność ma termin i przycisk „Opłać zamówienie”.
+- **Anulowanie po terminie**: `cancelUnpaidOrder` w transakcji — `UPDATE … WHERE status='awaiting_payment'` (sprawdza `affectedRows`, więc równoległe wywołania nie dublują), `releaseDiscountForOrder` (kod rabatowy wraca), transakcje `pending` → `expired`. Wołane przez zadanie cykliczne `GET /api/cron/unpaid-orders` (`Bearer $CRON_SECRET`, co godzinę; `processUnpaidOrders`) ORAZ leniwie przy odczycie (`expireIfOverdue` w liście/szczegółach zamówienia i przy próbie zapłaty) — sklep działa poprawnie nawet bez crona, tylko bez maili. Stan magazynu nie jest rezerwowany (sklep nie zdejmuje stanu), więc anulowanie nic nie oddaje do magazynu.
+- **Spóźniony ITN SUCCESS** dla anulowanego zamówienia nadal oznacza je jako opłacone (pieniądze wpłynęły) — webhook loguje ostrzeżenie do sprawdzenia w panelu.
+- Strona anulowanego po terminie zamówienia pokazuje „Zamówienie anulowane — minął termin płatności”; status transakcji „Wygasła”.
 
 ## Koszyk: darmowa dostawa, płatności, stany
 

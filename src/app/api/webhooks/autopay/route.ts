@@ -139,6 +139,14 @@ async function applyTransaction(transaction: AutopayItnTransaction): Promise<boo
     return true
   }
 
+  // Wpłata za zamówienie anulowane po terminie płatności (np. bank zaksięgował
+  // ją z opóźnieniem — bramka ma ValidityTime, więc to rzadkie). Klient
+  // zapłacił, więc zamówienie wraca jako opłacone; kod rabatowy, zwolniony przy
+  // anulowaniu, nie jest naliczany ponownie — sprawdź zamówienie w panelu.
+  if (order.status === 'cancelled' && paymentStatus === 'SUCCESS') {
+    console.warn('[Autopay ITN] Wpłata za anulowane zamówienie — przywracam jako opłacone', { orderId })
+  }
+
   // SUCCESS — weryfikacja kwoty i waluty przed oznaczeniem jako opłacone.
   const amountCents = Math.round(Number.parseFloat(transaction.amount) * 100)
 

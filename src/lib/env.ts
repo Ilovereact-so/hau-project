@@ -38,7 +38,7 @@ const REQUIREMENTS: Requirement[] = [
   { keys: ['CLERK_WEBHOOK_SECRET'], label: 'Webhook Clerka (tworzenie kont w bazie)', level: 'optional' },
   { keys: ['FURGONETKA_CLIENT_ID'], label: 'Furgonetka (przesyłki i paczkomaty)', level: 'optional' },
   { keys: ['SMTP_HOST'], label: 'SMTP (maile i newsletter)', level: 'optional' },
-  { keys: ['CRON_SECRET'], label: 'Sekret zadania cyklicznego (rejestr cen)', level: 'optional' },
+  { keys: ['CRON_SECRET'], label: 'Sekret zadań cyklicznych (rejestr cen, nieopłacone zamówienia)', level: 'optional' },
   { keys: ['SANITY_PRICE_WEBHOOK_SECRET'], label: 'Sekret webhooka cen z Sanity', level: 'optional' },
   { keys: ['NEXT_PUBLIC_GA_MEASUREMENT_ID'], label: 'Google Analytics (ładowane po zgodzie)', level: 'optional' },
 ]

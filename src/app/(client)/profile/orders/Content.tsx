@@ -7,6 +7,7 @@ import React from 'react'
 import { pl } from 'date-fns/locale'
 import PriceFormatter from '@/components/PriceFormatter'
 import Link from 'next/link'
+import { formatPaymentDeadline } from '@/lib/paymentDeadline'
 
 const Content = ({orders}:{orders:Awaited<ReturnType<typeof getOrderDetail>>[]}) => {
   //console.log(orders)
@@ -68,6 +69,9 @@ const Content = ({orders}:{orders:Awaited<ReturnType<typeof getOrderDetail>>[]})
                       </div>
                   <div className="profile-order-actions flex flex-col md:items-end items-start max-md:mb-2">
                         <h1 className="2xl:text-[18px] text-[clamp(14px,1.8vw,16px)] max-xl:flex max-xl:flex-col max-md:flex-row max-xl:items-end text-black max-md:space-x-3" ><span>Stan zamówienia: </span><span className="font-medium">{order?.order?.status != undefined && convertStatus[order?.order?.status]}</span></h1>
+                        {order?.paymentDeadline && (
+                          <p className="2xl:text-[14px] text-[clamp(11px,1.8vw,13px)] text-[#8A2E1C] mt-1">Opłać do {formatPaymentDeadline(order.paymentDeadline)}</p>
+                        )}
                         {order?.order?.updatedAt && (
                           <p className="2xl:text-[14px] text-[clamp(11px,1.8vw,13px)] text-black mt-1 max-xl:flex max-xl:flex-col max-md:flex-row max-xl:items-end max-md:space-x-3"><span>ost. aktualizacja: </span><span>{format(new Date(order?.order?.updatedAt), 'd MMMM yyyy, HH:mm', { locale: pl })}</span></p>
                         )}
@@ -75,6 +79,12 @@ const Content = ({orders}:{orders:Awaited<ReturnType<typeof getOrderDetail>>[]})
                   <div className={`profile-order-buttons flex space-x-4 ${
                     order?.items.length && order?.items.length > 1 ? 'max-md:ml-10' : 'max-md:ml-5'
                   }`}>
+                        {order?.paymentDeadline && (
+                          <Button asChild
+                              className="w-fit rounded-full font-bold bg-fancy-black text-white 2xl:text-[16px] text-[clamp(13px,1.8vw,15px)] md:py-6 py-4 md:px-8 px-6 hover:bg-fancy-black/90 transition-colors cursor-pointer">
+                              <Link href={`/profile/orders/${order.order.id}#platnosc`}>Zapłać</Link>
+                          </Button>
+                        )}
                         {order?.order.id && (
                           <Button asChild
                               className="w-fit rounded-full font-bold bg-[#EDEDED] text-fancy-black 2xl:text-[16px] text-[clamp(13px,1.8vw,15px)] md:py-6 py-4 md:px-8 px-6 hover:bg-[#EDEDED]/40 hover:text-fancy-black transition-colors cursor-pointer">
@@ -112,4 +122,4 @@ const Content = ({orders}:{orders:Awaited<ReturnType<typeof getOrderDetail>>[]})
   )
 }
 
-export default Content
+export default Content
