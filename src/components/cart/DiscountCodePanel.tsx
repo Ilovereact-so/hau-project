@@ -146,10 +146,12 @@ export default function DiscountCodePanel({
                     <button
                       type="submit"
                       disabled={pending}
-                      className="shrink-0 inline-flex items-center justify-center rounded-[15px] bg-fancy-black text-white p-2 font-medium cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-wait h-fit"
+                      className={`shrink-0 inline-flex items-center justify-center rounded-[20px]  text-white p-2 px-5 font-medium cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-wait h-fit ${
+                        pending ? "":"bg-fancy-black"
+                      }`}
                     >
                       
-                      {pending ? <Loader2 size={15} className="animate-spin" aria-hidden /> : <Check size={18} className='text-white'/>}
+                      {pending ? <Loader2 size={15} className="animate-spin text-black" aria-hidden /> : <p>Zastosuj</p>}
                     </button>
                   </div>
                   {error && (

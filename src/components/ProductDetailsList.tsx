@@ -30,11 +30,11 @@ const ProductDetailsList = ({product, className}:Props) => {
                 {product?.shortDescription && (
                   <p className="text-[#3A3A3A] 2lg:text-[16px] text-[15px] leading-relaxed whitespace-pre-line">{product.shortDescription}</p>
                 )}
-                {hasLongDescription && (
+                {/* {hasLongDescription && (
                   <a href="#opis" className="text-black 2lg:text-[15px] text-[14px] underline underline-offset-2 mt-2 w-fit hover:opacity-70">
                     Pełny opis produktu ↓
                   </a>
-                )}
+                )} */}
                 {!product?.shortDescription && !hasLongDescription && (
                   <p className="text-[#6C6C6C] 2lg:text-[15px] text-[14px]">Opis pojawi się wkrótce.</p>
                 )}

@@ -22,7 +22,7 @@ const ProductItemWithoutBTN = ({product}:{product: GetSlugProduct & { defaultVar
     <div className='relative w-max flex flex-col justify-between h-fit'>
       {product?.images && 
         <Link href={`/product/${product?.slug?.current}?variant=${variantKey}`} className='relative block' >
-          <Image src={urlFor(image!).url()} alt={String(product?.title)} width={290} height={290} className={`${soldOut ? 'opacity-60 ' : ''}max-sm:w-[calc((100vw-66px)/2))] max-md:w-[calc((100vw-110px)/3))] max-lg:w-[calc((100vw-156px)/3))] max-1.5xl:w-[calc((100vw-156px)/4))] w-[calc((100vw-156px)/5))] 4xl:w-[calc((1900px-156px)/5))] max-sm:h-[calc((100vw-100px)/2))] max-md:h-[calc((100vw-110px)/3))] max-lg:h-[calc((100vw-156px)/3))] max-1.5xl:h-[calc((100vw-156px)/4))] h-[calc((100vw-156px)/5))] 4xl:h-[calc((1900px-156px)/5))] brightness-92`}/>
+          <Image src={urlFor(image!).url()} alt={String(product?.title)} width={290} height={290} className={`${soldOut ? 'opacity-60 ' : ''} max-sm:w-[calc((100vw-66px)/2))] max-md:w-[calc((100vw-110px)/3))] max-lg:w-[calc((100vw-156px)/3))] max-1.5xl:w-[calc((100vw-156px)/4))] w-[calc((100vw-156px)/5))] 4xl:w-[calc((1900px-156px)/5))] max-sm:h-[calc((100vw-100px)/2))] max-md:h-[calc((100vw-110px)/3))] max-lg:h-[calc((100vw-156px)/3))] max-1.5xl:h-[calc((100vw-156px)/4))] h-[calc((100vw-156px)/5))] 4xl:h-[calc((1900px-156px)/5))] brightness-92`}/>
           {soldOut && (
             <span className='absolute left-1/2 -translate-x-1/2 bottom-3 rounded-full bg-white/90 sm:px-3 px-2 py-1 text-[11px] sm:text-[13px] text-black font-medium whitespace-nowrap'>Chwilowo niedostępny</span>
           )}
@@ -34,13 +34,13 @@ const ProductItemWithoutBTN = ({product}:{product: GetSlugProduct & { defaultVar
         isFeatured={product.isFeatured}
         isBestseller={product.isBestseller}
         className='left-4'
-        badgeClassName='2xl:text-[13px] sm:text-[12px] text-[10px]'
+        badgeClassName='2xl:text-[13px] sm:text-[12px] text-[10px] font-poppins'
       />
       
-      <div className='flex flex-col max-sm:w-[calc((100vw-66px)/2))] max-md:w-[calc((100vw-110px)/3))] max-lg:w-[calc((100vw-156px)/3))] max-1.5xl:w-[calc((100vw-156px)/4))]s w-[calc((100vw-156px)/5))] 4xl:w-[calc((1900px-156px)/5))]'>
+      <div className='flex flex-col max-sm:w-[calc((100vw-66px)/2))] max-md:w-[calc((100vw-110px)/3))] max-lg:w-[calc((100vw-156px)/3))] max-1.5xl:w-[calc((100vw-156px)/4))] w-[calc((100vw-156px)/5))] 4xl:w-[calc((1900px-156px)/5))]'>
         <div className='text-black mt-3'>
             <p className='2xl:text-[16px] sm:text-[15px] text-[13px]'>{product.brand}</p>
-            <h1 className='2xl:text-[18px] sm::text-[16px] text-[14px] font-medium line-clamp-1 pr-1'>{product.title}</h1>
+            <h1 className='2xl:text-[18px] sm::text-[16px] text-[14px] line-clamp-1 pr-1'>{product.title}</h1>
         </div>
         <ProductRatingBadge
           productId={product._id}
@@ -50,13 +50,15 @@ const ProductItemWithoutBTN = ({product}:{product: GetSlugProduct & { defaultVar
         <OmnibusNote
           state={priceState}
           className='text-[#6C6C6C] sm:text-[12px] text-[11px] line-clamp-2'
-          labelClassName='mt-1'
+          labelClassName='mb-1'
         />
-        <div className='mt-2'>
+        <div className=''>
           <PriceRow
+            showPercent={false}
             state={priceState}
             className='2xl:text-[16px] sm:text-[15px] text-[13px]'
             priceClassName='2xl:text-[16px] sm:text-[15px] text-[13px]'
+            suffix={<span className="text-[#6C6C6C] text-[12px]"> w tym VAT</span>}
           />
         </div>
           

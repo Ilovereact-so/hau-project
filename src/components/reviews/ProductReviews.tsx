@@ -291,7 +291,7 @@ export function ProductReviews({
       aria-labelledby="opinie-heading"
       className="w-full max-w-[1430px] mx-auto xl:px-26 2lg:px-20 md:px-16 sm:px-8 px-6 mt-16 scroll-mt-24 font-poppins"
     >
-      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-black pb-4">
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#D9D9D9] pb-4">
         <h2 id="opinie-heading" className="text-black 2lg:text-[clamp(16px,1.6vw,18px)] text-[15px] ">
           Opinie klientów
           <span className="ml-2 text-[#6C6C6C] font-normal text-[clamp(14px,1.6vw,16px)]">({summary.count})</span>
@@ -322,7 +322,7 @@ export function ProductReviews({
           )}
 
           {!formOpen && (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col items-start gap-2">
               <button
                                                 
                 className="w-fit rounded-full font-bold bg-[#EDEDED] text-fancy-black 2xl:text-[16px] text-[clamp(13px,1.8vw,15px)] md:py-3 py-2 md:px-8 px-6 hover:bg-[#EDEDED]/40 hover:text-fancy-black transition-colors cursor-pointer"

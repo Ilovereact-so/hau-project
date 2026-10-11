@@ -11,21 +11,28 @@ import type { ResolvedSection } from '@/lib/homeLayout.server'
  * serwerze; stałe moduły renderują się jak dotąd.
  */
 export default function HomeSections({ sections }: { sections: ResolvedSection[] }) {
+  let firstProductSection = true
+
   return (
     <div className='w-full h-full'>
       {sections.map((entry) => {
         const { section } = entry
         switch (section.kind) {
           case 'products':
-            return (
-              <ProductCarusel2
-                key={section.key}
-                title={section.title}
-                subtitle={section.subtitle || undefined}
-                products={entry.products}
-                moreHref={entry.moreHref}
-              />
-            )
+            {
+              const isLatestOffers = firstProductSection
+              firstProductSection = false
+              return (
+                <ProductCarusel2
+                  key={section.key}
+                  id={isLatestOffers ? 'latest-offers' : undefined}
+                  title={section.title}
+                  subtitle={section.subtitle || undefined}
+                  products={entry.products}
+                  moreHref={entry.moreHref}
+                />
+              )
+            }
           case 'valueBar':
             return <ValueBar key={section.key} />
           case 'subcategories':

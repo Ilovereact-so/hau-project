@@ -149,11 +149,11 @@ export const PriceRow = memo(function PriceRow({
         <PriceFormatter amount={state.price} className={twMerge('font-medium', priceClassName)} />
       </p>
       {promo && (
-        <div className={twMerge('text-[#6C6C6C] flex gap-x-1', referenceClassName)}>
+        <div className={twMerge('text-[#6C6C6C] flex items-end gap-x-1', referenceClassName)}>
           <span className="line-through" aria-label="Najniższa cena z 30 dni przed obniżką">
             <PriceFormatter amount={promo.referencePrice} className="font-normal" />
           </span>
-          {showPercent && <span>-{promo.percent}%</span>}
+          {showPercent && <span>-{promo.percent}%</span>}          
         </div>
       )}
       {suffix}

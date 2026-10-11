@@ -201,23 +201,36 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
         router.replace(buildUrl(params), { scroll: false })
     }
     const containerRef = useRef<HTMLDivElement>(null)
+    const priceBoxRef = useRef<HTMLDivElement>(null)
+    const moreRef = useRef<HTMLDivElement>(null)
     const widthsRef = useRef(new Map<string, number>());
     const [ready, setReady] = useState(false);
     const [visibleCount, setVisibleCount] = useState(avaibleFilters?.length || 0)
 
+    // Ile pigułek filtrów zmieści się w rzędzie. Miejsce zajęte przez pigułkę
+    // ceny i „Więcej..” jest MIERZONE (wcześniej stała 400 px, która nie
+    // wiedziała, że cena po otwarciu rośnie do 300 px — rząd wylewał się
+    // i wypychał sortowanie poza dock). Odstępy `space-x-3` też się liczą.
+    // Przy otwieraniu ceny od razu rezerwujemy jej docelową szerokość (pigułki,
+    // które się nie zmieszczą, znikają, zanim cena urośnie); przy zamykaniu
+    // ResizeObserver oddaje miejsce w miarę, jak pigułka ceny się kurczy.
     const calculateVisibleCount = useCallback(() => {
-        if (!containerRef.current || !avaibleFilters) return;
-        const containerWidth = containerRef.current.offsetWidth;
-        let used = 400;
+        const container = containerRef.current
+        if (!container || !avaibleFilters) return;
+        const containerWidth = container.clientWidth;
+        const measuredPrice = priceBoxRef.current?.offsetWidth ?? 0
+        const priceWidth = isOpenPrice ? Math.max(measuredPrice, PRICE_PILL_OPEN_WIDTH) : measuredPrice
+        const moreWidth = moreRef.current?.offsetWidth ?? 0
+        let used = priceWidth + moreWidth + (priceWidth ? PILL_GAP : 0);
         let count = 0;
         for (const f of avaibleFilters) {
             const w = widthsRef.current.get(f._id);
-            if (!w || used + w > containerWidth) break;
-            used += w;
+            if (!w || used + PILL_GAP + w > containerWidth) break;
+            used += PILL_GAP + w;
             count++;
         }
         setVisibleCount(count);
-    }, [avaibleFilters]);
+    }, [avaibleFilters, isOpenPrice]);
 
     const handleMeasure = (id: string, width: number) => {
         widthsRef.current.set(id, width);
@@ -238,6 +251,8 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
             calculateVisibleCount();
         });
         resizeObserver.observe(containerRef.current);
+        if (priceBoxRef.current) resizeObserver.observe(priceBoxRef.current);
+        if (moreRef.current) resizeObserver.observe(moreRef.current);
         return () => {
             resizeObserver.disconnect();
         };
@@ -251,7 +266,11 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
         }
     }
   return (
-    <div>
+    // `contain: inline-size` — szerokość tego bloku wynika z układu strony, a NIE
+    // z jego zawartości. Bez tego kolumna filtrów w docku (flex) rosła razem
+    // z rzędem pigułek i wypychała sortowanie poza obrys. W przeciwieństwie do
+    // overflow nie przycina rozwijanych list (patrz komentarz niżej).
+    <div className='w-full min-w-0 [contain:inline-size]'>
         {/* NIE dodawać tu overflow (ani overflow-x-auto, ani overflow-hidden).
             Rozwijana lista filtra (FilterCard niżej) jest pozycjonowana
             `absolute top-[calc(100%+8px)]` i MUSI wyjść poza ten kontener —
@@ -273,24 +292,34 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
         <div ref={containerRef} id='filter-scroll' className="flex space-x-3 w-full md:pb-1 rounded-[20px]">
             <AnimatePresence>
             {isOpenMenu && 
-            <Portal>                
+            <Portal>
+                {/* Wysokość szuflady zależy od WYSOKOŚCI okna, nie tylko szerokości:
+                    na niskich ekranach (≤ 820 px wysokości okna, telefony) 90%
+                    z marginesem 5% od dołu; na wysokich monitorach 80% i 10% od dołu.
+                    Szerokość jest STAŁA (342 px telefon / 400 px komputer, maks. 90%):
+                    wcześniej szuflada dopasowywała się do najdłuższej linijki w środku,
+                    więc każda zmiana w ramce „Wybrano” (dłuższa nazwa, komunikat
+                    o czyszczeniu) zmieniała szerokość całej szuflady. Teksty się zawijają,
+                    a treść w środku przewija się, gdy i tak się nie zmieści. */}
                 <motion.div onClick={(e)=>handleContainerClick(e)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{opacity:0}} className={`fixed z-9999 top-0 left-0 w-[100vw] h-[100svh] bg-gradient-to-b from-white/60 from-[90%] to-transparent inset-0 flex ${
                     isOpenMenu ? "flex":"hidden"
                 }`}>
-                    <motion.div initial={{ translateX: "100%" }} animate={{ translateX: "0%" }} exit={{ translateX: "100%" }} className='bg-background subcategory-dock-shadow-portal flex flex-col font-poppins md:min-w-[400px] max-w-[90%] max-h-[80%] max-md:space-y-2 h-auto rounded-l-[40px] md:px-6 px-4 md:py-6 py-4 absolute right-0 bottom-[10%] '>
+                    <motion.div initial={{ translateX: "100%" }} animate={{ translateX: "0%" }} exit={{ translateX: "100%" }} className='bg-background subcategory-dock-shadow-portal flex flex-col font-poppins w-[min(342px,90%)] md:w-[min(400px,90%)] max-h-[90%] bottom-[5%] md:[@media(min-height:821px)]:max-h-[80%] md:[@media(min-height:821px)]:bottom-[10%] max-md:space-y-2 h-auto rounded-l-[40px] md:px-6 px-4 md:py-6 py-4 absolute right-0 '>
                         <div className='flex justify-between items-center'>
                             <h1 className='font-medium text-[clamp(15px,2.3vw,19px)] text-black ml-2'>Filtruj</h1>    
                             <div onClick={()=> setOpenMenu(false)} className="cursor-pointer">
                                     <X className='w-[20px] h-[20px] text-black'/>
                             </div>
                         </div>
-                        <div className='flex flex-col max-w-[310px] md:space-y-3 space-y-1 overflow-auto'>
+                        {/* Kolumna filtrów na całą szerokość szuflady — tak jak ramka
+                            „Wybrano” pod nią (wcześniej max-w-[310px] i ramka wystawała). */}
+                        <div className='flex flex-col w-full min-w-0 md:space-y-3 space-y-1 overflow-auto'>
                                            
                             <div className='flex flex-col items-stretch filterOutscroll overflow-auto'>
                                 {/**Price */}
                                 <div className='flex flex-col md:my-3 py-2 px-2 space-y-2'>
                                     <h1 className='text-[clamp(12px,2vw,16px)] text-black'>Cena:</h1>
-                                    <PriceRangeInputs draft={priceDraft} onChange={setPriceDraft} bounds={priceBounds} />
+                                    <PriceRangeInputs draft={priceDraft} onChange={setPriceDraft} bounds={priceBounds} compact={false} />
                                 </div>
                                 {comboAvailableFilters && comboAvailableFilters.map((item,i)=>(
                                     <div key={i} className='w-full flex flex-col'>
@@ -335,10 +364,15 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
                                 odblokowywała "Zastosuj" (przycisk miał pointer-events-none w tym stanie,
                                 więc kliknięcie było fizycznie niemożliwe, mimo że changeFilter i tak by ją
                                 zaaplikował), a kosz czyścił tylko filtry enum, zostawiając cenę bez zmian. */}
-                            <div className={`flex flex-col h-auto justify-between bg-fancy-black rounded-[20px] self-stretch overflow-hidden ease-in-out duration-200 ${
-                                hasAnySelection ? "w-full opacity-100 py-3 max-md:max-h-[200px]":"max-md:max-h-auto py-3"
+                            {/* Ramka zajmuje całą szerokość szuflady (w-full, min-w-0), a lista
+                                w środku tyle samo — długie nazwy się zawijają (break-words)
+                                zamiast poszerzać szufladę. Wysokość listy rośnie z WYSOKOŚCIĄ
+                                okna: ~22%, min. 64 px, maks. 200 px; na niskich ekranach
+                                (≤ 820 px) mniejsze odstępy. Nadmiar przewija się w ramce. */}
+                            <div className={`flex flex-col h-auto w-full min-w-0 justify-between bg-fancy-black rounded-[20px] overflow-hidden ease-in-out duration-200 py-3 [@media(max-height:820px)]:py-2 ${
+                                hasAnySelection ? "opacity-100" : ""
                             }`}>
-                                <div className='w-full text-[clamp(13px,1.1vw,15px)] text-white pb-2 flex-1 min-h-0 filterOutscroll overflow-auto max-h-[200px]'>
+                                <div className='w-full min-w-0 break-words text-[clamp(13px,1.1vw,15px)] text-white pb-2 [@media(max-height:820px)]:pb-1 flex-1 min-h-0 filterOutscroll overflow-auto max-h-[clamp(64px,22svh,200px)]'>
                                     <AnimatePresence key={hasAnySelection ? "selected":"empty"}>
                                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                                             {hasAnySelection ? (
@@ -387,7 +421,7 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
                                         </motion.div>
                                     </AnimatePresence>
                                 </div>
-                                <hr className='mx-4 my-2'/>
+                                <hr className='mx-4 my-2 [@media(max-height:820px)]:my-1'/>
                                 <div className='w-full flex justify-start space-x-5 px-5 items-center shrink-0 '>
                                     <div onClick={()=>{changeFilter(isSelectedList, { min: draftMin, max: draftMax });setOpenMenu(false)}} className={`bg-black rounded-full cursor-pointer px-6 py-2 w-fit text-white font-medium text-[clamp(13px,1.4vw,15px)] ${
                                         canApply ? "bg-black text-white cursor-pointer":"bg-[#00000031] text-white/50 cursor-not-allowed pointer-events-none"
@@ -415,6 +449,7 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
             }
             </AnimatePresence>
             {!mobileSize &&
+                <div ref={priceBoxRef} className='shrink-0'>
                 <PricePill
                     open={isOpenPrice}
                     onOpen={() => setOpenPrice(true)}
@@ -426,6 +461,7 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
                     label={priceApplied ? formatPriceRange(appliedMin, appliedMax, true) : 'Cena'}
                     active={priceApplied}
                 />
+                </div>
             }
             {/* Rząd "pill" filtrów + system pomiaru szerokości (ready/visibleCount/
                 MeasureItem) to wyłącznie desktopowy skrót — mobile ma pełny panel
@@ -459,7 +495,7 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
                     </AnimatePresence>
                 </>
             )}
-            <div onClick={()=>setOpenMenu(true)} className={`md:bg-main bg-black md:mb-2 cursor-pointer py-2 text-[clamp(15px,1.4vw,17px)] md:text-black text-white font-medium whitespace-nowrap border-black border-1 ${!miniSize ? "px-8 rounded-[20px]":"px-4 rounded-[16px]"}`}>{!mobileSize ? "Więcej.." : !miniSize ? "Filtruj" : (
+            <div ref={moreRef} onClick={()=>setOpenMenu(true)} className={`shrink-0 md:bg-main bg-black md:mb-2 cursor-pointer py-2 text-[clamp(15px,1.4vw,17px)] md:text-black text-white font-medium whitespace-nowrap border-black border-1 ${!miniSize ? "px-8 rounded-[20px]":"px-4 rounded-[16px]"}`}>{!mobileSize ? "Więcej.." : !miniSize ? "Filtruj" : (
                 <div className='xs:py-[3px] py-[2px]'><FilterIcon className="w-[15px] h-[15px] text-white"/></div>
             )}</div>
 
@@ -501,7 +537,7 @@ const FilterCard = ({item, setSelectList, isSelectedList, changeFilter}: filterC
         )}
         
         <motion.div onClick={()=>setOpenInlineMenu(!isOpenInlineMenu)} 
-        className={`cursor-pointer px-8 py-2 text-[clamp(15px,1.4vw,17px)] font-medium`}
+        className={`cursor-pointer px-8 py-2 text-[clamp(15px,1.4vw,17px)] font-medium border-1 border-transparent whitespace-nowrap`}
         initial={{backgroundColor: "#000000", color: "#ffffff", borderRadius: "20px"}}
         animate={isOpenInlineMenu ? {backgroundColor: "var(--main)", color: "#000000", borderRadius: "20px 20px 0 0"}:{backgroundColor: "#000000", color: "#ffffff", borderRadius: "20px"}}
         transition={{duration: 0.2, ease:"easeInOut"}}
@@ -573,6 +609,11 @@ function MeasureItem({ id, onMeasure, children }: MeasureItemProps) {
   );
 }
 
+/** Odstęp między pigułkami w docku (`space-x-3`). */
+const PILL_GAP = 12
+/** Szerokość otwartej pigułki ceny (pola „od – do”). */
+const PRICE_PILL_OPEN_WIDTH = 300
+
 type PriceDraft = { min: string; max: string }
 
 const priceDraftFrom = (min: number | null, max: number | null): PriceDraft => ({
@@ -610,8 +651,8 @@ function PriceRangeInputs({
     compact?: boolean
     onEnter?: () => void
 }) {
-    const inputClass = `w-full min-w-0 text-center text-black rounded-[10px] focus:outline-none focus:ring-2 focus:ring-black/20 placeholder:text-[#8E8E8E] ${
-        compact ? 'bg-white/80 text-[15px] py-[3px] px-1' : 'bg-[#E1E1E1] text-[clamp(13px,2vw,16px)] py-2 px-2'
+    const inputClass = `w-full min-w-0 text-center text-black rounded-[10px] focus:outline-none focus:ring-0 focus:ring-black/20 placeholder:text-[#8E8E8E] ${
+        compact ? 'bg-white/80 text-[13px] leading-none h-[24px] py-0 mx-3 rounded-[8px]' : 'bg-[#E1E1E1] text-[clamp(11px,2vw,14px)] py-0.5 px-1 mx-3'
     }`
     const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
         if (event.key === 'Enter') {
@@ -622,7 +663,7 @@ function PriceRangeInputs({
     return (
         <div className={`flex items-center ${compact ? 'gap-1.5' : 'gap-2'}`}>
             <label className='flex items-center gap-1 flex-1 min-w-0'>
-                <span className={`text-black ${compact ? 'text-[14px]' : 'text-[clamp(12px,2vw,15px)]'}`}>od</span>
+                <span className={`text-black ${compact ? 'text-[13px] font-normal' : 'text-[clamp(12px,2vw,15px)]'}`}>od</span>
                 <input
                     type='text'
                     inputMode='decimal'
@@ -636,7 +677,7 @@ function PriceRangeInputs({
             </label>
             <span className='text-black'>–</span>
             <label className='flex items-center gap-1 flex-1 min-w-0'>
-                <span className={`text-black ${compact ? 'text-[14px]' : 'text-[clamp(12px,2vw,15px)]'}`}>do</span>
+                <span className={`text-black ${compact ? 'text-[13px] font-normal' : 'text-[clamp(12px,2vw,15px)]'}`}>do</span>
                 <input
                     type='text'
                     inputMode='decimal'
@@ -648,7 +689,7 @@ function PriceRangeInputs({
                     className={inputClass}
                 />
             </label>
-            <span className={`text-black ${compact ? 'text-[14px]' : 'text-[clamp(12px,2vw,15px)]'}`}>zł</span>
+            <span className={`text-black ${compact ? 'text-[13px] font-normal' : 'text-[clamp(12px,2vw,15px)]'}`}>zł</span>
         </div>
     )
 }
@@ -677,19 +718,23 @@ function PricePill({
 }) {
     const ref = useRef<HTMLDivElement>(null)
     useClickOutside(ref, () => open && onClose())
+    // Wysokość pigułki wyznacza ZAWSZE napis (po otwarciu niewidoczny), a pola
+    // leżą na nim warstwą `absolute` — otwarta cena ma więc dokładnie tę samą
+    // wysokość co pozostałe pigułki i nie rozpycha docka w pionie.
     return (
         <motion.div
             ref={ref}
             initial={false}
-            animate={{ width: open ? 300 : 'auto' }}
+            animate={{ width: open ? PRICE_PILL_OPEN_WIDTH : 'auto' }}
             transition={{ duration: 0.2, ease: 'easeInOut' }}
             onClick={() => !open && onOpen()}
-            className={`py-2 flex md:mb-2 relative items-center justify-center text-[clamp(15px,1.4vw,17px)] font-medium rounded-[20px] overflow-hidden whitespace-nowrap ${
-                open ? 'px-3 bg-main text-black border-white border-1' : active ? 'px-6 bg-main text-black border-1 border-main cursor-pointer' : 'px-6 text-white border-black border-1 bg-black cursor-pointer'
+            className={`py-2 flex md:mb-2 relative items-center justify-center text-[clamp(15px,1.4vw,17px)] font-medium rounded-[20px] overflow-hidden whitespace-nowrap border-1 ${
+                open ? 'px-3 bg-main text-black border-white' : active ? 'px-6 bg-main text-black border-main cursor-pointer' : 'px-6 text-white border-black bg-black cursor-pointer'
             }`}
         >
-            {open ? (
-                <div className='flex items-center gap-2 w-full'>
+            <p className={`text-center select-none ${open ? 'invisible' : ''}`} aria-hidden={open}>{label}</p>
+            {open && (
+                <div className='absolute inset-y-0 left-3 right-2 flex items-center gap-1.5'>
                     <div className='flex-1 min-w-0'>
                         <PriceRangeInputs draft={draft} onChange={onChange} bounds={bounds} compact onEnter={onApply} />
                     </div>
@@ -697,13 +742,11 @@ function PricePill({
                         type='button'
                         aria-label='Zastosuj cenę'
                         onClick={(e) => { e.stopPropagation(); onApply() }}
-                        className='p-1 rounded-full hover:scale-90 cursor-pointer bg-[#9898984d] ease-in-out duration-100 shrink-0'
+                        className='w-[24px] h-[24px] flex items-center justify-center rounded-full hover:scale-90 cursor-pointer bg-[#9898984d] ease-in-out duration-100 shrink-0'
                     >
-                        <Check className='w-[18px] h-[18px]' />
+                        <Check className='w-[15px] h-[15px]' />
                     </button>
                 </div>
-            ) : (
-                <p className='text-center select-none'>{label}</p>
             )}
         </motion.div>
     )

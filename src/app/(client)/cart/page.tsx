@@ -212,23 +212,14 @@ export default function CartPage() {
                   {/* Zakup bez logowania: kasa przyjmuje gości (zamówienie jest
                       przypięte do ciasteczka i do linku na stronie potwierdzenia). */}
                   <Button asChild className="w-auto cursor-pointer rounded-full font-bold tracking-wide bg-fancy-black text-white text-[clamp(14px,1.4vw,16px)] lg:py-6 sm:py-5 py-3 lg:px-8p sm:px-7 px-6">
-                    <Link href="/checkout">{isSignedIn ? 'Przejdź do kasy' : 'Kup bez logowania'}</Link>
+                    <Link href="/checkout">Przejdź do kasy</Link>
                   </Button>
-                  {!isSignedIn && (
-                    <p className="text-[#6C6C6C] text-[clamp(12px,1.2vw,14px)] mt-2">
-                      Masz konto?{' '}
-                      <button
-                        type="button"
-                        onClick={() => openModal('signIn', { redirectTo: '/checkout' })}
-                        className="text-black underline underline-offset-2 cursor-pointer"
-                      >
-                        Zaloguj się
-                      </button>{' '}
-                      — zamówienie zapisze się w historii, a adres podpowie się sam.
-                    </p>
-                  )}
+                  
 
-                  <AcceptedPayments className="lg:mt-5 mt-4 mb-2" />
+                  <p className="text-black text-[clamp(14px,1.4vw,16px)] mb-2 mt-3 font-poppins">Akceptujemy</p>
+							    <img className="img-fluid" src="https://developers.autopay.pl/storage/loga/Blik-karty/485x53-pay.png" alt="Najpopularniejsze Metody Płatności 396x51 pay"></img>	
+
+                  {/* <AcceptedPayments className="lg:mt-5 mt-4 mb-2" /> */}
                 </div>
               </div>
             </div>

@@ -11,7 +11,6 @@ import { urlFor } from '@/sanity/lib/image'
 import { primaryImageForVariant } from '@/lib/variantImages'
 import { checkout } from '@/actions/checkout'
 import useStore from 'store'
-import toast from 'react-hot-toast'
 import type {
   CheckoutAddress, CheckoutPickupPoint, AutopayFormPayload, AutopayInlinePayload,
 } from '@/actions/checkout'
@@ -25,7 +24,7 @@ import Step2DeliveryPayment, { type Step2Result } from './_components/Step2Deliv
 import Step3SummaryCards from './_components/Step3SummaryCards'
 import AutopayInlinePayment from './_components/AutopayInlinePayment'
 import { buildVariantLabel, type Step } from './_components/utils'
-import type { PaymentMethod } from './_components/Step2PaymentForm'
+import type { GatewaySelection, PaymentMethod } from './_components/Step2PaymentForm'
 import { useDiscountPreview } from '@/hooks/useDiscountPreview'
 import { useDiscountStore } from '@/store/discountStore'
 import { useShopSettings } from '@/hooks/useShopSettings'
@@ -82,10 +81,12 @@ export default function CheckoutClient({ services, savedAddress, userSlot, isGue
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('autopay')
   const [gatewayId, setGatewayId]         = useState<number | undefined>()
   const [gatewayName, setGatewayName]     = useState<string | undefined>()
+  const [otherPayment, setOtherPayment]   = useState(false)
   const [saveCard, setSaveCard]           = useState(false)
   const [blik0, setBlik0]                 = useState(false)
   const [blikCode, setBlikCode]           = useState('')
   const [inlinePayment, setInlinePayment] = useState<AutopayInlinePayload | null>(null)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const cartItems = useStore(s => s.cartItems)
   const cartReady = useStore(s => s.cartReady)
@@ -99,6 +100,7 @@ export default function CheckoutClient({ services, savedAddress, userSlot, isGue
 
   useEffect(() => {
     setServiceCode('')
+    setPickupPoint(undefined)
   },[deliveryType])
 
   useEffect(() => { 
@@ -130,7 +132,6 @@ export default function CheckoutClient({ services, savedAddress, userSlot, isGue
   async function handleStep1Continue(data: Step1Result) {
     setAddress(data.address)
     if (!isGuest) await upsertSavedAddress(data.address)
-    setPickupPoint(undefined)
     setStep(1)
   }
 
@@ -140,6 +141,7 @@ export default function CheckoutClient({ services, savedAddress, userSlot, isGue
     setPaymentMethod(data.paymentMethod)
     setGatewayId(data.gatewayId)
     setGatewayName(data.gatewayName)
+    setOtherPayment(data.other ?? false)
     setSaveCard(data.saveCard ?? false)
     setBlik0(data.blik0 ?? false)
     setBlikCode('')
@@ -149,6 +151,7 @@ export default function CheckoutClient({ services, savedAddress, userSlot, isGue
   function handleSubmit() {
     if (!address) return
 
+    setSubmitError(null)
     startTransition(async () => {
       const items = cartItems.map(({ product, variant, quantity }) => ({
         productId:    product._id,
@@ -174,10 +177,10 @@ export default function CheckoutClient({ services, savedAddress, userSlot, isGue
         // podsumowanie przelicza się bez rabatu, klient decyduje, czy zamawia.
         if (result.discountRejected) {
           setDiscountCode(null)
-          toast.error(`${result.error} Sprawdź podsumowanie i złóż zamówienie bez kodu.`, { duration: 6000 })
+          setSubmitError(`${result.error} Sprawdź podsumowanie i złóż zamówienie bez kodu.`)
           return
         }
-        toast.error(result.error)
+        setSubmitError(result.error)
         return
       }
       resetCart()
@@ -201,9 +204,13 @@ export default function CheckoutClient({ services, savedAddress, userSlot, isGue
     setDeliveryType(type as 'kurier' | 'automat')
   }
 
+  function handleStepClick(targetStep: Step) {
+    if (targetStep < step) setStep(targetStep)
+  }
+
   return (
     <>
-      <CheckoutNavbar step={step} userSlot={userSlot} />
+      <CheckoutNavbar step={step} userSlot={userSlot} onStepClick={handleStepClick} />
       <FurgonetkaMap />
       <Container className="px-6 sm:px-8 lg:px-15 mb-10 font-poppins max-w-[1500px] flex lg:gap-8 gap-4 md:justify-between md:flex-row flex-col">
           <div className='flex flex-col max-w-[700px] w-full'>
@@ -255,6 +262,16 @@ export default function CheckoutClient({ services, savedAddress, userSlot, isGue
                       onEdit={() => setStep(0)}
                       onContinue={handleStep2Continue}
                       dynamicService={setServiceCode}
+                      initialServiceCode={serviceCode}
+                      initialPickupPoint={pickupPoint}
+                      initialPayment={{
+                        method: paymentMethod,
+                        gatewayId,
+                        gatewayName,
+                        other: otherPayment,
+                        saveCard,
+                        blik0,
+                      }}
                       freeShipping={freeShipping}
                       isGuest={isGuest}
                     />
@@ -272,6 +289,7 @@ export default function CheckoutClient({ services, savedAddress, userSlot, isGue
                     gatewayId={gatewayId}
                     gatewayName={gatewayName}
                     pickupPoint={pickupPoint}
+                    submitError={submitError}
                     blik0={blik0}
                     blikCode={blikCode}
                     onBlikCode={setBlikCode}

@@ -1,7 +1,6 @@
 'use client'
 import Image from 'next/image'
 import React, { useEffect, useRef, useState, useTransition } from 'react'
-import toast from 'react-hot-toast'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { subscribeToNewsletter } from '@/actions/newsletter'
 import { Check, Mail, RotateCw } from 'lucide-react'
@@ -12,6 +11,12 @@ interface Sent {
   alreadySubscribed: boolean
   mailSent:          boolean
 }
+
+interface FormErrors {
+  email?: string
+  consent?: string
+  submit?: string
+}
 // Zapis wymaga potwierdzenia linkiem z maila (double opt-in) — kod −10%
 // przychodzi dopiero po kliknięciu „Potwierdzam zapis”.
 
@@ -19,18 +24,21 @@ const Newsletter = () => {
   const [email, setEmail] = useState('')
   const [consent, setConsent] = useState(false)
   const [sent, setSent] = useState<Sent | null>(null)
+  const [errors, setErrors] = useState<FormErrors>({})
   const [isPending, startTransition] = useTransition()
 
   function subscribe(address: string) {
+    setErrors({})
     startTransition(async () => {
       const result = await subscribeToNewsletter({ email: address, consent: true })
       if (!result.ok) {
-        toast.error(result.error)
+        setErrors({ submit: result.error })
         return
       }
       setSent({ email: address, alreadySubscribed: result.status === 'already', mailSent: result.status === 'already' || result.mailSent })
       setEmail('')
       setConsent(false)
+      setErrors({})
     })
   }
 
@@ -38,16 +46,17 @@ const Newsletter = () => {
     e.preventDefault()
 
     const trimmed = email.trim()
+    const nextErrors: FormErrors = {}
     if (!trimmed) {
-      toast.error('Podaj adres e-mail.')
-      return
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
-      toast.error('Podaj prawidłowy adres e-mail.')
-      return
+      nextErrors.email = 'Podaj adres e-mail.'
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      nextErrors.email = 'Podaj prawidłowy adres e-mail.'
     }
     if (!consent) {
-      toast.error('Zgoda na otrzymywanie newslettera jest wymagana.')
+      nextErrors.consent = 'Zgoda na otrzymywanie newslettera jest wymagana.'
+    }
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors)
       return
     }
 
@@ -85,9 +94,14 @@ const Newsletter = () => {
                             type='email'
                             required
                             value={email}
-                            onChange={e => setEmail(e.target.value)}
+                            onChange={e => {
+                              setEmail(e.target.value)
+                              setErrors(current => ({ ...current, email: undefined, submit: undefined }))
+                            }}
                             placeholder='jankowalski@onet.pl'
-                            className='px-5 flex justify-center items-center bg-white text-black placeholder:text-[#8E8E8E] text-[clamp(10px,1.2vw,16px)] rounded-[20px] py-3.5 outline-none w-full max-w-[180px] sm:max-w-[350px]'
+                            aria-invalid={Boolean(errors.email)}
+                            aria-describedby={errors.email ? 'newsletter-email-error' : undefined}
+                            className={`px-5 flex justify-center items-center bg-white text-black placeholder:text-[#8E8E8E] text-[clamp(10px,1.2vw,16px)] rounded-[20px] py-3.5 outline-none w-full max-w-[180px] sm:max-w-[350px] border-2 ${errors.email ? 'border-red-500' : 'border-transparent'}`}
                         />
                         <button
                             type='submit'
@@ -97,22 +111,38 @@ const Newsletter = () => {
                             {isPending ? 'Wysyłanie…' : 'Wyślij'}
                         </button>
                     </div>
+                    {errors.email && (
+                      <p id='newsletter-email-error' role='alert' className='text-red-600 text-sm'>{errors.email}</p>
+                    )}
                     <label className='sm:mt-4 mt-2 flex space-x-3 items-start'>
                         <label className='w-4 h-4 relative mt-1'>
                             <input
                                 type='checkbox'
                                 checked={consent}
-                                onChange={e => setConsent(e.target.checked)}
+                                onChange={e => {
+                                  setConsent(e.target.checked)
+                                  setErrors(current => ({ ...current, consent: undefined, submit: undefined }))
+                                }}
+                                aria-invalid={Boolean(errors.consent)}
+                                aria-describedby={errors.consent ? 'newsletter-consent-error' : undefined}
                                 className='w-4 h-4 absolute z-2 top-0 left-0 opacity-0 cursor-pointer'
                             />
-                            <div className={`w-4 h-4 border-[2px] border-fancy-black rounded-[4px] pointer-events-none flex justify-center items-center ${
+                            <div className={`w-4 h-4 border-[2px] rounded-[4px] pointer-events-none flex justify-center items-center ${
+                              errors.consent ? 'border-red-400' : 'border-fancy-black'
+                            } ${
                               consent ? "bg-fancy-black" : ""
                             }`}>
                               <Check className={` ${consent ? "opacity-100":"opacity-0"} ease-in-out duration-200 text-white`}/>
                             </div>
                         </label>
-                        <p className='text-black text-[14px] sm:max-w-[330px] max-w-[240px]'>Wyrażam zgodę na otrzymywanie newslettera i akcepuję politykę prywatności.</p>
+                        <p className={`text-[14px] sm:max-w-[330px] max-w-[240px] text-black `}>Wyrażam zgodę na otrzymywanie newslettera i akcepuję politykę prywatności.</p>
                     </label>
+                    {errors.consent && (
+                      <p id='newsletter-consent-error' role='alert' className='text-red-400 text-[12px]'>{errors.consent}</p>
+                    )}
+                    {errors.submit && (
+                      <p role='alert' className='text-red-600 text-sm'>{errors.submit}</p>
+                    )}
                 </motion.form>
                 )}
                 </AnimatePresence>
@@ -167,7 +197,7 @@ function NewsletterSent({
       <div className='flex items-center gap-2'>
         <motion.span
           aria-hidden
-          className={`grid size-6 place-items-center rounded-full ${failed ? 'bg-black/10 text-black' : 'bg-[#6EB0A6] text-white'}`}
+          className={`grid size-6 place-items-center rounded-full ${failed ? 'bg-black/10 text-black' : 'bg-fancy-black text-white'}`}
           initial={reduceMotion ? false : { scale: 0 }}
           animate={{ scale: 1 }}
           transition={{ type: 'spring', stiffness: 400, damping: 22, delay: 0.1 }}
@@ -186,16 +216,22 @@ function NewsletterSent({
       >
         {title}
       </h2>
-
-      <p className='mt-1.5 text-black/70 text-[clamp(13px,1.1vw,15px)] leading-snug max-w-[440px]'>
-        {failed ? (
-          <>Nie udało się wysłać maila z linkiem potwierdzającym na <Address email={sent.email} />. Spróbuj ponownie za chwilę.</>
-        ) : sent.alreadySubscribed ? (
-          <>Adres <Address email={sent.email} /> jest już zapisany do newslettera — kod −10% był w mailu powitalnym.</>
-        ) : (
-          <>Wysłaliśmy link na <Address email={sent.email} />. Kliknij „Potwierdzam zapis” — zaraz potem przyjdzie kod −10%. Nie widzisz maila? Zajrzyj do Spamu lub Ofert.</>
-        )}
-      </p>
+      <div className='flex flex-col gap-y-1.5 leading-snug max-w-[440px] font-poppins'>
+        <p className='text-black/70 font-normal text-[clamp(13px,1.1vw,15px)]'>
+          {failed ? (
+            <>Nie udało się wysłać maila z linkiem potwierdzającym na <Address email={sent.email} />. Spróbuj ponownie za chwilę.</>
+          ) : sent.alreadySubscribed ? (
+            <>Adres <Address email={sent.email} /> jest już zapisany do newslettera — kod −10% był w mailu powitalnym.</>
+          ) : (
+            <>Wysłaliśmy link na <Address email={sent.email} />. </>
+          )}
+        </p>
+        {!failed && !sent.alreadySubscribed &&
+        <p className='mt-2 text-[15px]'>
+          Kliknij „Potwierdzam zapis” zaraz potem przyjdzie kod -10%. <br/> Nie widzisz maila? Zajrzyj do Spamu lub Ofert.
+        </p>
+        }
+      </div>
 
       <div className='mt-4 flex flex-wrap items-center gap-x-4 gap-y-2'>
         {failed && (
@@ -213,7 +249,7 @@ function NewsletterSent({
           type='button'
           onClick={onReset}
           disabled={isPending}
-          className='text-black text-[clamp(12px,1.1vw,14px)] underline underline-offset-4 decoration-black/30 hover:decoration-black cursor-pointer disabled:opacity-60'
+          className='text-black/70 text-[clamp(12px,1.1vw,13px)] underline underline-offset-4 decoration-black/30 hover:decoration-black cursor-pointer disabled:opacity-60'
         >
           {failed ? 'Zmień adres' : 'Zapisz inny adres'}
         </button>
@@ -223,7 +259,7 @@ function NewsletterSent({
 }
 
 function Address({ email }: { email: string }) {
-  return <strong className='font-medium text-black break-words'>{email}</strong>
+  return <span className='text-black/70 break-words'>{email}</span>
 }
 
 export default Newsletter

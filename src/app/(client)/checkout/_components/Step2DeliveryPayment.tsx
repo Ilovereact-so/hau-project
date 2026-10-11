@@ -5,7 +5,6 @@ import { ChevronRight, Check, Loader2, Map, SquarePen, Search } from 'lucide-rea
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { openFurgonetkaMap } from '@/components/FurgonetkaMap'
-import toast from 'react-hot-toast'
 import type { Shipping_methods } from 'sanity.types'
 import type { CheckoutAddress, CheckoutPickupPoint } from '@/actions/checkout'
 import { SHIPPING_ASSETS } from 'shippingConfig'
@@ -47,6 +46,9 @@ interface Props {
   onEdit:       () => void
   onContinue:   (data: Step2Result) => void
   dynamicService: (serviceCode: string) => void
+  initialServiceCode?: string
+  initialPickupPoint?: CheckoutPickupPoint
+  initialPayment?: GatewaySelection
   /** Zamówienie łapie się na darmową dostawę (próg z panelu) — ceny jako „Gratis”. */
   freeShipping?: boolean
   /** Gość (bez konta) — bez zapamiętywania karty. */
@@ -177,16 +179,16 @@ function PickupCard({
 
 // ─── component ────────────────────────────────────────────────────────────────
 
-export default function Step2DeliveryPayment({ address, deliveryType, services, onEdit, onContinue, dynamicService, freeShipping = false, isGuest = false }: Props) {
+export default function Step2DeliveryPayment({ address, deliveryType, services, onEdit, onContinue, dynamicService, initialServiceCode = '', initialPickupPoint, initialPayment, freeShipping = false, isGuest = false }: Props) {
   // Tylko metody jawnie aktywne — serwer (checkout.ts → fetchShippingPriceCents)
   // przyjmuje wyłącznie `active == true`, więc metoda z nieustawionym polem
   // była widoczna, ale zamówienie z nią kończyło się błędem.
   const kurierServices    = services.filter(s => s.active === true && s.type === 'kurier')
   const paczkomatServices = services.filter(s => s.active === true && s.type === 'automat')
 
-  const [serviceCode, setServiceCode]   = useState('')
-  const [pickupPoint, setPickupPoint]   = useState<CheckoutPickupPoint | null>(null)
-  const [payment, setPayment] = useState<GatewaySelection>({ method: 'autopay', gatewayId: undefined })
+  const [serviceCode, setServiceCode]   = useState(initialServiceCode)
+  const [pickupPoint, setPickupPoint]   = useState<CheckoutPickupPoint | null>(initialPickupPoint ?? null)
+  const [payment, setPayment] = useState<GatewaySelection>(initialPayment ?? { method: 'autopay', gatewayId: undefined })
 
   // kurier: billing address
   const [billingSame, setBillingSame]   = useState(true)
@@ -201,6 +203,13 @@ export default function Step2DeliveryPayment({ address, deliveryType, services, 
   const [pointCandidates, setPointCandidates]     = useState<PickupCandidate[]>([])
   const [isSearching, setIsSearching]             = useState(false)
   const [searchError, setSearchError]             = useState<string | null>(null)
+  const [deliveryError, setDeliveryError]         = useState<string | null>(null)
+  const [paymentError, setPaymentError]           = useState<string | null>(null)
+  const [mapError, setMapError]                   = useState<string | null>(null)
+
+  function scrollTo(id: string) {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
 
   useEffect(()=>{
     dynamicService(serviceCode)
@@ -213,7 +222,11 @@ export default function Step2DeliveryPayment({ address, deliveryType, services, 
   }
   async function searchPickupPoints() {
     const q = pickupSearch.trim()
-    if (!q) { toast.error('Wpisz kod pocztowy lub adres'); return }
+    if (!q) {
+      setSearchError('Wpisz kod pocztowy lub adres')
+      scrollTo('pickup-search')
+      return
+    }
 
     setIsSearching(true)
     setSearchError(null)
@@ -252,6 +265,7 @@ export default function Step2DeliveryPayment({ address, deliveryType, services, 
     setPickupPoint({ code: point.code, name: point.name, carrier: point.carrier, street: point.street, city: point.city, postcode: point.postcode })
     setServiceCode(svc?.furgonetka_service_id ?? point.carrier)
     setPointCandidates([point])
+    setDeliveryError(null)
   }
 
   function handleOpenMap() {
@@ -278,22 +292,27 @@ export default function Step2DeliveryPayment({ address, deliveryType, services, 
         selectPickupPoint(candidate)
       },
     })
-    if (!opened) toast.error('Mapa punktów jest chwilowo niedostępna — wyszukaj punkt po kodzie pocztowym.')
+    if (!opened) setMapError('Mapa punktów jest chwilowo niedostępna — wyszukaj punkt po kodzie pocztowym.')
   }
 
   function handleContinue() {
     if (!serviceCode) {
-      toast.error(deliveryType === 'automat' ? 'Wybierz punkt odbioru' : 'Wybierz metodę dostawy')
+      setDeliveryError(deliveryType === 'automat' ? 'Wybierz punkt odbioru' : 'Wybierz metodę dostawy')
+      scrollTo('delivery-options')
       return
     }
     if (deliveryType === 'automat' && !pickupPoint) {
-      toast.error('Wybierz punkt odbioru')
+      setDeliveryError('Wybierz punkt odbioru')
+      scrollTo('delivery-options')
       return
     }
     if (payment.method === 'autopay' && !payment.gatewayId && !payment.other) {
-      toast.error('Wybierz metodę płatności')
+      setPaymentError('Wybierz metodę płatności')
+      scrollTo('payment-options')
       return
     }
+    setDeliveryError(null)
+    setPaymentError(null)
     onContinue({
       serviceCode,
       pickupPoint:   pickupPoint ?? undefined,
@@ -372,7 +391,7 @@ export default function Step2DeliveryPayment({ address, deliveryType, services, 
       </div>
 
       {/* delivery methods */}
-      <div className="space-y-3">
+      <div id="delivery-options" aria-invalid={Boolean(deliveryError)} className={cn('space-y-3 rounded-[24px] p-1 -m-1 transition-all duration-300', deliveryError && 'p-3 border-2 border-red-300')}>
         <h3 className="text-[clamp(15px,1.3vw,18px)] font-medium text-black">Metody dostawy</h3>
 
         {deliveryType === 'automat' ? (
@@ -391,10 +410,10 @@ export default function Step2DeliveryPayment({ address, deliveryType, services, 
                 </button>
               </div>
 
-              <div className="relative">
+              <div id="pickup-search" className="relative">
                 <input
                   value={pickupSearch}
-                  onChange={e => { setPickupSearch(e.target.value); setSearchError(null) }}
+                  onChange={e => { setPickupSearch(e.target.value); setSearchError(null); setDeliveryError(null); setMapError(null) }}
                   onKeyDown={e => e.key === 'Enter' && searchPickupPoints()}
                   placeholder={address.postalCode ? `${address.postalCode} ${address.city}` : 'np. 33-100 Tarnów'}
                   className="w-full border border-black text-black rounded-full px-4 py-3 text-[clamp(13px,1.4vw,15px)] pr-12 focus:outline-none placeholder:text-[#BBBBBB]"
@@ -412,7 +431,8 @@ export default function Step2DeliveryPayment({ address, deliveryType, services, 
                 </button>
               </div>
 
-              {searchError && <p className="text-[13px] text-[#6C6C6C]">{searchError}</p>}
+              {searchError && <p role="alert" className="text-[13px] text-red-400">{searchError}</p>}
+              {mapError && <p role="alert" className="text-[13px] text-red-400">{mapError}</p>}
             </div>
 
             {/* pickup point list */}
@@ -451,7 +471,7 @@ export default function Step2DeliveryPayment({ address, deliveryType, services, 
                   service={s}
                   selected={serviceCode === s.furgonetka_service_id}
                   free={freeShipping}
-                  onClick={() => setServiceCode(s.furgonetka_service_id ?? '')}
+                  onClick={() => { setServiceCode(s.furgonetka_service_id ?? ''); setDeliveryError(null) }}
                 />
               ))
             )}
@@ -460,10 +480,13 @@ export default function Step2DeliveryPayment({ address, deliveryType, services, 
       </div>
 
       {/* payment */}
-      <div className="space-y-3">
+      <div id="payment-options" className={cn('space-y-3 rounded-[24px] p-1 -m-1 transition-all duration-300', paymentError && 'p-3 border-2 border-red-300')}>
         <h3 className="text-[clamp(15px,1.4vw,18px)] font-medium text-black">Płatność</h3>
-        <Step2PaymentForm value={payment} onChange={setPayment} allowSaveCard={!isGuest} />
+        <Step2PaymentForm value={payment} onChange={value => { setPayment(value); setPaymentError(null) }} allowSaveCard={!isGuest} />
+        {paymentError && <p role="alert" className="text-[13px] text-red-400">{paymentError}</p>}
       </div>
+
+      {deliveryError && <p role="alert" className="text-[13px] text-red-400">{deliveryError}</p>}
 
       {/* continue */}
       <Button

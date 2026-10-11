@@ -23,11 +23,11 @@ const ProductBadges = memo(function ProductBadges({
   className?: string
   badgeClassName?: string
 }) {
-  const badge = twMerge('w-fit p-1 px-2 rounded-[10px] leading-none', badgeClassName)
+  const badge = twMerge('w-fit p-1.5 px-2.5 rounded-[15px] leading-none', badgeClassName)
   return (
-    <div className={twMerge('absolute sm:text-[12px] text-[10px] top-4 left-3 z-[0] flex flex-col items-start gap-1.5 pointer-events-none', className)}>
+    <div className={twMerge('absolute sm:text-[12px] text-[10px] top-4 left-3 z-[0] flex flex-col items-start gap-1.5 font-poppins pointer-events-none', className)}>
       <DiscountBadge state={state} className={twMerge(badge, 'bg-[#e2f3f0] text-black')} />
-      {isBestseller && <span className={twMerge(badge, 'bg-fancy-black text-white')}>Bestseller</span>}
+      {isBestseller && <span className={twMerge(badge, 'bg-fancy-black text-[#eceaea] ')}>Bestseller</span>}
       {isFeatured && <span className={twMerge(badge, 'bg-main text-black')}>Polecamy</span>}
     </div>
   )

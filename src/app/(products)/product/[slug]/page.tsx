@@ -302,8 +302,8 @@ const ProductPage = async ({
         {/* Pełny opis produktu — pod galerią, przed opiniami. Długi tekst
             jest ważny dla SEO, a krótki opis zostaje obok ceny. */}
         {Array.isArray(product.description) && product.description.length > 0 && (
-          <section id="opis" aria-labelledby="opis-heading" className="scroll-mt-24 w-full flex justify-center md:px-10 px-6 sm:px-7 mt-12">
-            <div className="w-full max-w-[1100px] border-t border-[#D9D9D9] pt-8 font-poppins">
+          <section id="opis" aria-labelledby="opis-heading" className="w-full max-w-[1430px] mx-auto xl:px-26 2lg:px-20 md:px-16 sm:px-8 px-6 scroll-mt-24 w-full flex justify-center mt-12">
+            <div className="w-full border-t border-[#D9D9D9] pt-8 font-poppins">
               <h2 id="opis-heading" className="text-black font-medium text-[clamp(18px,1.8vw,24px)] mb-2">Opis produktu</h2>
               <div className="max-w-[820px]">
                 <PortableTextContent value={product.description as unknown[]} />

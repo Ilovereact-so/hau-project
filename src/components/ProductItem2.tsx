@@ -43,13 +43,14 @@ const ProductItem2 = memo(function ProductItem2({ product }: { product: GetSlugP
           className='text-[#6C6C6C] sm:text-[12px] text-[11px] line-clamp-2'
           labelClassName=''
         />
-        <div className='sm:mt-3 mt-2 flex'>
+        <div className='sm:mt-1 mt-2 flex'>
           <PriceRow
             state={priceState}
             showPercent={false}
             className='2xl:text-[16px] sm:text-[15px] text-[13px]'
             priceClassName='2xl:text-[16px] sm:text-[15px] text-[13px]'
             referenceClassName='2xl:text-[15px] sm:text-[14px] text-[12px]'
+            suffix={<span className="text-[#6C6C6C] text-[12px]"> w tym VAT</span>}
           />
           <ProductBadges state={priceState} isFeatured={product.isFeatured} isBestseller={product.isBestseller} />
         </div>

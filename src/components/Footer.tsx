@@ -20,8 +20,8 @@ const Footer = ({className}:{className?:string}) => {
         <div className='w-full bg-fancy-black font-poppins'>
             <Container id='footer' className={cn("sm:px-10 px-7 py-8 w-full",className)}>
             <div style={{gridArea:"short-info"}} className='space-y-2 flex flex-col max-1md:flex-row max-sm:flex-col 1md:space-x-0 space-x-8 max-sm:mb-5'>
-                <h1 className='text-main font-medium text-[clamp(14px,1.6vw,18px)]'>Sprawdz najnowsze oferty</h1>
-                <h1 className='text-white font-medium text-[clamp(14px,1.6vw,18px)]'>Przejdź do newslettera</h1>
+                <Link href="/#latest-offers" className='text-main font-medium text-[clamp(14px,1.6vw,18px)] hover:opacity-70 transition-opacity'>Sprawdz najnowsze oferty</Link>
+                <Link href="/#newsletterContainer" className='text-white font-medium text-[clamp(14px,1.6vw,18px)] hover:opacity-70 transition-opacity'>Przejdź do newslettera</Link>
             </div>
             <div style={{gridArea:"security-nav"}} className='flex sm:flex-row flex-col-reverse justify-end 1md:my-0 my-6'>
                 <div className='bg-[#2C2C2C] rounded-[40px] sm:rounded-br-[0px] flex flex-col items-center 1md:w-auto w-full'>

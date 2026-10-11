@@ -46,7 +46,7 @@ const WishlistProduct = memo(function WishlistProduct({ product }: Props) {
         isFeatured={product.isFeatured}
         isBestseller={product.isBestseller}
         className='left-4'
-        badgeClassName='2xl:text-[16px] sm:text-[15px] text-[13px]'
+        badgeClassName='2xl:text-[14px] sm:text-[13px] text-[11px]'
       />
       <div className='flex flex-col h-full justify-end'>
         <div className="flex justify-between w-full mt-1">

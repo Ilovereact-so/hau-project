@@ -27,6 +27,7 @@ interface Props {
   onEdit:        () => void
   handleSubmit:  () => void
   isPending:     boolean
+  submitError?:  string | null
 }
 
 // ─── component ────────────────────────────────────────────────────────────────
@@ -42,7 +43,7 @@ export default function Step3SummaryCards({
   address, deliveryType, serviceName: _serviceName, paymentMethod,
   gatewayId, gatewayName, pickupPoint,
   blik0, blikCode, onBlikCode,
-  onEdit, handleSubmit, isPending,
+  onEdit, handleSubmit, isPending, submitError,
 }: Props) {
   const isAutopay    = paymentMethod === 'autopay'
   const paymentLabel = isAutopay ? (gatewayName ?? 'Autopay') : 'Za pobraniem'
@@ -133,6 +134,7 @@ export default function Step3SummaryCards({
       </div>
 
       <div className="flex flex-col w-full items-start">
+        {submitError && <p role="alert" className="mb-3 text-[13px] text-red-400">{submitError}</p>}
         <Button type="button" onClick={handleSubmit} disabled={submitBlocked}
           className="w-fit rounded-full font-medium bg-fancy-black text-white text-[clamp(14px,1.4vw,16px)] lg:py-6 py-5.5 lg:px-8 px-6 hover:bg-fancy-black/90 transition-colors disabled:opacity-60">
           {isPending ? (
