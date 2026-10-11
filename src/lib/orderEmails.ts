@@ -7,6 +7,10 @@ import { absoluteUrl } from '@/lib/site'
 import { guestOrderPath } from '@/lib/orderAccess'
 import { orderPaymentDeadline } from '@/lib/unpaidOrders.server'
 import { formatPaymentDeadline } from '@/lib/paymentDeadline'
+import {
+  EMAIL_LOGO_PATH, emailButton, emailDetails, emailDocument, emailEyebrow, emailHeading, emailItems, emailNote,
+  emailParagraph, emailTotals, escapeHtml as escape,
+} from '@/lib/emailLayout'
 
 /*
  * Mail „Dziękujemy za zamówienie” — wysyłany zaraz po złożeniu zamówienia
@@ -15,7 +19,7 @@ import { formatPaymentDeadline } from '@/lib/paymentDeadline'
  * z podpisanym tokenem — to jedyna droga powrotu z innego urządzenia.
  * Błąd wysyłki tylko logujemy: zamówienie jest już zapisane.
  *
- * HTML mailowy: tabele + style inline (jak szablon newslettera).
+ * Wygląd (logo, karta, stopka) wspólny z newsletterem: `lib/emailLayout.ts`.
  */
 
 const PAYMENT_LABEL: Record<string, string> = {
@@ -24,9 +28,12 @@ const PAYMENT_LABEL: Record<string, string> = {
   cod: 'za pobraniem',
 }
 
-const escape = (value: string) => value.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
 const money = (cents: number) =>
-  (cents / 100).toLocaleString('pl-PL', { style: 'currency', currency: 'PLN', minimumFractionDigits: 2 })
+  (cents / 100).toLocaleString('pl-PL', { style: 'currency', currency: 'PLN', minimumFractionDigits: 2 }).replace(/\s/g, '&nbsp;')
+
+const shopLinks = () => ({ shopUrl: absoluteUrl('/').replace(/\/$/, ''), logoUrl: absoluteUrl(EMAIL_LOGO_PATH) })
+const strong = (html: string) => `<strong style="color:#1b1b1b;font-weight:600;">${html}</strong>`
+const CONTACT_FOOTER = 'Masz pytania? Odpowiedz na tę wiadomość — chętnie pomożemy.'
 
 export async function sendOrderConfirmation(orderId: string): Promise<boolean> {
   const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1)
@@ -48,49 +55,54 @@ export async function sendOrderConfirmation(orderId: string): Promise<boolean> {
         .join(', ')
   const awaitingPayment = order.status === 'awaiting_payment'
 
-  const rows = items
-    .map(
-      (item) => `<tr>
-        <td style="padding:8px 0;border-bottom:1px solid #eeeeee;font-size:14px;color:#20201f;">
-          ${escape(item.name)}${item.variantLabel ? `<br><span style="font-size:12px;color:#6c6c6c;">${escape(item.variantLabel)}</span>` : ''}
-        </td>
-        <td style="padding:8px 0;border-bottom:1px solid #eeeeee;font-size:14px;color:#6c6c6c;text-align:center;white-space:nowrap;">${item.qty} szt.</td>
-        <td style="padding:8px 0;border-bottom:1px solid #eeeeee;font-size:14px;color:#20201f;text-align:right;white-space:nowrap;">${money(item.priceCents * item.qty)}</td>
-      </tr>`,
-    )
-    .join('')
+  const deadline = awaitingPayment ? formatPaymentDeadline(orderPaymentDeadline(order.createdAt)) : ''
+  const orderLink = awaitingPayment ? `${link}#platnosc` : link
 
-  const html = `<!DOCTYPE html>
-<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Zamówienie #${number}</title></head>
-<body style="margin:0;padding:0;background:#f4f4f2;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f4f2;"><tr><td align="center" style="padding:32px 16px;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;font-family:'Poppins',Helvetica,Arial,sans-serif;color:#20201f;">
-  <tr><td style="padding:0 8px 20px;font-size:22px;font-weight:700;letter-spacing:3px;">HAU</td></tr>
-  <tr><td style="background:#ffffff;border:1px solid #e8e8e8;border-radius:24px;padding:36px 36px 32px;">
-    <h1 style="margin:0 0 8px;font-size:24px;line-height:1.3;font-weight:600;">Dziękujemy za zamówienie!</h1>
-    <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#4a4a4a;">
-      Numer zamówienia: <strong style="color:#20201f;">#${number}</strong>.
-      ${awaitingPayment ? `Czekamy na potwierdzenie płatności — jeśli nie udało się jej dokończyć, opłać zamówienie z linku poniżej do ${escape(formatPaymentDeadline(orderPaymentDeadline(order.createdAt)))}.` : 'Zajmiemy się nim najszybciej, jak to możliwe.'}
-    </p>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${rows}</table>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:12px;font-size:14px;">
-      <tr><td style="color:#6c6c6c;padding:3px 0;">Produkty</td><td style="text-align:right;">${money(order.subtotalCents)}</td></tr>
-      <tr><td style="color:#6c6c6c;padding:3px 0;">Dostawa</td><td style="text-align:right;">${order.shippingCents ? money(order.shippingCents) : 'Gratis'}</td></tr>
-      ${order.discountCents ? `<tr><td style="color:#3f8f84;padding:3px 0;">Rabat${order.discountCode ? ` (${escape(order.discountCode)})` : ''}</td><td style="text-align:right;color:#3f8f84;">-${money(order.discountCents)}</td></tr>` : ''}
-      <tr><td style="padding:8px 0 0;font-weight:600;">Do zapłaty</td><td style="padding:8px 0 0;text-align:right;font-weight:600;">${money(order.totalCents)}</td></tr>
-    </table>
-    <p style="margin:20px 0 4px;font-size:13px;color:#6c6c6c;">Dostawa: <span style="color:#20201f;">${escape(delivery || '—')}</span></p>
-    <p style="margin:0 0 24px;font-size:13px;color:#6c6c6c;">Płatność: <span style="color:#20201f;">${escape(PAYMENT_LABEL[order.paymentMethod] ?? order.paymentMethod)}</span></p>
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background:#20201f;border-radius:999px;">
-      <a href="${awaitingPayment ? `${link}#platnosc` : link}" style="display:inline-block;padding:14px 30px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;">${awaitingPayment ? 'Opłać zamówienie' : 'Sprawdź status zamówienia'}</a>
-    </td></tr></table>
-    ${isGuest ? '<p style="margin:16px 0 0;font-size:12px;line-height:1.6;color:#8e8e8e;">Zamówienie złożone bez konta — zachowaj tę wiadomość, link prowadzi prosto do Twojego zamówienia.</p>' : ''}
-  </td></tr>
-  <tr><td style="padding:20px 16px 0;font-size:12px;line-height:1.6;color:#8e8e8e;text-align:center;">
-    Pytania? Odpowiedz na tę wiadomość.<br><a href="${absoluteUrl('/')}" style="color:#8e8e8e;">e-hau.pl</a>
-  </td></tr>
-</table></td></tr></table>
-</body></html>`
+  const body = [
+    emailEyebrow(`Zamówienie #${number}`),
+    emailHeading(awaitingPayment ? 'Zamówienie przyjęte — czeka na płatność' : 'Dziękujemy za zamówienie!'),
+    emailParagraph(
+      awaitingPayment
+        ? 'Zapisaliśmy Twoje zamówienie. Gdy tylko otrzymamy płatność, zaczniemy je przygotowywać.'
+        : 'Zamówienie trafiło do nas i zajmiemy się nim najszybciej, jak to możliwe. Damy znać, gdy wyruszy w drogę.',
+      { margin: '0 0 24px' },
+    ),
+    awaitingPayment
+      ? emailNote(`Jeśli płatność nie została dokończona, możesz opłacić zamówienie do ${strong(escape(deadline))}. Po tym terminie zostanie automatycznie anulowane.`)
+      : '',
+    emailItems(items.map((item) => ({
+      name:   escape(item.name),
+      detail: item.variantLabel ? escape(item.variantLabel) : undefined,
+      qty:    item.qty,
+      amount: money(item.priceCents * item.qty),
+    }))),
+    emailTotals([
+      { label: 'Produkty', value: money(order.subtotalCents) },
+      { label: 'Dostawa', value: order.shippingCents ? money(order.shippingCents) : 'Gratis' },
+      ...(order.discountCents
+        ? [{ label: `Rabat${order.discountCode ? ` (${escape(order.discountCode)})` : ''}`, value: `-${money(order.discountCents)}`, accent: true }]
+        : []),
+      { label: awaitingPayment ? 'Do zapłaty' : 'Razem', value: money(order.totalCents) },
+    ]),
+    emailDetails([
+      { label: 'Dostawa', value: escape(delivery || '—') },
+      { label: 'Płatność', value: escape(PAYMENT_LABEL[order.paymentMethod] ?? order.paymentMethod) },
+    ]),
+    emailButton(orderLink, awaitingPayment ? 'Opłać zamówienie' : 'Sprawdź status zamówienia'),
+    isGuest
+      ? emailParagraph('Zamówienie złożone bez konta — zachowaj tę wiadomość. Przycisk prowadzi prosto do Twojego zamówienia.', { size: 13, muted: true, margin: '20px 0 0' })
+      : '',
+  ].filter(Boolean).join('\n')
+
+  const html = emailDocument({
+    ...shopLinks(),
+    title: `Zamówienie #${number}`,
+    preheader: awaitingPayment
+      ? `Zamówienie #${number} czeka na płatność — opłać je do ${deadline}.`
+      : `Dziękujemy! Zamówienie #${number} na kwotę ${(order.totalCents / 100).toFixed(2).replace('.', ',')} zł zostało przyjęte.`,
+    body,
+    footer: CONTACT_FOOTER,
+  })
 
   try {
     return await sendMail({ to: email, subject: `Zamówienie #${number} — dziękujemy!`, html })
@@ -135,56 +147,52 @@ export async function sendUnpaidOrderEmail(orderId: string, kind: UnpaidOrderEma
     reminder: {
       subject: `Zamówienie #${number} czeka na płatność`,
       title: 'Twoje zamówienie czeka na płatność',
-      lead: `Płatność za zamówienie <strong style="color:#20201f;">#${number}</strong> nie została dokończona. Zamówienie jest zapisane — wystarczy je opłacić, nie musisz kompletować koszyka od nowa.`,
-      note: `Masz czas do <strong style="color:#20201f;">${escape(deadline)}</strong>. Po tym terminie zamówienie zostanie anulowane.`,
+      lead: `Płatność za zamówienie ${strong(`#${number}`)} nie została dokończona. Zamówienie jest zapisane — wystarczy je opłacić, nie musisz kompletować koszyka od nowa.`,
+      note: `Masz czas do ${strong(escape(deadline))}. Po tym terminie zamówienie zostanie automatycznie anulowane.`,
       cta: 'Zapłać za zamówienie',
     },
     'last-call': {
       subject: `Ostatnie godziny na opłacenie zamówienia #${number}`,
       title: 'Ostatnia szansa na opłacenie zamówienia',
-      lead: `Zamówienie <strong style="color:#20201f;">#${number}</strong> wciąż czeka na płatność.`,
-      note: `Jeśli nie zapłacisz do <strong style="color:#20201f;">${escape(deadline)}</strong>, zamówienie zostanie automatycznie anulowane.`,
+      lead: `Zamówienie ${strong(`#${number}`)} wciąż czeka na płatność. Jest zapisane — wystarczy je opłacić, bez ponownego kompletowania koszyka.`,
+      note: `Jeśli nie zapłacisz do ${strong(escape(deadline))}, zamówienie zostanie automatycznie anulowane.`,
       cta: 'Zapłać teraz',
     },
     cancelled: {
       subject: `Anulowaliśmy nieopłacone zamówienie #${number}`,
       title: 'Zamówienie zostało anulowane',
-      lead: `Nie otrzymaliśmy płatności za zamówienie <strong style="color:#20201f;">#${number}</strong> w wyznaczonym terminie, więc je anulowaliśmy. Nie pobraliśmy żadnych pieniędzy${order.discountCode ? ', a kod rabatowy możesz wykorzystać ponownie' : ''}.`,
+      lead: `Nie otrzymaliśmy płatności za zamówienie ${strong(`#${number}`)} w wyznaczonym terminie, więc je anulowaliśmy. Nie pobraliśmy żadnych pieniędzy${order.discountCode ? ', a kod rabatowy możesz wykorzystać ponownie' : ''}.`,
       note: 'Jeśli nadal chcesz te produkty, złóż zamówienie ponownie w sklepie.',
       cta: 'Przejdź do sklepu',
     },
   }[kind]
 
-  const rows = items
-    .map(
-      (item) => `<tr>
-        <td style="padding:6px 0;border-bottom:1px solid #eeeeee;font-size:14px;color:#20201f;">${escape(item.name)}${item.variantLabel ? ` <span style="font-size:12px;color:#6c6c6c;">· ${escape(item.variantLabel)}</span>` : ''}</td>
-        <td style="padding:6px 0;border-bottom:1px solid #eeeeee;font-size:14px;color:#6c6c6c;text-align:right;white-space:nowrap;">${item.qty} szt.</td>
-      </tr>`,
-    )
-    .join('')
+  const eyebrow = { reminder: 'Płatność', 'last-call': 'Ostatnie godziny', cancelled: 'Zamówienie anulowane' }[kind]
+  const tone = kind === 'last-call' ? 'amber' : kind === 'cancelled' ? 'grey' : 'mint'
 
-  const html = `<!DOCTYPE html>
-<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escape(copy.subject)}</title></head>
-<body style="margin:0;padding:0;background:#f4f4f2;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f4f2;"><tr><td align="center" style="padding:32px 16px;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;font-family:'Poppins',Helvetica,Arial,sans-serif;color:#20201f;">
-  <tr><td style="padding:0 8px 20px;font-size:22px;font-weight:700;letter-spacing:3px;">HAU</td></tr>
-  <tr><td style="background:#ffffff;border:1px solid #e8e8e8;border-radius:24px;padding:36px 36px 32px;">
-    <h1 style="margin:0 0 8px;font-size:24px;line-height:1.3;font-weight:600;">${escape(copy.title)}</h1>
-    <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#4a4a4a;">${copy.lead}</p>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${rows}</table>
-    <p style="margin:12px 0 4px;font-size:14px;color:#6c6c6c;">Do zapłaty: <strong style="color:#20201f;">${money(order.totalCents)}</strong></p>
-    <p style="margin:12px 0 24px;font-size:14px;line-height:1.6;color:#4a4a4a;">${copy.note}</p>
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background:#20201f;border-radius:999px;">
-      <a href="${kind === 'cancelled' ? absoluteUrl('/') : payLink}" style="display:inline-block;padding:14px 30px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;">${escape(copy.cta)}</a>
-    </td></tr></table>
-  </td></tr>
-  <tr><td style="padding:20px 16px 0;font-size:12px;line-height:1.6;color:#8e8e8e;text-align:center;">
-    Pytania? Odpowiedz na tę wiadomość.<br><a href="${absoluteUrl('/')}" style="color:#8e8e8e;">e-hau.pl</a>
-  </td></tr>
-</table></td></tr></table>
-</body></html>`
+  const body = [
+    emailEyebrow(`${eyebrow} · #${number}`),
+    emailHeading(escape(copy.title)),
+    emailParagraph(copy.lead, { margin: '0 0 24px' }),
+    emailNote(copy.note, tone),
+    emailItems(items.map((item) => ({
+      name:   escape(item.name),
+      detail: item.variantLabel ? escape(item.variantLabel) : undefined,
+      qty:    item.qty,
+    }))),
+    emailTotals([{ label: kind === 'cancelled' ? 'Wartość zamówienia' : 'Do zapłaty', value: money(order.totalCents) }]),
+    emailButton(kind === 'cancelled' ? absoluteUrl('/') : payLink, escape(copy.cta)),
+  ].join('\n')
+
+  const html = emailDocument({
+    ...shopLinks(),
+    title: escape(copy.subject),
+    preheader: kind === 'cancelled'
+      ? `Zamówienie #${number} zostało anulowane — nie pobraliśmy żadnych pieniędzy.`
+      : `Opłać zamówienie #${number} do ${deadline}.`,
+    body,
+    footer: CONTACT_FOOTER,
+  })
 
   try {
     return await sendMail({ to: email, subject: copy.subject, html })

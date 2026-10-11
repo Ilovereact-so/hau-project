@@ -65,7 +65,8 @@ export default async function AdminMarketingPage() {
         description={
           <>
             Wysyłany od razu po zapisie. Musi zawierać <code className="font-mono">{'{{confirmUrl}}'}</code> (link potwierdzający).
-            Dostępne też <code className="font-mono">{'{{email}}'}</code> i <code className="font-mono">{'{{shopUrl}}'}</code>.
+            Dostępne też <code className="font-mono">{'{{email}}'}</code>, <code className="font-mono">{'{{shopUrl}}'}</code> i{' '}
+            <code className="font-mono">{'{{logoUrl}}'}</code> (logo HAU w PNG).
           </>
         }
         initial={confirmTemplate}
@@ -80,7 +81,8 @@ export default async function AdminMarketingPage() {
           <>
             Wysyłany po potwierdzeniu zapisu. <code className="font-mono">{'{{email}}'}</code> — adres,{' '}
             <code className="font-mono">{'{{shopUrl}}'}</code> — sklep, <code className="font-mono">{'{{unsubscribeUrl}}'}</code> — link
-            wypisania (dodaj go w stopce maila). Zapisany szablon ma pierwszeństwo przed domyślnym.
+            wypisania (dodaj go w stopce maila), <code className="font-mono">{'{{logoUrl}}'}</code> — logo HAU w PNG.
+            Zapisany szablon ma pierwszeństwo przed domyślnym — po zmianie wyglądu domyślnego kliknij „Domyślny” i zapisz.
           </>
         }
         initial={template}
