@@ -95,6 +95,7 @@ App routes are organized into groups under `src/app/`:
 - **Cena wariantu**: `effectivePrice(product, variantKey)` z `src/lib/omnibus.ts` (cena wariantu → cena produktu, z aktywną promocją — `lib/promotion.ts`). Tej samej reguły używają koszyk, checkout, kafelki, filtry, sortowanie i rejestr cen — nie licz ceny inaczej. Każda projekcja GROQ, z której liczysz cenę, musi zawierać `promotion` (projekcje z `...` mają je same). Cena bez promocji: `regularPrice`.
 - **Images**: All product images are served from `cdn.sanity.io` via the `urlFor()` helper from `src/lib/`.
 - **Styling**: Tailwind CSS 4 is the default. `styled-components` is used for more complex component styling.
+- **Fonty są w repozytorium** (`src/fonts/*.woff2`, `next/font/local` w `app/layout.tsx` i `app/(admin)/layout.tsx`): Poppins 400/500/600, Fredoka (zmienna 400–600), Inter i JetBrains Mono (panel). NIE wracaj do `next/font/google` — pobierał fonty z Google przy każdym buildzie i zmiana odpowiedzi Google wywaliła build w CI (`next/font`: „Cannot read properties of null (reading '1')”). Pliki odtwarza `scripts/build-fonts.py` (google/fonts, podzbiór latin + latin-ext, zmienne przycięte do używanych wag). Fredoka nie ma polskich liter z ogonkami/kreskami (także u Google) — przeglądarka bierze je z fontu zapasowego.
 - **TypeScript path alias**: `@/` maps to `src/`.
 - **Admin CSV import**: Products can be bulk-imported via CSV through `/admin`; the import pipeline is in `src/app/api/sanity/` and `src/sanity/helpers/`.
 
