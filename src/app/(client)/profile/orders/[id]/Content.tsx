@@ -6,6 +6,7 @@ import { pl } from 'date-fns/locale'
 import ProfileMenu from '@/components/ProfileMenu'
 import PriceFormatter from '@/components/PriceFormatter'
 import type { getOrderDetail } from '@/actions/orders'
+import PayOrderPanel from '@/components/orders/PayOrderPanel'
 
 type OrderDetail = NonNullable<Awaited<ReturnType<typeof getOrderDetail>>>
 
@@ -39,19 +40,26 @@ const SHIPMENT_STATUS_LABEL: Record<string, string> = {
   returned: 'Zwrócona',
 }
 
-/** Komunikat po powrocie z płatności (`?payment=success|pending|cod|error`). */
+/**
+ * Komunikat po powrocie z płatności (`?payment=success|pending|cod|error|unpaid`).
+ * Przy zamówieniu, które wciąż czeka na płatność, szczegóły i przycisk „Zapłać”
+ * pokazuje panel płatności — tu tylko krótka informacja.
+ */
 function PaymentBanner({ payment, status }: { payment?: string | null; status: string }) {
   if (!payment) return null
   const paid = status === 'paid' || status === 'processing' || status === 'shipped' || status === 'delivered'
+  if (status === 'awaiting_payment' && (payment === 'unpaid' || payment === 'error' || payment === 'failed')) return null
   const text =
     payment === 'cod'
       ? 'Zamówienie przyjęte — zapłacisz przy odbiorze.'
       : paid
         ? 'Płatność przyjęta — dziękujemy! Zamówienie jest w realizacji.'
-        : payment === 'error'
-          ? 'Płatność nie doszła do skutku. Spróbuj ponownie albo skontaktuj się z nami.'
-          : 'Czekamy na potwierdzenie płatności od operatora — status odświeży się za chwilę.'
-  const tone = payment === 'error' && !paid ? 'bg-[#fcefec] text-[#8A2E1C]' : 'bg-[#EDEDED] text-black'
+        : status === 'cancelled'
+          ? 'To zamówienie zostało anulowane.'
+          : payment === 'error' || payment === 'failed'
+            ? 'Płatność nie doszła do skutku. Spróbuj ponownie albo skontaktuj się z nami.'
+            : 'Czekamy na potwierdzenie płatności od operatora — status odświeży się za chwilę. Jeśli płatność się nie uda, możesz zapłacić ponownie poniżej.'
+  const tone = (payment === 'error' || payment === 'failed') && !paid ? 'bg-[#fcefec] text-[#8A2E1C]' : 'bg-[#EDEDED] text-black'
   return <p className={`mt-5 rounded-[20px] px-5 py-3 text-[clamp(13px,1.6vw,15px)] ${tone}`}>{text}</p>
 }
 
@@ -89,6 +97,7 @@ export default function Content({
   variant = 'profile',
   payment: paymentParam,
   guestLink,
+  accessToken,
 }: {
   data: OrderDetail
   /** `guest` — zamówienie bez konta: bez menu profilu, z linkiem do zachowania. */
@@ -97,9 +106,13 @@ export default function Content({
   payment?: string | null
   /** Pełny adres strony zamówienia gościa (z tokenem) — do skopiowania. */
   guestLink?: string | null
+  /** Token z linku zamówienia gościa (`?t=`) — do płatności z innego urządzenia. */
+  accessToken?: string | null
 }) {
   const isGuest = variant === 'guest'
-  const { order, items, address, payment, shipment } = data
+  const { order, items, address, payment, shipment, paymentDeadline } = data
+  // Termin minął i zamówienie anulowano bez płatności (wygasła próba płatności).
+  const expiredUnpaid = order.status === 'cancelled' && payment?.status === 'expired'
   const createdAt = order.createdAt ? format(new Date(order.createdAt), 'd MMMM yyyy, HH:mm', { locale: pl }) : null
   const updatedAt = order.updatedAt ? format(new Date(order.updatedAt), 'd MMMM yyyy, HH:mm', { locale: pl }) : null
 
@@ -127,6 +140,29 @@ export default function Content({
         )}
 
         <PaymentBanner payment={paymentParam} status={order.status} />
+
+        {paymentDeadline && (
+          <PayOrderPanel
+            orderId={order.id}
+            totalCents={order.totalCents}
+            deadline={paymentDeadline}
+            allowSaveCard={!isGuest}
+            accessToken={accessToken}
+            highlight={paymentParam === 'unpaid' || paymentParam === 'error' || paymentParam === 'failed' || payment?.status === 'failed'}
+          />
+        )}
+
+        {expiredUnpaid && (
+          <div className='mt-5 rounded-[20px] bg-[#EDEDED] px-5 py-4 text-[clamp(13px,1.6vw,15px)] text-black'>
+            <p className='font-medium'>Zamówienie anulowane — minął termin płatności</p>
+            <p className='text-[#3A3A3A] mt-1'>
+              Nie pobraliśmy żadnej płatności. Jeśli nadal chcesz te produkty, złóż zamówienie ponownie.
+            </p>
+            <Link href='/' className='mt-3 inline-block rounded-full bg-fancy-black text-white px-5 py-2 text-[14px] font-medium'>
+              Wróć do sklepu
+            </Link>
+          </div>
+        )}
 
         {isGuest && guestLink && (
           <div className='mt-5 rounded-[24px] bg-[#e2f3f0] px-5 py-4 text-[clamp(13px,1.6vw,15px)] text-black'>
@@ -235,7 +271,7 @@ export default function Content({
                   <InfoLine label='Metoda' value={PAYMENT_LABEL[order.paymentMethod] ?? order.paymentMethod} />
                   <InfoLine
                     label='Status'
-                    value={payment.status === 'success' ? 'Opłacona' : payment.status === 'failed' ? 'Nieudana' : 'Oczekująca'}
+                    value={payment.status === 'success' ? 'Opłacona' : payment.status === 'failed' ? 'Nieudana' : payment.status === 'expired' ? 'Wygasła' : 'Oczekująca'}
                   />
                 </InfoSection>
                 

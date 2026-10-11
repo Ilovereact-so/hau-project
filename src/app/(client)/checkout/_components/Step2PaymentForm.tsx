@@ -63,6 +63,8 @@ interface Props {
   onChange: (v: GatewaySelection) => void
   /** Zapamiętanie karty wymaga konta — gość go nie widzi. */
   allowSaveCard?: boolean
+  /** „Za pobraniem” — w kasie tak, przy „Zapłać ponownie” nie (zamówienie jest już online). */
+  allowCod?: boolean
 }
 
 function GatewayLogo({ gateway }: { gateway: AutopayGateway }) {
@@ -167,7 +169,7 @@ function SavedCardRow({ card, selected, onSelect }: { card: SavedCardView; selec
 
 // ─── component ────────────────────────────────────────────────────────────────
 
-export default function Step2PaymentForm({ value, onChange, allowSaveCard = true }: Props) {
+export default function Step2PaymentForm({ value, onChange, allowSaveCard = true, allowCod = true }: Props) {
   const [gateways,   setGateways]   = useState<AutopayGateway[]>([])
   const [loading,    setLoading]    = useState(true)
   const [isDev,      setIsDev]      = useState(false)
@@ -366,6 +368,7 @@ export default function Step2PaymentForm({ value, onChange, allowSaveCard = true
       </div>
 
       {/* ── za pobraniem ─────────────────────────────────────────────── */}
+      {allowCod && (
       <button
         type="button"
         onClick={() => onChange({ method: 'cod', gatewayId: undefined, gatewayName: undefined, saveCard: undefined, savedCardId: undefined, other: false, blik0: false })}
@@ -383,6 +386,7 @@ export default function Step2PaymentForm({ value, onChange, allowSaveCard = true
         </div>
         <Banknote size={25} className="flex-shrink-0 text-[#6C6C6C]" />
       </button>
+      )}
     </div>
   )
 }

@@ -35,7 +35,7 @@ export default async function GuestOrderPage({ params, searchParams }: Props) {
 
   return (
     <div className='xl:px-15 lg:px-13 px-6 pb-16 max-w-[1500px] mx-auto w-full'>
-      <Content data={data} variant='guest' payment={payment} guestLink={absoluteUrl(guestOrderPath(id))} />
+      <Content data={data} variant='guest' payment={payment} guestLink={absoluteUrl(guestOrderPath(id))} accessToken={token} />
     </div>
   )
 }
