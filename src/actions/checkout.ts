@@ -19,7 +19,10 @@ import {
   AUTOPAY_CARD_IFRAME_ENABLED,
   AUTOPAY_BLIK_GATEWAY_ID,
   AUTOPAY_CARD_GATEWAY_ID,
+  AUTOPAY_ONECLICK_GATEWAY_ID,
+  AUTOPAY_RECURRING_ENABLED,
 } from '@/lib/autopay'
+import { findCardTokenForUser } from '@/lib/savedCards.server'
 import { client } from '@/sanity/lib/client'
 import { upsertSavedAddress } from '@/actions/address'
 import { fetchSanityPrices, resolveProductPrice } from '@/lib/cartPricing'
@@ -71,7 +74,8 @@ export interface CheckoutInput {
   deliveryType:   'kurier' | 'automat'
   pickupPoint?:   CheckoutPickupPoint
   gatewayId?:     number         // wybrany kanał Autopay; brak = wybór metody na stronie Autopay
-  saveCard?:      boolean        // zgoda na zapamiętanie karty (tokenizacja)
+  saveCard?:      boolean        // zgoda na zapamiętanie karty (One Click, kanał 1503)
+  savedCardId?:   string         // płatność zapisaną kartą — `saved_cards.id` (token zostaje na serwerze)
   blikCode?:      string         // BLIK-0: 6-cyfrowy kod z aplikacji banku
   discountCode?:  string
   notes?:         string
@@ -155,6 +159,29 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
   const ownerId     = userId ?? (await getOrCreateGuestId())
 
   if (!ownerId) return { ok: false, error: 'Sesja wygasła. Odśwież stronę.' }
+
+  // ── zapisane karty (Autopay One Click, kanał 1503) ────────────────────────
+  // Tylko zalogowani i tylko przy włączonej usłudze. Token zapisanej karty
+  // bierzemy z bazy po `id` I właścicielu — przeglądarka nigdy go nie widzi,
+  // więc nie da się zapłacić cudzą kartą, podmieniając identyfikator.
+  const isCardGateway = input.gatewayId === AUTOPAY_CARD_GATEWAY_ID || input.gatewayId === AUTOPAY_ONECLICK_GATEWAY_ID
+  let savedCardToken: string | null = null
+  if (input.savedCardId) {
+    if (!AUTOPAY_RECURRING_ENABLED || !userId || input.paymentMethod !== 'autopay') {
+      return { ok: false, error: 'Płatność zapisaną kartą jest teraz niedostępna. Wybierz inną metodę płatności.' }
+    }
+    savedCardToken = await findCardTokenForUser(userId, input.savedCardId)
+    if (!savedCardToken) {
+      return { ok: false, error: 'Tej karty nie ma już na Twoim koncie. Wybierz inną metodę płatności.' }
+    }
+  }
+  const saveNewCard =
+    !savedCardToken &&
+    Boolean(input.saveCard) &&
+    AUTOPAY_RECURRING_ENABLED &&
+    Boolean(userId) &&
+    input.paymentMethod === 'autopay' &&
+    isCardGateway
 
   // ── validate prices from Sanity ───────────────────────────────────────────
   const productIds   = [...new Set(input.items.map(i => i.productId))]
@@ -298,7 +325,7 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
           sessionId,
           status:          'pending',
           amountCents:     totalCents,
-          saveCardConsent: input.saveCard ?? false,
+          saveCardConsent: saveNewCard,
         })
       }
     })
@@ -334,6 +361,7 @@ export async function checkout(input: CheckoutInput): Promise<CheckoutResult> {
 
   const result = await initiatePayment({
     input, orderId, sessionId, totalCents, urlReturn, urlStatus,
+    card: { savedCardToken, saveNewCard, isCardGateway },
   })
 
   if (result.ok) {
@@ -358,11 +386,14 @@ interface InitiateArgs {
   totalCents:  number
   urlReturn:   string
   urlStatus:   string
+  /** Tryb karty ustalony i sprawdzony w `checkout()` (token z bazy, zgoda, kanał). */
+  card:        { savedCardToken: string | null; saveNewCard: boolean; isCardGateway: boolean }
 }
 
 async function initiatePayment(
-  { input, orderId, sessionId, totalCents, urlReturn, urlStatus }: InitiateArgs,
+  { input, orderId, sessionId, totalCents, urlReturn, urlStatus, card }: InitiateArgs,
 ): Promise<CheckoutResult> {
+  const { savedCardToken, saveNewCard, isCardGateway } = card
   if (input.paymentMethod === 'przelewy24') {
     // (Przelewy24 zostaje bez zmian — adresy przekazywane są w rejestracji transakcji.)
     const { redirectUrl } = await registerTransaction({
@@ -398,10 +429,15 @@ async function initiatePayment(
       description:     label,
       title:           label,
       customerEmail:   input.address.email,
-      gatewayId:       input.gatewayId,
+      // Zapis karty i płatność zapisaną kartą idą kanałem One Click (1503).
+      gatewayId:       savedCardToken || saveNewCard ? AUTOPAY_ONECLICK_GATEWAY_ID : input.gatewayId,
       customerIp:      await clientIp(),
       returnUrl:       `${APP_URL}/api/autopay/return`,
-      recurringAction: input.saveCard ? ('INIT_WITH_PAYMENT' as const) : undefined,
+      ...(savedCardToken
+        ? { recurringAction: 'MANUAL' as const, clientHash: savedCardToken }
+        : saveNewCard
+          ? { recurringAction: 'INIT_WITH_PAYMENT' as const, recurringAcceptanceState: 'ACCEPTED' as const }
+          : {}),
     }
 
     // ── BLIK-0: kod wpisany u nas, potwierdzenie w aplikacji banku ──────────
@@ -415,6 +451,7 @@ async function initiatePayment(
           console.warn('[Autopay] BLIK-0 odrzucony:', started.reason)
           return { ok: false, error: describeRejection(started.reason) }
         }
+        if (!started.redirectUrl) throw new Error('Autopay: BLIK-0 bez adresu oczekiwania.')
         return { ok: true, autopayInline: { orderId, mode: 'blik', url: started.redirectUrl } }
       } catch (err) {
         // Bramka nie przyjęła przedtransakcji — schodzimy do przekierowania,
@@ -424,11 +461,18 @@ async function initiatePayment(
     }
 
     // ── karta: formularz Autopay w ramce na naszej stronie ──────────────────
-    if (input.gatewayId === AUTOPAY_CARD_GATEWAY_ID && AUTOPAY_CARD_IFRAME_ENABLED) {
+    // Dotyczy też zapisu karty i płatności zapisaną kartą: w ramce pokazuje się
+    // formularz karty albo weryfikacja 3-D Secure banku.
+    if ((isCardGateway || savedCardToken) && AUTOPAY_CARD_IFRAME_ENABLED) {
       try {
         const started = await startTransactionInBackground({ ...base, screenType: 'IFRAME' })
-        if (started.ok) {
+        if (started.ok && started.redirectUrl) {
           return { ok: true, autopayInline: { orderId, mode: 'card', url: started.redirectUrl } }
+        }
+        if (started.ok) {
+          // Zapisana karta obciążona bez dodatkowej weryfikacji — wynik
+          // potwierdzi ITN, strona zamówienia pokaże „czekamy na potwierdzenie”.
+          return { ok: true, redirectUrl: `${APP_URL}/orders/${orderId}?payment=pending` }
         }
         console.warn('[Autopay] Formularz karty odrzucony:', started.reason)
       } catch (err) {
@@ -495,6 +539,7 @@ export async function retryBlikPayment(
     })
 
     if (!started.ok) return { ok: false, error: describeRejection(started.reason) }
+    if (!started.redirectUrl) return { ok: false, error: 'Nie udało się uruchomić płatności. Spróbuj ponownie.' }
     return { ok: true, autopayInline: { orderId, mode: 'blik', url: started.redirectUrl } }
   } catch (err) {
     console.error('[Autopay] Ponowna próba BLIK nieudana:', err)

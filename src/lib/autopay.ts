@@ -48,9 +48,10 @@ const BASE_URL = (
 const SEND_RETURN_URL = process.env.AUTOPAY_SEND_RETURN_URL === 'true'
 
 /**
- * Tokenizacja kart (płatności automatyczne). Wymaga osobnego włączenia usługi
- * po stronie Autopay ORAZ potwierdzenia pozycji pól `RecurringAction`/`ClientHash`
- * w kolejności hasha dla danego serwisu. Domyślnie wyłączona.
+ * Zapisane karty („płatność kartą One Click”, kanał 1503). Wymaga włączenia
+ * kanału 1503 dla serwisu po stronie Autopay. Domyślnie wyłączone — bez flagi
+ * kasa nie proponuje zapisu karty ani płatności zapisaną kartą (karty już
+ * zapisane nadal widać i da się je usunąć w profilu).
  */
 export const AUTOPAY_RECURRING_ENABLED = process.env.AUTOPAY_RECURRING_ENABLED === 'true'
 
@@ -69,6 +70,13 @@ export const AUTOPAY_CARD_IFRAME_ENABLED = process.env.AUTOPAY_CARD_IFRAME_ENABL
 /** Identyfikatory kanałów, które obsługujemy w specjalny sposób. */
 export const AUTOPAY_BLIK_GATEWAY_ID = 509
 export const AUTOPAY_CARD_GATEWAY_ID = 1500
+/**
+ * „Płatność kartą One Click” — kanał płatności automatycznych. Pierwsza
+ * płatność (`INIT_WITH_PAYMENT`, z 3-D Secure) zapisuje kartę w Autopay, kolejne
+ * (`MANUAL` + `ClientHash`) obciążają zapisaną kartę. Tak samo robi oficjalna
+ * wtyczka Autopay do Magento (`ONECLICK_GATEWAY_ID = 1503`).
+ */
+export const AUTOPAY_ONECLICK_GATEWAY_ID = 1503
 
 export const AUTOPAY_PAYMENT_URL   = `${BASE_URL}/payment`
 const AUTOPAY_PAYWAY_LIST_URL      = `${BASE_URL}/paywayList`
@@ -129,9 +137,11 @@ export function fromAutopayOrderId(autopayOrderId: string): string {
  * Kolejność pól transakcji wg specyfikacji bramki (identyczna jak `@AccessorOrder`
  * w referencyjnym SDK). Hash liczony jest z wartości pól obecnych w tej kolejności.
  *
- * UWAGA: `RecurringAction` i `ClientHash` są na końcu i używane tylko przy
- * włączonej tokenizacji — przed produkcyjnym użyciem potwierdź ich pozycję
- * w kolejności hasha z Autopay.
+ * Pola płatności automatycznych (`RecurringAcceptanceState`, `RecurringAction`,
+ * `ClientHash` — pozycje 35–37 specyfikacji) stoją PRZED `AuthorizationCode`
+ * (40), `ScreenType` (41) i `ReturnURL` (45) — tak jak w oficjalnej wtyczce
+ * Autopay do Magento. Wcześniej były na końcu listy, więc każda transakcja
+ * z zapisem karty miałaby błędny hash.
  */
 const TRANSACTION_FIELD_ORDER = [
   'ServiceID',
@@ -148,6 +158,9 @@ const TRANSACTION_FIELD_ORDER = [
   'ReceiverName',
   'ValidityTime',
   'LinkValidityTime',
+  'RecurringAcceptanceState',
+  'RecurringAction',
+  'ClientHash',
   'AuthorizationCode',
   'ScreenType',
   'BlikUIDKey',
@@ -161,8 +174,6 @@ const TRANSACTION_FIELD_ORDER = [
   'ReceiverAddress',
   'RemoteID',
   'BankHref',
-  'RecurringAction',
-  'ClientHash',
 ] as const
 
 type TransactionField = (typeof TRANSACTION_FIELD_ORDER)[number]
@@ -195,7 +206,12 @@ export interface AutopayTransactionParams {
   screenType?:    AutopayScreenType
   /** Dynamiczny adres powrotu — wysyłany tylko gdy AUTOPAY_SEND_RETURN_URL=true. */
   returnUrl?:     string
-  /** Tokenizacja karty — tylko gdy AUTOPAY_RECURRING_ENABLED=true. */
+  /**
+   * Zapisane karty (kanał 1503) — tylko gdy AUTOPAY_RECURRING_ENABLED=true.
+   * Zapis nowej karty: `ACCEPTED` + `INIT_WITH_PAYMENT`; płatność zapisaną
+   * kartą: `MANUAL` + `clientHash`.
+   */
+  recurringAcceptanceState?: 'ACCEPTED'
   recurringAction?: AutopayRecurringAction
   clientHash?:      string
 }
@@ -250,8 +266,9 @@ export function buildTransactionRequest(params: AutopayTransactionParams): Autop
   }
 
   if (AUTOPAY_RECURRING_ENABLED && params.recurringAction) {
-    values.RecurringAction = params.recurringAction
-    values.ClientHash      = params.clientHash
+    values.RecurringAcceptanceState = params.recurringAcceptanceState
+    values.RecurringAction          = params.recurringAction
+    values.ClientHash               = params.clientHash
   }
 
   const ordered = TRANSACTION_FIELD_ORDER
@@ -270,8 +287,13 @@ export function buildTransactionRequest(params: AutopayTransactionParams): Autop
 
 export interface AutopayContinueAccepted {
   ok:          true
-  status:      string   // np. PENDING
-  redirectUrl: string   // BLIK-0: strona oczekiwania; karta: URL do <iframe>
+  status:      string   // np. PENDING, SUCCESS
+  /**
+   * BLIK-0: strona oczekiwania; karta: URL do <iframe> (formularz albo 3-D Secure).
+   * `null` — płatność zapisaną kartą przeszła bez dodatkowej weryfikacji
+   * (wynik i tak rozstrzyga ITN).
+   */
+  redirectUrl: string | null
   orderId:     string   // UUID zamówienia
   remoteId:    string
 }
@@ -360,14 +382,18 @@ export async function startTransactionInBackground(
   }
 
   const redirectUrl = textOf(root, 'redirecturl')
-  if (!redirectUrl) {
+  // Płatność zapisaną kartą może przejść od razu (bez 3-D Secure) — wtedy
+  // bramka zwraca sam status (`paymentStatus`), bez adresu. Każdy inny tryb
+  // (BLIK-0, formularz karty) bez adresu to błąd.
+  const status = textOf(root, 'status') || textOf(root, 'paymentStatus')
+  if (!redirectUrl && !status) {
     throw new Error('Autopay: odpowiedź bramki bez pola <redirecturl>.')
   }
 
   return {
     ok:       true,
-    status:   textOf(root, 'status'),
-    redirectUrl,
+    status,
+    redirectUrl: redirectUrl || null,
     orderId,
     remoteId: textOf(root, 'remoteID'),
   }
@@ -597,6 +623,126 @@ export function buildItnConfirmation(
     '  <transactionsConfirmations>',
     rows,
     '  </transactionsConfirmations>',
+    `  <hash>${hash}</hash>`,
+    '</confirmationList>',
+  ].join('\n')
+}
+
+// ─── zapisane karty: powiadomienia o aktywacji / dezaktywacji ─────────────────
+
+/**
+ * Dane zapisanej karty przychodzą OSOBNYM komunikatem, nie w ITN transakcji:
+ * POST na ten sam adres ITN z polem `recurring` = base64(XML), korzeń
+ * `<recurringActivation>` (karta zapisana po udanej płatności) albo
+ * `<recurringDeactivation>` (karta usunięta po stronie Autopay / banku).
+ *
+ *   <recurringActivation>
+ *     <serviceID/>
+ *     <transaction><orderID/><remoteID/><amount/>…</transaction>
+ *     <recurringData><recurringAction/><clientHash/><expirationDate/></recurringData>
+ *     <cardData><index/><validityYear/><validityMonth/><issuer/><bin/><mask/></cardData>
+ *     <hash/>
+ *   </recurringActivation>
+ *
+ * Hash jak w ITN: wartości liści w kolejności dokumentu (bez `<hash>`) + klucz.
+ * Format zgodny z oficjalną wtyczką Autopay do Magento (`processRecurring`).
+ */
+export interface AutopayRecurringNotification {
+  type:        'activation' | 'deactivation'
+  serviceId:   string
+  clientHash:  string
+  /** UUID zamówienia, którym klient zapisał kartę (tylko aktywacja). */
+  orderId:     string | null
+  card: {
+    /** Stały identyfikator karty w Autopay — ta sama karta = ten sam index. */
+    index:         string | null
+    mask:          string | null
+    issuer:        string | null
+    validityMonth: number | null
+    validityYear:  number | null
+  }
+}
+
+export function parseRecurringNotification(encoded: string): AutopayRecurringNotification {
+  assertConfigured()
+
+  let xml: string
+  try {
+    xml = Buffer.from(encoded, 'base64').toString('utf8')
+  } catch {
+    throw new Error('Recurring: pole "recurring" nie jest poprawnym base64.')
+  }
+
+  const root = parseXml(xml)
+  const type = root.name === 'recurringActivation'
+    ? 'activation'
+    : root.name === 'recurringDeactivation'
+      ? 'deactivation'
+      : null
+  if (!type) throw new Error(`Recurring: nieznany komunikat <${root.name}>.`)
+
+  const serviceId = textOf(root, 'serviceID')
+  if (serviceId !== SERVICE_ID) {
+    throw new Error(`Recurring: komunikat dla obcego serwisu (${serviceId}).`)
+  }
+
+  const receivedHash = textOf(root, 'hash')
+  if (!receivedHash) throw new Error('Recurring: brak pola <hash>.')
+  const expectedHash = autopayHash(leafValuesInDocumentOrder(root, ['hash']))
+  if (!timingSafeEquals(expectedHash, receivedHash)) {
+    throw new Error('Recurring: nieprawidłowy hash.')
+  }
+
+  const recurringData = childNamed(root, 'recurringData')
+  const clientHash = recurringData ? textOf(recurringData, 'clientHash') : ''
+  if (!clientHash) throw new Error('Recurring: brak <clientHash>.')
+
+  const transaction = childNamed(root, 'transaction')
+  const autopayOrderId = transaction ? textOf(transaction, 'orderID') : ''
+
+  const cardData = childNamed(root, 'cardData')
+  const read = (name: string) => (cardData ? textOf(cardData, name) : '') || null
+  const toInt = (value: string | null) => {
+    const number = value ? Number.parseInt(value, 10) : Number.NaN
+    return Number.isFinite(number) ? number : null
+  }
+  const year = toInt(read('validityYear'))
+
+  return {
+    type,
+    serviceId,
+    clientHash,
+    orderId: autopayOrderId ? fromAutopayOrderId(autopayOrderId) : null,
+    card: {
+      index:         read('index'),
+      mask:          read('mask'),
+      issuer:        read('issuer'),
+      validityMonth: toInt(read('validityMonth')),
+      validityYear:  year !== null && year < 100 ? 2000 + year : year,
+    },
+  }
+}
+
+/**
+ * Odpowiedź na komunikat o karcie. Hash = ALGO(serviceID|clientHash|status|klucz),
+ * struktura jak w wtyczce Magento (`recurringResponse`). Bez poprawnej odpowiedzi
+ * Autopay ponawia komunikat.
+ */
+export function buildRecurringConfirmation(clientHash: string, confirmed: boolean): string {
+  assertConfigured()
+  const status = confirmed ? 'CONFIRMED' : 'NOTCONFIRMED'
+  const hash = autopayHash([SERVICE_ID, clientHash, status])
+
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<confirmationList>',
+    `  <serviceID>${escapeXml(SERVICE_ID)}</serviceID>`,
+    '  <recurringConfirmations>',
+    '    <recurringConfirmed>',
+    `      <clientHash>${escapeXml(clientHash)}</clientHash>`,
+    `      <confirmation>${status}</confirmation>`,
+    '    </recurringConfirmed>',
+    '  </recurringConfirmations>',
     `  <hash>${hash}</hash>`,
     '</confirmationList>',
   ].join('\n')
