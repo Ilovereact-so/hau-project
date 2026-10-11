@@ -185,7 +185,7 @@ const CartIcon = ({ mode }: Props) => {
     return (
         <div
             className={`px-1.5 relative ease-in-out duration-300 font-poppins ${
-                isVisible ? 'bg-[#ededed] rounded-t-full py-2' : 'lg:pr-4.5 pr-3.5 lg:py-3 py-2.5'
+                isVisible && popupPosition=="top" ? 'bg-[#ededed] rounded-t-full py-2' : 'lg:pr-4.5 pr-3.5 lg:py-3 py-2.5'
             }`}
         >
             <Link href={"/cart"}>
