@@ -142,7 +142,7 @@ const CartIcon = ({ mode }: Props) => {
 
                                 <div className='flex space-x-2 mt-1'>
                                     {variantsProperties?.optionValues?.map((item: any, index: number) => (
-                                        <div key={index} className="text-[#6C6C6C] sm:text-[16px] text-[14px] flex space-x-1">
+                                        <div key={index} className="text-[#6C6C6C] sm:text-[16px] text-[14px] flex text-nowrap space-x-1">
                                             <p>{item.name?.label}</p>
                                             <p>{item.value?.value}</p>
                                             { variantsProperties?.optionValues.length -1 != index && <p>|</p>}
