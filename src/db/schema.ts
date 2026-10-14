@@ -378,3 +378,31 @@ export const discountRedemptions = mysqlTable('discount_redemptions', {
   index('discount_redemptions_code_customer').on(t.discountCodeId, t.customerKey),
   index('discount_redemptions_code_email').on(t.discountCodeId, t.customerEmail),
 ])
+
+// ─── odstąpienie od umowy (funkcja odstąpienia online) ───────────────────────
+
+/*
+ * Oświadczenia o odstąpieniu od umowy złożone przez formularz
+ * /help/odstapienie-od-umowy (dyrektywa (UE) 2023/2673 — „przycisk odstąpienia”,
+ * obowiązuje od 19.06.2026). Wiersz = dowód złożenia oświadczenia (treść
+ * i chwila złożenia); klient dostaje potwierdzenie mailem, sklep —
+ * powiadomienie. `order_id` jest wypełnione, gdy numer zamówienia i e-mail
+ * pasują do zamówienia w bazie (formularz przyjmuje oświadczenie także bez
+ * dopasowania — prawo nie pozwala go odrzucić z powodu literówki).
+ */
+export const orderWithdrawals = mysqlTable('order_withdrawals', {
+  id:          varchar('id', { length: 36 }).primaryKey(),
+  orderId:     varchar('order_id', { length: 36 }),
+  // numer zamówienia tak, jak podał go klient (np. „3F2A9C1B”)
+  orderNumber: varchar('order_number', { length: 64 }).notNull(),
+  name:        varchar('name', { length: 200 }).notNull(),
+  email:       varchar('email', { length: 256 }).notNull(),
+  // których produktów dotyczy (puste = całe zamówienie)
+  items:       text('items'),
+  note:        text('note'),
+  userId:      varchar('user_id', { length: 128 }),
+  createdAt:   datetime('created_at', { mode: 'date', fsp: 3 }).notNull().default(sql`(now(3))`),
+}, t => [
+  index('order_withdrawals_order').on(t.orderId),
+  index('order_withdrawals_created').on(t.createdAt),
+])

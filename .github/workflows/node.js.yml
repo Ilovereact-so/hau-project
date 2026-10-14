@@ -113,6 +113,13 @@ jobs:
           NEXT_PUBLIC_FURGONETKA_ENV: ${{ vars.FURGONETKA_ENV || 'sandbox' }}
           NEXT_PUBLIC_GA_MEASUREMENT_ID: ${{ secrets.NEXT_PUBLIC_GA_MEASUREMENT_ID }}
           NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION: ${{ secrets.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION }}
+          # Dane sprzedawcy (stopka, maile) — jawne, więc jako zmienne (vars), nie sekrety.
+          NEXT_PUBLIC_SELLER_NAME: ${{ vars.SELLER_NAME }}
+          NEXT_PUBLIC_SELLER_ADDRESS: ${{ vars.SELLER_ADDRESS }}
+          NEXT_PUBLIC_SELLER_NIP: ${{ vars.SELLER_NIP }}
+          NEXT_PUBLIC_SELLER_REGISTRY: ${{ vars.SELLER_REGISTRY }}
+          NEXT_PUBLIC_SELLER_EMAIL: ${{ vars.SELLER_EMAIL }}
+          NEXT_PUBLIC_SELLER_PHONE: ${{ vars.SELLER_PHONE }}
 
           # --- czytane przy prerenderowaniu stron ---
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}

@@ -11,8 +11,18 @@ export const SITE_URL = (process.env.NEXT_PUBLIC_APP_URL || FALLBACK_URL).replac
 
 export const SITE_NAME = 'HAU'
 export const SITE_TITLE = 'HAU — sklep z akcesoriami dla psa'
+/**
+ * Ile dni klient ma na odstąpienie od umowy (zwrot bez podania przyczyny).
+ * Ustawowe minimum to 14 dni (art. 27 ustawy o prawach konsumenta). Jeśli
+ * regulamin daje więcej — zmień TU, a nie w tekstach: liczba trafia do opisu
+ * sklepu, kasy i danych strukturalnych produktu (polityka zwrotów w Google).
+ * Musi być zgodna z regulaminem — inna obietnica w opisie niż w regulaminie
+ * to praktyka wprowadzająca w błąd.
+ */
+export const RETURN_WINDOW_DAYS = 14
+
 export const SITE_DESCRIPTION =
-  'Akcesoria dla psa: zabawki, maty węchowe, przysmaki, smycze, szelki i posłania. Szybka wysyłka, płatności BLIK i kartą, 30 dni na zwrot.'
+  `Akcesoria dla psa: zabawki, maty węchowe, przysmaki, smycze, szelki i posłania. Szybka wysyłka, płatności BLIK i kartą, ${RETURN_WINDOW_DAYS} dni na zwrot.`
 
 export const SITE_LOCALE = 'pl_PL'
 
@@ -55,3 +65,33 @@ export const NOINDEX_PATHS = [
   '/403',
   '/404',
 ] as const
+
+/**
+ * Dane sprzedawcy — obowiązkowe w sklepie internetowym (art. 5 ustawy
+ * o świadczeniu usług drogą elektroniczną, art. 12 ustawy o prawach
+ * konsumenta): pełna nazwa firmy, adres, NIP, rejestr (KRS/CEIDG), e-mail
+ * i telefon. Pokazywane w stopce, w mailu z potwierdzeniem zamówienia
+ * (wzór formularza odstąpienia) i w danych strukturalnych Organization.
+ *
+ * Zmienne `NEXT_PUBLIC_SELLER_*` są wkompilowywane przy BUDOWANIU (stopka to
+ * komponent kliencki) — w GitHub Actions ustawia się je jako zmienne
+ * środowiska (`vars.SELLER_*`), nie tylko w `.env` na serwerze.
+ * Brak danych = blok się nie wyświetla, a `/admin/settings` i log startowy
+ * zgłaszają brak.
+ */
+const sellerEnv = (value: string | undefined) => (value ?? '').trim()
+
+export const SELLER = {
+  /** Pełna nazwa firmy, np. „HAU sp. z o.o.” albo „Jan Kowalski HAU”. */
+  name: sellerEnv(process.env.NEXT_PUBLIC_SELLER_NAME),
+  /** Adres w jednej linii: „ul. Przykładowa 1, 30-001 Kraków”. */
+  address: sellerEnv(process.env.NEXT_PUBLIC_SELLER_ADDRESS),
+  nip: sellerEnv(process.env.NEXT_PUBLIC_SELLER_NIP),
+  /** Np. „KRS 0000123456, Sąd Rejonowy dla Krakowa-Śródmieścia…” albo „CEIDG”. */
+  registry: sellerEnv(process.env.NEXT_PUBLIC_SELLER_REGISTRY),
+  email: sellerEnv(process.env.NEXT_PUBLIC_SELLER_EMAIL),
+  phone: sellerEnv(process.env.NEXT_PUBLIC_SELLER_PHONE),
+} as const
+
+/** Czy podano minimum wymagane prawem (nazwa, adres, NIP, e-mail). */
+export const SELLER_CONFIGURED = Boolean(SELLER.name && SELLER.address && SELLER.nip && SELLER.email)

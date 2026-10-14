@@ -3,7 +3,8 @@ import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { orderItems, orders, shippingAddresses } from '@/db/schema'
 import { sendMail } from '@/lib/mail'
-import { absoluteUrl } from '@/lib/site'
+import { RETURN_WINDOW_DAYS, SELLER, SELLER_CONFIGURED, absoluteUrl } from '@/lib/site'
+import { WITHDRAWAL_PATH } from '@/lib/withdrawals'
 import { guestOrderPath } from '@/lib/orderAccess'
 import { orderPaymentDeadline } from '@/lib/unpaidOrders.server'
 import { formatPaymentDeadline } from '@/lib/paymentDeadline'
@@ -34,6 +35,27 @@ const money = (cents: number) =>
 const shopLinks = () => ({ shopUrl: absoluteUrl('/').replace(/\/$/, ''), logoUrl: absoluteUrl(EMAIL_LOGO_PATH) })
 const strong = (html: string) => `<strong style="color:#1b1b1b;font-weight:600;">${html}</strong>`
 const CONTACT_FOOTER = 'Masz pytania? Odpowiedz na tę wiadomość — chętnie pomożemy.'
+
+/**
+ * Potwierdzenie zawarcia umowy na trwałym nośniku (art. 21 ustawy o prawach
+ * konsumenta): kto jest sprzedawcą, regulamin, prawo odstąpienia i jak z niego
+ * skorzystać (link do formularza online z wypełnionym numerem zamówienia).
+ */
+function legalFooter(number: string, email: string): string {
+  const link = (path: string, label: string) =>
+    `<a href="${absoluteUrl(path)}" style="color:#1b1b1b;text-decoration:underline;">${label}</a>`
+  const withdrawalHref = `${WITHDRAWAL_PATH}?${new URLSearchParams({ zamowienie: number, email })}`
+  const seller = SELLER_CONFIGURED
+    ? `Sprzedawca: ${escape(SELLER.name)}, ${escape(SELLER.address)}, NIP ${escape(SELLER.nip)}${SELLER.registry ? `, ${escape(SELLER.registry)}` : ''}, e-mail ${escape(SELLER.email)}${SELLER.phone ? `, tel. ${escape(SELLER.phone)}` : ''}.<br/>`
+    : ''
+  return emailParagraph(
+    `${seller}` +
+      `Umowa zawarta na warunkach ${link('/help/regulamin', 'regulaminu sklepu')}. ` +
+      `Masz ${RETURN_WINDOW_DAYS} dni od otrzymania przesyłki na odstąpienie od umowy bez podania przyczyny — ` +
+      `najprościej przez ${link(withdrawalHref, 'formularz odstąpienia online')}; zasady zwrotu opisuje strona ${link('/help/zwroty-i-reklamacje', 'Zwroty i reklamacje')}.`,
+    { size: 12, muted: true, margin: '28px 0 0' },
+  )
+}
 
 export async function sendOrderConfirmation(orderId: string): Promise<boolean> {
   const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1)
@@ -92,6 +114,7 @@ export async function sendOrderConfirmation(orderId: string): Promise<boolean> {
     isGuest
       ? emailParagraph('Zamówienie złożone bez konta — zachowaj tę wiadomość. Przycisk prowadzi prosto do Twojego zamówienia.', { size: 13, muted: true, margin: '20px 0 0' })
       : '',
+    legalFooter(number, email),
   ].filter(Boolean).join('\n')
 
   const html = emailDocument({

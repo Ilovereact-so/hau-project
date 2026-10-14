@@ -486,6 +486,13 @@ export type Product = {
   shipping_weight_g?: number;
   material?: string;
   care?: string;
+  safety?: {
+    manufacturerName?: string;
+    manufacturerAddress?: string;
+    manufacturerContact?: string;
+    responsiblePerson?: string;
+    warnings?: string;
+  };
   isMachineWashable?: boolean;
   isWaterproof?: boolean;
   isFeatured?: boolean;
@@ -929,6 +936,13 @@ export type PRODUCTS_QUERYResult = Array<{
   shipping_weight_g?: number;
   material?: string;
   care?: string;
+  safety?: {
+    manufacturerName?: string;
+    manufacturerAddress?: string;
+    manufacturerContact?: string;
+    responsiblePerson?: string;
+    warnings?: string;
+  };
   isMachineWashable?: boolean;
   isWaterproof?: boolean;
   isFeatured?: boolean;
@@ -1139,6 +1153,13 @@ export type PRODUCT_BY_ID_QUERYResult = {
   shipping_weight_g?: number;
   material?: string;
   care?: string;
+  safety?: {
+    manufacturerName?: string;
+    manufacturerAddress?: string;
+    manufacturerContact?: string;
+    responsiblePerson?: string;
+    warnings?: string;
+  };
   isMachineWashable?: boolean;
   isWaterproof?: boolean;
   isFeatured?: boolean;
@@ -1293,6 +1314,13 @@ export type PRODUCT_BY_SUBCATEGORY_QUERYResult = Array<{
   shipping_weight_g?: number;
   material?: string;
   care?: string;
+  safety?: {
+    manufacturerName?: string;
+    manufacturerAddress?: string;
+    manufacturerContact?: string;
+    responsiblePerson?: string;
+    warnings?: string;
+  };
   isMachineWashable?: boolean;
   isWaterproof?: boolean;
   isFeatured?: boolean;

@@ -170,6 +170,38 @@ const productType = {
     { name: "material", title: "Material", type: "string" },
     { name: "care", title: "Care / washing instructions", type: "text" },
 
+    // GPSR — rozporządzenie (UE) 2023/988 o ogólnym bezpieczeństwie produktów
+    // (od 13.12.2024). Oferta online MUSI pokazywać producenta (nazwa, adres
+    // pocztowy i elektroniczny), osobę odpowiedzialną w UE, gdy producent jest
+    // spoza Unii, oraz ostrzeżenia/informacje o bezpieczeństwie po polsku.
+    // Sklep wyświetla to w sekcji „Bezpieczeństwo produktu” na karcie produktu.
+    {
+      name: "safety",
+      title: "Bezpieczeństwo produktu (GPSR)",
+      type: "object",
+      description: "Wymagane prawem UE dla każdego produktu w sprzedaży online. Jeśli produkt jest pod Twoją marką, producentem jest Twoja firma.",
+      options: { collapsible: true, collapsed: false },
+      fields: [
+        { name: "manufacturerName", title: "Producent — nazwa firmy", type: "string" },
+        { name: "manufacturerAddress", title: "Producent — adres pocztowy", type: "text", rows: 2 },
+        { name: "manufacturerContact", title: "Producent — e-mail lub strona www", type: "string" },
+        {
+          name: "responsiblePerson",
+          title: "Osoba odpowiedzialna w UE",
+          type: "text",
+          rows: 3,
+          description: "Wymagane, gdy producent ma siedzibę poza UE: nazwa, adres i kontakt importera / upoważnionego przedstawiciela.",
+        },
+        {
+          name: "warnings",
+          title: "Ostrzeżenia i informacje o bezpieczeństwie",
+          type: "text",
+          rows: 4,
+          description: "Np. „Zabawka nie jest niezniszczalna — używaj pod nadzorem, wymień uszkodzoną.” Po polsku.",
+        },
+      ],
+    },
+
     // Booleans
     { name: "isMachineWashable", title: "Machine washable", type: "boolean" },
     { name: "isWaterproof", title: "Is waterproof", type: "boolean" },

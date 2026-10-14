@@ -66,7 +66,7 @@ const Newsletter = () => {
   return (
     <div className='flex flex-col justify-start lg:pt-5 sm:pt-3 pb-10 lg:mt-2 sm:mx-12 mx-7 rounded-[80px] relative z-1'>
        <div id='newsletterContainer' className=''> 
-            <h1 style={{gridArea:"heading"}} className='text-[clamp(20px,2vw,40px)] text-black font-medium font-poppins sm:text-left text-center relative z-1'>Zapisz sie do newslettera<br/><span className='text-[#efefef]'>i odbierz 10% rabatu!</span></h1>
+            <h2 style={{gridArea:"heading"}} className='text-[clamp(20px,2vw,40px)] text-black font-medium font-poppins sm:text-left text-center relative z-1'>Zapisz sie do newslettera<br/><span className='text-[#efefef]'>i odbierz 10% rabatu!</span></h2>
             <div style={{gridArea:"form"}} className='flex sm:w-auto max-sm:justify-center w-full h-auto relative z-1'>
                 <AnimatePresence mode='wait' initial={false}>
                 {sent ? (

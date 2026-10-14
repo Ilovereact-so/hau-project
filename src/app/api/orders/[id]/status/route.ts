@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { orders, paymentTransactions } from '@/db/schema'
 import { eq, desc } from 'drizzle-orm'
 import { verifyOrderAccessToken } from '@/lib/orderAccess'
+import { isPaidOrderStatus } from '@/lib/orderStatus'
 
 export const dynamic = 'force-dynamic'
 export const runtime  = 'nodejs'
@@ -50,7 +51,7 @@ export async function GET(
     .orderBy(desc(paymentTransactions.createdAt))
     .limit(1)
 
-  const settled = order.status === 'paid' || order.status === 'processing'
+  const settled = isPaidOrderStatus(order.status)
 
   return NextResponse.json({
     orderId:       order.id,

@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button'
 import BlikCodeInput from './BlikCodeInput'
 import { getAssetForCarrier } from './Step2DeliveryPayment'
 import Image from 'next/image'
+import Link from 'next/link'
+import { RETURN_WINDOW_DAYS } from '@/lib/site'
 
 const BLIK_GATEWAY_ID = 509
 const CARD_GATEWAY_ID = 1500
@@ -152,10 +154,16 @@ export default function Step3SummaryCards({
             <span className="flex items-center gap-2">Zamawiam i płacę</span>
           )}
         </Button>
+        {/* Regulamin musi być dostępny PRZED zawarciem umowy (art. 8 u.ś.u.d.e.),
+            a konsument — poinformowany o prawie odstąpienia (art. 12 u.p.k.).
+            Linki otwierają się w nowej karcie, żeby nie przerywać zamówienia. */}
         <p className="text-[11px] text-[#6C6C6C] text-left leading-relaxed mt-2">
-          Klikając „Zamawiam i płacę&rdquo; akceptujesz{' '}
-          <span className="underline cursor-pointer">regulamin</span> i{' '}
-          <span className="underline cursor-pointer">politykę prywatności</span>.
+          Klikając „Zamawiam i płacę&rdquo; składasz zamówienie z obowiązkiem zapłaty i akceptujesz{' '}
+          <Link href="/help/regulamin" target="_blank" rel="noopener" className="underline hover:text-fancy-black">regulamin</Link>.
+          {' '}Twoje dane przetwarzamy zgodnie z{' '}
+          <Link href="/help/polityka-prywatnosci" target="_blank" rel="noopener" className="underline hover:text-fancy-black">polityką prywatności</Link>.
+          {' '}Masz {RETURN_WINDOW_DAYS} dni na odstąpienie od umowy bez podania przyczyny —{' '}
+          <Link href="/help/zwroty-i-reklamacje" target="_blank" rel="noopener" className="underline hover:text-fancy-black">zwroty i reklamacje</Link>.
         </p>
       </div>
     </div>

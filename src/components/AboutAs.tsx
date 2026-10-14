@@ -8,7 +8,7 @@ const AboutAs = () => {
         
         <div className='relative w-full flex justify-center pt-12'>
             <Image src="/about-as.png" alt="About Us" className='w-[clamp(300px,20vw,450px)] relative z-[2]' width={450} height={315}/>
-            <h1 className='absolute bottom-1/2 left-1/2 transform -translate-x-1/2 translate-y-1/2 text-fancy-black font-bold font-poppins text-[clamp(50px,8vw,180px)] w-full text-center z-[3]'>Hau sklep</h1>
+            <p className='absolute bottom-1/2 left-1/2 transform -translate-x-1/2 translate-y-1/2 text-fancy-black font-bold font-poppins text-[clamp(50px,8vw,180px)] w-full text-center z-[3]'>Hau sklep</p>
             <div className='absolute bg-main rounded-t-[100%] h-full w-full bottom-0 left-0 z-[1] footer_shadow'></div>
            
         </div>

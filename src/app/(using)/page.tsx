@@ -35,6 +35,9 @@ export default async function Home() {
         <div className="">
             {/* Dane firmy i wyszukiwarki dla Google — raz, na stronie głównej. */}
             <script {...jsonLdScript(organizationJsonLd())} />
+            {/* Jedyny H1 strony głównej — dla wyszukiwarek i czytników ekranu.
+                Tytuły banerów są H2 (karuzela ma ich kilka naraz w DOM-ie). */}
+            <h1 className="sr-only">{SITE_TITLE}</h1>
             <HomeCarousel collections={collections} />
             <HomeSections sections={sections} />
             <Footer/>

@@ -37,7 +37,7 @@ const AutoResizeInput: React.FC<AutoResizeInputProps> = ({
       />
       {/* Ukryty span do mierzenia szerokości */}
       <div className="absolute invisible whitespace-pre font-poppins text-[clamp(14px,1.2vw,16px)] font-normal tracking-normal overflow-hidden">
-        <h1 style={{maxWidth:maxWidth}} ref={spanRef}>{props.value || props.placeholder }</h1>
+        <span style={{maxWidth:maxWidth}} ref={spanRef}>{props.value || props.placeholder }</span>
       </div>
       
     </label>

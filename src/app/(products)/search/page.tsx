@@ -126,9 +126,9 @@ const SearchPage = async ({
         <div className="flex w-full relative z-[3]">
           <div className="flex flex-col space-y-1">
             <div className="flex items-center space-x-2">
-              <h1 className="text-black  text-[clamp(14px,1.4vw,16px)]">Wyszukiwanie</h1>
+              <span className="text-black  text-[clamp(14px,1.4vw,16px)]">Wyszukiwanie</span>
               <ChevronRight className="text-black w-[20px] h-[20px]" />
-              <h1 className="text-black  text-[clamp(14px,1.4vw,16px)]">{trimmedQuery || "—"}</h1>
+              <span className="text-black  text-[clamp(14px,1.4vw,16px)]">{trimmedQuery || "—"}</span>
             </div>
             <h1 className="font-medium text-black sm:text-[clamp(18px,2vw,26px)] text-[16px]">
               {trimmedQuery ? `Wyniki dla: „${trimmedQuery}”` : "Wpisz frazę, aby wyszukać"}
@@ -143,7 +143,7 @@ const SearchPage = async ({
             <div className="flex subcategory-dock-shadow relative bg-fancy-black md:py-2 xs:py-3 py-2 md:pt-4 md:px-9 3xs:px-7 xs:px-4 px-3 rounded-full lg:w-[65vw] 2md:w-[70vw] w-[80vw] z-[1] min-h-[50px] max-w-[1350px]">
               <div className="w-full flex justify-between">
                 <div className="flex flex-col w-full z-[3] relative space-y-2 pr-4">
-                  <h1 className="text-white text-[clamp(16px,1.4vw,18px)] ml-1 max-md:hidden">Filtruj:</h1>
+                  <p className="text-white text-[clamp(16px,1.4vw,18px)] ml-1 max-md:hidden">Filtruj:</p>
                   <SubcategoryFilterContainer
                     subcategoryDetails={searchSubcategoryDetails}
                     products={products}
@@ -155,7 +155,7 @@ const SearchPage = async ({
                 </div>
                 <div className="flex md:flex-col flex-row-reverse md:space-y-2 h-fit relative z-[3]">
                   <div className="flex items-center justify-between 3xs:px-4 px-2">
-                    <h1 className="text-white text-[clamp(16px,1.4vw,18px)] max-md:hidden">Sortuj:</h1>
+                    <p className="text-white text-[clamp(16px,1.4vw,18px)] max-md:hidden">Sortuj:</p>
                     <ArrowDown className="text-white w-[20px] h-[20px]" />
                   </div>
                   <SortSelect value={sort} options={SEARCH_SORTS} defaultValue="relevance" />

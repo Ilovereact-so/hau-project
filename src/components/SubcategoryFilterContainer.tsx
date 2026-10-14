@@ -306,7 +306,7 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
                 }`}>
                     <motion.div initial={{ translateX: "100%" }} animate={{ translateX: "0%" }} exit={{ translateX: "100%" }} className='bg-background subcategory-dock-shadow-portal flex flex-col font-poppins w-[min(342px,90%)] md:w-[min(400px,90%)] max-h-[90%] bottom-[5%] md:[@media(min-height:821px)]:max-h-[80%] md:[@media(min-height:821px)]:bottom-[10%] max-md:space-y-2 h-auto rounded-l-[40px] md:px-6 px-4 md:py-6 py-4 absolute right-0 '>
                         <div className='flex justify-between items-center'>
-                            <h1 className='font-medium text-[clamp(15px,2.3vw,19px)] text-black ml-2'>Filtruj</h1>    
+                            <p className='font-medium text-[clamp(15px,2.3vw,19px)] text-black ml-2'>Filtruj</p>    
                             <div onClick={()=> setOpenMenu(false)} className="cursor-pointer">
                                     <X className='w-[20px] h-[20px] text-black'/>
                             </div>
@@ -318,13 +318,13 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
                             <div className='flex flex-col items-stretch filterOutscroll overflow-auto'>
                                 {/**Price */}
                                 <div className='flex flex-col md:my-3 py-2 px-2 space-y-2'>
-                                    <h1 className='text-[clamp(12px,2vw,16px)] text-black'>Cena:</h1>
+                                    <p className='text-[clamp(12px,2vw,16px)] text-black'>Cena:</p>
                                     <PriceRangeInputs draft={priceDraft} onChange={setPriceDraft} bounds={priceBounds} compact={false} />
                                 </div>
                                 {comboAvailableFilters && comboAvailableFilters.map((item,i)=>(
                                     <div key={i} className='w-full flex flex-col'>
                                         <div className='flex flex-col px-2 md:my-3 my-1 space-y-2'>
-                                            <h1 className='text-[clamp(12px,2vw,16px)] text-black'>{item.label}:</h1>
+                                            <p className='text-[clamp(12px,2vw,16px)] text-black'>{item.label}:</p>
                                             <div className='flex flex-wrap auto-cols-max gap-2'>
                                                 {item.type === "enum" && item.filters.map((Fitem,index)=>(
                                                     <div 
@@ -376,15 +376,15 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
                                     <AnimatePresence key={hasAnySelection ? "selected":"empty"}>
                                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                                             {hasAnySelection ? (
-                                                <h1 className='px-6'>Wybrano:</h1>
+                                                <p className='px-6'>Wybrano:</p>
                                             ) : hasPendingChanges ? (
-                                                <h1 className='px-6 text-white/80'>Brak wybranych filtrów — kliknij „Zastosuj”, aby je wyczyścić</h1>
+                                                <p className='px-6 text-white/80'>Brak wybranych filtrów — kliknij „Zastosuj”, aby je wyczyścić</p>
                                             ) : (
-                                                <h1 className='px-6 text-white/80'>Brak wybranych filtrów</h1>
+                                                <p className='px-6 text-white/80'>Brak wybranych filtrów</p>
                                             )}
                                             {!isPriceDefault && (
                                                 <div>
-                                                    <h1 className='ml-3 md:mt-3 mt-1 px-7'>Cena:</h1>
+                                                    <p className='ml-3 md:mt-3 mt-1 px-7'>Cena:</p>
                                                     <div className='pr-6 group pl-16 md:py-[6px] py-1 flex items-center justify-between hover:bg-[#121212] text-main bg-transparent ease-in-out duration-300'>
                                                         <p>{formatPriceRange(draftMin, draftMax)}</p>
                                                         <X onClick={resetPrice} className='text-red-900/80 mr-2 group-hover:opacity-100 opacity-0 w-[20px] h-[20px] cursor-pointer ease-in-out duration-300'></X>
@@ -395,7 +395,7 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
                                             isSelectedList && isSelectedList.map((item, index)=>(
                                                     <div key={index}>
                                                         {item.selected.length > 0 && (
-                                                            <h1 className='ml-3 md:mt-3 mt-1 px-7'>{item.label}:</h1>
+                                                            <p className='ml-3 md:mt-3 mt-1 px-7'>{item.label}:</p>
                                                         )}
                                                         {item.selected.length > 0 && item.selected.map((Fitem,i)=>(
                                                             <div  key={i} className='pr-6 group pl-16 md:py-[6px] py-1 flex items-center justify-between hover:bg-[#121212] text-main bg-transparent ease-in-out duration-300'>

@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import {
-  ArrowLeft, BadgeCheck, CreditCard, ExternalLink, MapPin, ShoppingBag, StickyNote, UserRound,
+  ArrowLeft, BadgeCheck, CreditCard, ExternalLink, MapPin, ShoppingBag, StickyNote, Undo2, UserRound,
 } from 'lucide-react'
 import { getAdminOrderDetail } from '@/lib/admin/ordersQueries'
 import {
@@ -15,9 +15,9 @@ import { Card, CardHeader, Field, Line } from '@/components/admin/kit/Card'
 import { DataTable, Td, Th, Tr } from '@/components/admin/kit/DataTable'
 import { formatCentsPrecise, formatDateTime, orderNumber } from '@/components/admin/kit/format'
 import { OrderActions } from '@/components/admin/orders/OrderActions'
-import { eq } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { shipments } from '@/db/schema'
+import { orderWithdrawals, shipments } from '@/db/schema'
 import { syncFurgonetkaShipment } from '@/lib/shipmentStatus'
 
 export const dynamic = 'force-dynamic'
@@ -54,7 +54,12 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 export default async function AdminOrderDetailPage({ params }: { params: Params }) {
   const { id } = await params
   await syncPendingShipment(id)
-  const data = await getAdminOrderDetail(id)
+  const [data, withdrawals] = await Promise.all([
+    getAdminOrderDetail(id),
+    // Oświadczenia o odstąpieniu złożone formularzem online (dopasowane do zamówienia).
+    db.select().from(orderWithdrawals).where(eq(orderWithdrawals.orderId, id)).orderBy(desc(orderWithdrawals.createdAt))
+      .catch((error) => { console.error('[admin/orders] withdrawals query failed', error); return [] }),
+  ])
   if (!data) notFound()
   const { order, items, address, payments, shipment, customerOrderCount } = data
   const isGuest = !order.userId.startsWith('user_')
@@ -269,6 +274,21 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
               </Link>
             </div>
           </Card>
+
+          {withdrawals.length > 0 && (
+            <Card className="flex flex-col">
+              <CardHeader icon={Undo2} title="Odstąpienie od umowy" subtitle="Oświadczenie złożone formularzem online — zwrot płatności w ciągu 14 dni." />
+              <div className="flex flex-col gap-3 px-4 pt-3 pb-4 text-xs text-text">
+                {withdrawals.map((entry) => (
+                  <div key={entry.id} className="flex flex-col gap-1">
+                    <span className="font-medium">{formatDateTime(entry.createdAt)} · {entry.name} ({entry.email})</span>
+                    <span className="text-text-2 whitespace-pre-line">{entry.items ? `Dotyczy: ${entry.items}` : 'Dotyczy całego zamówienia'}</span>
+                    {entry.note && <span className="text-text-2 whitespace-pre-line">Uwagi: {entry.note}</span>}
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
 
           {order.notes && (
             <Card className="flex flex-col">

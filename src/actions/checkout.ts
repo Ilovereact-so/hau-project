@@ -33,6 +33,7 @@ import { getOrCreateGuestId } from '@/lib/cartServer'
 import { getShopSettings } from '@/lib/shopSettings.server'
 import { qualifiesForFreeShipping } from '@/lib/shopSettings'
 import { maxOrderQty } from '@/lib/stock'
+import { isPaidOrderStatus } from '@/lib/orderStatus'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL!
 
@@ -572,7 +573,7 @@ export async function payExistingOrder(
     return { ok: false, error: 'Termin płatności minął — zamówienie zostało anulowane. Możesz złożyć je ponownie.' }
   }
   if (status !== 'awaiting_payment') {
-    return { ok: false, error: status === 'paid' || status === 'processing'
+    return { ok: false, error: isPaidOrderStatus(status)
       ? 'To zamówienie jest już opłacone.'
       : 'To zamówienie nie oczekuje już na płatność.' }
   }

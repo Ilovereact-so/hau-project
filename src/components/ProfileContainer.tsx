@@ -34,7 +34,7 @@ function UserProfileHeader() {
     return (
         <div className='flex justify-between relative max-lg:mt-30 max-md:mt-40'>
             <div className='flex flex-col'>
-                <h1 className='text-black font-medium text-[clamp(17px,1.8vw,20px)]'>Moje konto</h1>
+                <p className='text-black font-medium text-[clamp(17px,1.8vw,20px)]'>Moje konto</p>
                 <div className='flex mt-6'>
                     <Image src={user.imageUrl} width={100} height={100} alt="Zdjęcie profilowe" className='rounded-full w-[clamp(80px,7vw,100px)] h-[clamp(80px,7vw,100px)]' />
                     <div className='flex flex-col ml-4 justify-end mb-2'>
@@ -67,7 +67,7 @@ function GuestProfileHeader() {
     return (
         <div className='flex max-lg:flex-col-reverse lg:justify-between lg:items-end gap-6'>
             <div className='flex flex-col'>
-                <h1 className='text-black font-medium text-[clamp(17px,1.8vw,20px)]'>Moje konto</h1>
+                <p className='text-black font-medium text-[clamp(17px,1.8vw,20px)]'>Moje konto</p>
 
                 <button
                     type='button'

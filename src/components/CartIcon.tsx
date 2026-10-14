@@ -130,9 +130,9 @@ const CartIcon = ({ mode }: Props) => {
                         }>
                             {/* <div className="flex p-1 justify-center items-center space-x-2">
                                 <Check className="text-white w-[20px] h-[20px]" />
-                                <h1 className="text-white text-[18px] text-nowrap">
+                                <p className="text-white text-[18px] text-nowrap">
                                     Pomyślnie dodano do koszyka
-                                </h1>
+                                </p>
                             </div> */}
                             <div className="text-[clamp(12px,1.3vw,16px)] w-auto min-w-[170px] p-1 text-fancy-black font-poppins">
                                 <p className="sm:text-[16px] text-[14px]">{popupItem?.product.brand}</p>

@@ -3,6 +3,9 @@ import { getSavedAddress } from '@/actions/address'
 import { getShippingMethods } from '@/sanity/helpers'
 import ServerUser from '@/components/ServerUser'
 import CheckoutClient from './CheckoutClient'
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = { title: 'Kasa' }
 
 export const dynamic = 'force-dynamic'
 

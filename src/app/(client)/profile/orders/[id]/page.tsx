@@ -2,6 +2,9 @@ import { notFound } from 'next/navigation'
 import { getOrderDetail } from '@/actions/orders'
 import Content from './Content'
 import { requireUser } from '@/lib/requireUser'
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = { title: 'Szczegóły zamówienia' }
 
 export const dynamic = 'force-dynamic'
 

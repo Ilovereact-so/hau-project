@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { SITE_DESCRIPTION, SITE_INDEXABLE, SITE_LOCALE, SITE_NAME, SITE_TITLE, SITE_URL, absoluteUrl } from '@/lib/site'
+import { SELLER, SITE_DESCRIPTION, SITE_INDEXABLE, SITE_LOCALE, SITE_NAME, SITE_TITLE, SITE_URL, absoluteUrl } from '@/lib/site'
 
 /*
  * Pomocniki do metadanych stron. Wszystko, co wpływa na wygląd linku
@@ -76,8 +76,23 @@ export function organizationJsonLd() {
         '@type': 'Organization',
         '@id': `${SITE_URL}/#organization`,
         name: SITE_NAME,
+        ...(SELLER.name ? { legalName: SELLER.name } : {}),
         url: SITE_URL,
-        logo: absoluteUrl('/logo_hau.svg'),
+        // Rastrowe logo (PNG) — Google nie zawsze akceptuje SVG jako logo organizacji.
+        logo: absoluteUrl('/email/hau-logo.png'),
+        ...(SELLER.nip ? { vatID: `PL${SELLER.nip.replace(/\D/g, '')}` } : {}),
+        ...(SELLER.email || SELLER.phone
+          ? {
+              contactPoint: {
+                '@type': 'ContactPoint',
+                contactType: 'customer service',
+                availableLanguage: 'pl',
+                ...(SELLER.email ? { email: SELLER.email } : {}),
+                ...(SELLER.phone ? { telephone: SELLER.phone } : {}),
+              },
+            }
+          : {}),
+        ...(SELLER.address ? { address: { '@type': 'PostalAddress', streetAddress: SELLER.address, addressCountry: 'PL' } } : {}),
       },
       {
         '@type': 'WebSite',

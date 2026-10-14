@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { orders, paymentTransactions, savedCards } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
+import { isPaymentSettled } from '@/lib/orderStatus'
 
 // DEV-ONLY — blocked in production.
 // Simulates a successful Autopay payment + card saving so the full order flow
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL!
 
   // Idempotent
-  if (order.status === 'paid' || order.status === 'processing') {
+  if (isPaymentSettled(order.status)) {
     return NextResponse.redirect(`${appUrl}/orders/${orderId}?payment=success`)
   }
 

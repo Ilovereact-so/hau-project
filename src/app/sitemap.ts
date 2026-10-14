@@ -2,6 +2,7 @@ import type { MetadataRoute } from 'next'
 import { getSitemapData } from '@/sanity/helpers'
 import { absoluteUrl } from '@/lib/site'
 import { isProductCategory } from '@/lib/categoryNavigation'
+import { WITHDRAWAL_PATH } from '@/lib/withdrawals'
 
 /**
  * Mapa strony: sekcje stałe + wszystko, co admin dodaje w Sanity
@@ -24,6 +25,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: absoluteUrl('/kolekcje'), changeFrequency: 'weekly', priority: 0.7 },
     { url: absoluteUrl('/poradniki'), changeFrequency: 'weekly', priority: 0.6 },
     { url: absoluteUrl('/help'), changeFrequency: 'monthly', priority: 0.4 },
+    { url: absoluteUrl(WITHDRAWAL_PATH), changeFrequency: 'yearly', priority: 0.3 },
   ]
 
   const products: MetadataRoute.Sitemap = data.products.map((entry) => ({

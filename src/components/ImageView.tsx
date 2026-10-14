@@ -18,10 +18,21 @@ interface Props {
     crop?: SanityImageCrop;
     _type: "image";
     _key: string;
+    alt?: string | null;
   }>;
+  /** Nazwa produktu — tekst alternatywny, gdy zdjęcie nie ma własnego `alt`. */
+  productTitle?: string | null;
 }
 
-const ImageView = ({ images = []}: Props) => {
+const ImageView = ({ images = [], productTitle }: Props) => {
+  // Opisy zdjęć dla wyszukiwarki grafik i czytników ekranu (wcześniej
+  // „productImage” / „Thumbnail <klucz>”).
+  const altFor = (index: number) => {
+    const own = images[index]?.alt?.trim()
+    if (own) return own
+    const name = productTitle?.trim() || 'Zdjęcie produktu'
+    return images.length > 1 ? `${name} — zdjęcie ${index + 1}` : name
+  }
   const [active, setActive] = useState(images[0]);
   const [isNumActive, setNumActive] = useState<number>(0)
   const [isOpen, setOpen] = useState(false)
@@ -53,11 +64,10 @@ const ImageView = ({ images = []}: Props) => {
               >
                 <Image
                   src={urlFor(image).url()}
-                  alt={`Thumbnail ${image._key}`}
+                  alt={altFor(_)}
                   width={100}
                   height={100}
-                  priority
-                  fetchPriority="high"
+                  loading="lazy"
                   sizes="(max-width: 768px) 100vw, 50vw"
                   className="lg:min-w-[118px] min-w-[100px] lg:min-h-[118px] min-h-[110px] object-cover brightness-90 "
                 />
@@ -71,7 +81,7 @@ const ImageView = ({ images = []}: Props) => {
               src={urlFor(images[isNumActive]).url()}  
               width={1200}
               height={1200}
-              alt="backgroundImage" 
+              alt={altFor(isNumActive)}
               onClick={(e)=>e.stopPropagation()}
               className="lg:w-[70%] md:w-auto w-full lg:h-[90vh] h-[50vh] object-cover"/>
             </div>
@@ -92,11 +102,9 @@ const ImageView = ({ images = []}: Props) => {
             >
               <Image
                 src={urlFor(image).url()}
-                alt={`Thumbnail ${image._key}`}
+                alt={altFor(_)}
                 width={100}
                 height={100}
-                priority
-                fetchPriority="high"
                 sizes="(max-width: 768px) 100vw, 50vw"
                 className="min-w-[118px] min-h-[118px] object-cover brightness-90 "
               />
@@ -123,7 +131,7 @@ const ImageView = ({ images = []}: Props) => {
             >
               <Image
                 src={urlFor(images[isNumActive]).url()}
-                alt="productImage"
+                alt={altFor(isNumActive)}
                 width={700}
                 height={700}
                 priority
@@ -133,7 +141,8 @@ const ImageView = ({ images = []}: Props) => {
           </AnimatePresence>
           <Image
               src={urlFor(images[0]).url()}
-              alt="layerImage"
+              alt=""
+              aria-hidden="true"
               width={700}
               height={700}
               priority

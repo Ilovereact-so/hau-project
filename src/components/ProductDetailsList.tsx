@@ -21,7 +21,7 @@ const ProductDetailsList = ({product, className}:Props) => {
     <div className={twMerge(' mt-10', className)}>
         <div className='flex flex-col font-poppins '>
             <div onClick={()=> isOpen == 1 ? setOpen(0) : setOpen(1)} className='flex justify-between items-center py-4 w-full text-black 2lg:text-[clamp(16px,1.6vw,18px)] text-[15px] cursor-pointer'>
-                <h1 className=''>Opis</h1>
+                <h2 className=''>Opis</h2>
                 <div className={`transform transition-transform duration-300 ${isOpen === 1 ? 'rotate-180' : ''}`}>
                     <ChevronDown width={20} height={20}/>
                 </div>
@@ -43,41 +43,41 @@ const ProductDetailsList = ({product, className}:Props) => {
         <hr className='bg-black h-[1px] mx-1'></hr>
         <div className='flex flex-col font-poppins '>
             <div onClick={()=> isOpen == 2 ? setOpen(0) : setOpen(2)} className='flex justify-between items-center py-4 w-full text-black 2lg:text-[clamp(16px,1.6vw,18px)] text-[15px] cursor-pointer'>
-                <h1 className=''>Materiał</h1>
+                <h2 className=''>Materiał</h2>
                 <div className={`transform transition-transform duration-300 ${isOpen === 2 ? 'rotate-180' : ''}`}>
                     <ChevronDown width={20} height={20}/>
                 </div>
             </div>
             <motion.div initial={{maxHeight: 0}} animate={isOpen == 2 ? {maxHeight: 300}:{maxHeight:0, paddingTop:0,paddingBottom:0}} transition={{duration:0.4}} className='flex flex-col font-poppins text-black  py-1 pb-5 overflow-hidden'>
-                <h1 className='2lg:text-[16px] text-[15px]'>Materiał: <span className='text-[#6C6C6C]'>{product?.material}</span></h1>
-                <h1 className='2lg:text-[16px] text-[15px]'>Wodoodporny: <span className='text-[#6C6C6C]'>{product?.isWaterproof ? "Tak" : "Nie"}</span></h1>
-                <h1 className='2lg:text-[16px] text-[15px] mt-5 w-auto'>Instrukcje czyszczenia: <span className='text-[#6C6C6C]'>{product?.care}</span></h1>
+                <p className='2lg:text-[16px] text-[15px]'>Materiał: <span className='text-[#6C6C6C]'>{product?.material}</span></p>
+                <p className='2lg:text-[16px] text-[15px]'>Wodoodporny: <span className='text-[#6C6C6C]'>{product?.isWaterproof ? "Tak" : "Nie"}</span></p>
+                <p className='2lg:text-[16px] text-[15px] mt-5 w-auto'>Instrukcje czyszczenia: <span className='text-[#6C6C6C]'>{product?.care}</span></p>
                 <Image src='/WashIcon0.svg' width={100} height={25} alt='Nie wkładać do pralki' className='w-[29px] h-[25px] box-border mt-2'/>
             </motion.div>
         </div>
         <hr className='bg-black h-[1px] mx-1'></hr>
         <div>
             <div onClick={()=> isOpen == 3 ? setOpen(0) : setOpen(3)} className='flex justify-between items-center py-4 w-full text-black 2lg:text-[clamp(16px,1.6vw,18px)] text-[15px] cursor-pointer'>
-                <h1 className=''>Szczegóły produktu</h1>
+                <h2 className=''>Szczegóły produktu</h2>
                 <div className={`transform transition-transform duration-300 ${isOpen === 3 ? 'rotate-180' : ''}`}>
                     <ChevronDown width={20} height={20}/>
                 </div>
             </div>
             <motion.div initial={{maxHeight: 0}} animate={isOpen == 3 ? {maxHeight: 300}:{maxHeight:0, paddingTop:0,paddingBottom:0}} transition={{duration:0.4}} className='flex flex-col font-poppins text-black py-1 pb-5 overflow-hidden'>
-                <h1 className='2lg:text-[16px] text-[15px]'>Numer produktu: <span className='text-[#6C6C6C]'>{product?.sku}</span></h1>
-                <h1 className='2lg:text-[16px] text-[15px]  mt-1'>Wymiary: <br/>
+                <p className='2lg:text-[16px] text-[15px]'>Numer produktu: <span className='text-[#6C6C6C]'>{product?.sku}</span></p>
+                <p className='2lg:text-[16px] text-[15px]  mt-1'>Wymiary: <br/>
                 <span className='text-[#6C6C6C] pl-5'>
                 {product?.dimensions?.width_cm} x {product?.dimensions?.height_cm} x {product?.dimensions?.depth_cm} {product?.dimensions?.unit};<br/>
                 <span className='font-normal pl-5'>szerokość x wysokość x głębokość;</span> <br/>
                 <span className='font-normal pl-5'>jednostka: {product?.dimensions?.unit};</span>
-                </span></h1>
-                <h1 className='2lg:text-[16px] text-[15px]  mt-2 w-auto'>Waga: <span className='text-[#6C6C6C]'>{product?.weight_g}g</span></h1>
+                </span></p>
+                <p className='2lg:text-[16px] text-[15px]  mt-2 w-auto'>Waga: <span className='text-[#6C6C6C]'>{product?.weight_g}g</span></p>
             </motion.div>
         </div>
         <hr className='bg-black h-[1px] mx-1'></hr>
         <div>
             <div className='flex justify-between items-center py-4 w-full text-black 2lg:text-[clamp(16px,1.6vw,18px)] text-[15px] cursor-pointer'>
-                <h1 className=''>Producent</h1>
+                <h2 className=''>Producent</h2>
                 <span className='text-[#6C6C6C] 2lg:text-[16px] text-[15px]'>{product?.brand}</span>
             </div>
         </div>

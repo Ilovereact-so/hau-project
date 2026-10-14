@@ -31,7 +31,7 @@ const WishlistProduct = memo(function WishlistProduct({ product }: Props) {
       } 
         <div className="text-black mt-4">
           <p className="2xl:text-[16px] sm:text-[15px] text-[13px]">{product.brand}</p>
-          <h1 className="2xl:text-[18px] sm:text-[16px] text-[14px] line-clamp-2">{product.title}</h1>
+          <h3 className="2xl:text-[18px] sm:text-[16px] text-[14px] line-clamp-2">{product.title}</h3>
         </div>
       </div>
       <ProductRatingBadge

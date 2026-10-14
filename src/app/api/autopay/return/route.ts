@@ -3,6 +3,7 @@ import { verifyReturnHash, fromAutopayOrderId, isAutopayConfigured } from '@/lib
 import { db } from '@/lib/db'
 import { orders, paymentTransactions } from '@/db/schema'
 import { desc, eq } from 'drizzle-orm'
+import { isPaidOrderStatus } from '@/lib/orderStatus'
 
 export const dynamic = 'force-dynamic'
 export const runtime  = 'nodejs'
@@ -90,7 +91,7 @@ async function handleReturn(
     .orderBy(desc(paymentTransactions.createdAt))
     .limit(1)
   const payment =
-    order.status === 'paid' || order.status === 'processing'
+    isPaidOrderStatus(order.status)
       ? 'success'
       : order.status === 'awaiting_payment' && latest?.status === 'failed'
         ? 'failed'

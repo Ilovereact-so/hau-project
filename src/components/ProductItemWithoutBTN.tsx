@@ -40,7 +40,7 @@ const ProductItemWithoutBTN = ({product}:{product: GetSlugProduct & { defaultVar
       <div className='flex flex-col max-sm:w-[calc((100vw-66px)/2))] max-md:w-[calc((100vw-110px)/3))] max-lg:w-[calc((100vw-156px)/3))] max-1.5xl:w-[calc((100vw-156px)/4))] w-[calc((100vw-156px)/5))] 4xl:w-[calc((1900px-156px)/5))]'>
         <div className='text-black mt-3'>
             <p className='2xl:text-[16px] sm:text-[15px] text-[13px]'>{product.brand}</p>
-            <h1 className='2xl:text-[18px] sm::text-[16px] text-[14px] line-clamp-1 pr-1'>{product.title}</h1>
+            <h3 className='2xl:text-[18px] sm::text-[16px] text-[14px] line-clamp-1 pr-1'>{product.title}</h3>
         </div>
         <ProductRatingBadge
           productId={product._id}

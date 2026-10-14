@@ -211,6 +211,9 @@ SANITY_PRICE_WEBHOOK_SECRET  # sekret webhooka Sanity → /api/webhooks/sanity-p
 NEXT_PUBLIC_GA_MEASUREMENT_ID        # G-XXXXXXXXXX — GA4; skrypt ładuje się DOPIERO po zgodzie
 NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION # kod z Google Search Console (opcjonalny)
 CSP_MODE                             # report-only (domyślnie) | enforce | off
+# Dane sprzedawcy (wymóg prawny; build-time — w CI jako vars.SELLER_*)
+NEXT_PUBLIC_SELLER_NAME, NEXT_PUBLIC_SELLER_ADDRESS, NEXT_PUBLIC_SELLER_NIP
+NEXT_PUBLIC_SELLER_REGISTRY, NEXT_PUBLIC_SELLER_EMAIL, NEXT_PUBLIC_SELLER_PHONE
 ```
 
 `src/lib/env.ts` sprawdza tę listę raz przy starcie procesu (woła to layout sklepu) i wypisuje raport w logu: „BŁĄD” dla braków krytycznych, „Uwaga” dla funkcji opcjonalnych. Świadomie nie rzuca wyjątkiem — brak SMTP-a nie może wywrócić sklepu. Tej samej funkcji (`findEnvIssues`) używa panel.
@@ -550,7 +553,7 @@ Adres sklepu (`https://ehau.pl`) i wspólne teksty trzyma `src/lib/site.ts` (`SI
 
 `src/lib/securityHeaders.ts` (wpięte w `next.config.ts`) wysyła przy każdej odpowiedzi: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`, HSTS (tylko produkcja) i CSP.
 
-**CSP domyślnie idzie jako `Content-Security-Policy-Report-Only`** — przeglądarka tylko zgłasza naruszenia, nic nie blokuje. Po przeklikaniu kasy, mapy paczkomatów, logowania i Studio z czystą konsolą ustaw `CSP_MODE=enforce`. Lista dozwolonych źródeł odpowiada temu, co sklep faktycznie ładuje (Clerk, Sanity, Google, Autopay/P24, Furgonetka, YouTube/Vimeo) — dokładając integrację, dopisz jej hosty, inaczej po włączeniu `enforce` przestanie działać.
+**CSP domyślnie idzie jako `Content-Security-Policy-Report-Only`** — przeglądarka tylko zgłasza naruszenia, nic nie blokuje. Po przeklikaniu kasy, mapy paczkomatów, logowania i Studio z czystą konsolą ustaw `CSP_MODE=enforce`. Lista dozwolonych źródeł odpowiada temu, co sklep faktycznie ładuje (Clerk — także jego produkcyjna subdomena odczytana z klucza `pk_live_…` i Cloudflare Turnstile, Sanity, Google, Autopay/P24, Furgonetka, YouTube/Vimeo) — dokładając integrację, dopisz jej hosty, inaczej po włączeniu `enforce` przestanie działać.
 
 ### Lint przy budowaniu
 
@@ -561,6 +564,20 @@ Adres sklepu (`https://ehau.pl`) i wspólne teksty trzyma `src/lib/site.ts` (`SI
 - `/admin/settings` pokazuje brakujące zmienne z `.env` (krytyczne vs opcjonalne) oraz gotowe adresy do wklejenia u operatorów — w tym webhook cen Sanity i zadanie cykliczne rejestru cen. Adresy MUSZĄ być pełne (`https://…`); sam `/api/…` Sanity odrzuci.
 - Środowisko Furgonetki (mapa paczkomatów `components/FurgonetkaMap.tsx` i API `lib/furgonetka.ts`) wybiera jedna zmienna `NEXT_PUBLIC_FURGONETKA_ENV` = `sandbox` | `production` (`lib/furgonetkaEnv.ts`; bez niej: build produkcyjny → produkcja, dev → piaskownica). Wkompilowywana przy budowaniu — w workflow stagingu z `vars.FURGONETKA_ENV`, domyślnie `sandbox`. **Klucz mapy, dane OAuth i token muszą pochodzić z konta w TYM SAMYM środowisku** — klucz z piaskownicy na `api.furgonetka.pl` daje 403 na `/points/map`. Na produkcji sklepu ustaw `production` i produkcyjne klucze, inaczej klienci zobaczą testowe paczkomaty.
 - Po pierwszym wdrożeniu: `/robots.txt` i `/sitemap.xml` odpowiadają 200, w Search Console dodaj mapę strony, a w konsoli przeglądarki sprawdź zgłoszenia CSP przed przełączeniem na `enforce`.
+
+## Wymogi prawne sklepu (PL/UE) — gdzie co jest
+
+- **Dane sprzedawcy**: `SELLER` w `src/lib/site.ts` ze zmiennych `NEXT_PUBLIC_SELLER_NAME|ADDRESS|NIP|REGISTRY|EMAIL|PHONE` (wkompilowywane — w GitHub Actions jako `vars.SELLER_*`, plus `.env` serwera). Stopka (`<address>`), mail z potwierdzeniem zamówienia, JSON-LD `Organization`. Brak danych = blok ukryty, `env.ts` zgłasza „BŁĄD”.
+- **Zwroty**: `RETURN_WINDOW_DAYS` w `site.ts` (14 = ustawowe minimum) — jedna liczba dla opisu sklepu, kasy, karty produktu, maili i `hasMerchantReturnPolicy`. Musi zgadzać się z regulaminem.
+- **Kasa**: pod przyciskiem „Zamawiam i płacę” linki do regulaminu, polityki prywatności i zwrotów (nowa karta) + informacja o prawie odstąpienia.
+- **Funkcja odstąpienia od umowy** (dyrektywa (UE) 2023/2673, od 19.06.2026): `/help/odstapienie-od-umowy` — dwa kroki (dane → „Potwierdzam odstąpienie od umowy”), `submitWithdrawal` (`actions/withdrawals.ts`) zapisuje oświadczenie w `order_withdrawals` (migracja **`drizzle/0004_order_withdrawals.sql` — ręcznie na bazie**), wysyła klientowi potwierdzenie z treścią i datą (trwały nośnik), a sklepowi powiadomienie (`SELLER.email`, zapasowo `SMTP_FROM`). Oświadczenie przyjmujemy też bez dopasowania zamówienia. Linki: stopka, strona zamówienia (opłaconego), mail z potwierdzeniem (z wypełnionym numerem i e-mailem). Panel: karta „Odstąpienie od umowy” w szczegółach zamówienia. Limit 10 prób/h na IP.
+- **GPSR** (rozporządzenie (UE) 2023/988): pole produktu `safety` (producent: nazwa, adres, kontakt; osoba odpowiedzialna w UE; ostrzeżenia) → sekcja „Bezpieczeństwo produktu” (`components/product/ProductSafetyInfo.tsx`) i `manufacturer` w JSON-LD. Edycja w Studio.
+- **Opinie**: pod podsumowaniem informacja, jak weryfikujemy opinie (art. 7 pkt 6 u.p.n.p.r.).
+- **Statusy „opłacone”**: `lib/orderStatus.ts` (`isPaidOrderStatus`, `isPaymentSettled`) — webhooki płatności nie zmieniają statusu zamówienia wysłanego/doręczonego/zwróconego (ponowiony ITN cofał je na „opłacone”).
+
+## SEO — zasady nagłówków
+
+Na stronie jest dokładnie JEDEN `<h1>`: produkt = nazwa, kategoria/subkategoria = nazwa (w okruszku), kolekcja = tytuł (bez zdjęcia: `sr-only`), strona główna = `sr-only` z `SITE_TITLE`. Komponenty współdzielone (navbar, stopka, kafelki, karuzele, filtry) NIE używają `<h1>` — sekcje `<h2>`, nazwy produktów w kafelkach `<h3>`, etykiety `<p>`. Galeria produktu: `alt` ze zdjęcia albo „<nazwa> — zdjęcie N”. Strony prywatne mają własne tytuły kart (layouty `cart`, `sign-in`… dla stron klienckich).
 
 ## Wdrożenie (GitHub Actions → FTP)
 
