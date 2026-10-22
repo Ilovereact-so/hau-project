@@ -23,7 +23,7 @@ const TEST_DOCUMENT_ID = 'test-public-read-optionlist';
 const DOC_TYPE = 'optionList'; // Typ dokumentu z Twojego schematu
 
 if (!PROJECT_ID || !DATASET || !WRITE_TOKEN) {
-    console.log(PROJECT_ID, DATASET, WRITE_TOKEN);
+    console.log(PROJECT_ID, DATASET, WRITE_TOKEN ? '(token ustawiony)' : '(brak tokena)');
     console.error("Błąd: Ustaw zmienne środowiskowe SANITY_PROJECT_ID, SANITY_DATASET i SANITY_WRITE_TOKEN.");
     process.exit(1);
 }
@@ -119,4 +119,4 @@ async function runTest() {
     console.log(`\n--- KONIEC TESTU ---\n`);
 }
 
-runTest();
+runTest();

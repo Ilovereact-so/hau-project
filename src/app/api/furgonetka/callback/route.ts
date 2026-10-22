@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import { exchangeCodeForTokens, getOAuthRedirectUri, saveFurgonetkaTokens } from '@/lib/furgonetka'
+import { connectWithPastedCode } from '@/lib/furgonetka'
 
-// Furgonetka redirects here after user grants access
-// Stores refresh_token in Redis and prints instructions
+// Powrót z autoryzacji OAuth Furgonetki — działa tylko tam, gdzie zarejestrowany
+// adres przekierowania (localhost) faktycznie wskazuje na sklep, czyli lokalnie.
+// Na serwerze admin wkleja adres z paska w /admin/settings (connectWithPastedCode).
+//
+// Tokenów NIE wypisujemy ani do logu, ani na stronę: refresh token jest rotowany
+// i żyje w Redisie, więc kopia w `.env` szybko by umarła, a w logu serwera byłaby
+// zwykłym wyciekiem sekretu.
 export async function GET(req: NextRequest) {
   const { userId, sessionClaims } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -11,38 +16,36 @@ export async function GET(req: NextRequest) {
   const role = (sessionClaims?.metadata as { role?: string })?.role
   if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const code = req.nextUrl.searchParams.get('code')
-  if (!code) {
-    return NextResponse.json({ error: 'Missing code param' }, { status: 400 })
+  let error: string | null = null
+  try {
+    // Sam ciąg zapytania (code / error) — adres wymiany bierze się z ustawień,
+    // tak samo jak przy /oauth/authorize.
+    await connectWithPastedCode(`?${req.nextUrl.searchParams.toString()}`)
+  } catch (err) {
+    error = err instanceof Error ? err.message : 'Nie udało się połączyć z Furgonetką.'
   }
 
-  const tokens = await exchangeCodeForTokens(code, await getOAuthRedirectUri())
+  return new NextResponse(page(error), {
+    status: error ? 400 : 200,
+    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+  })
+}
 
-  // store in Redis immediately so the app can use them
-  await saveFurgonetkaTokens(tokens)
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`)
+}
 
-  // Print to server console so dev can copy to .env
-  console.info('\n✅ FURGONETKA OAUTH SUCCESS')
-  console.info('────────────────────────────────────────')
-  console.info('Add to .env:')
-  console.info(`FURGONETKA_REFRESH_TOKEN=${tokens.refresh_token}`)
-  console.info('────────────────────────────────────────\n')
-
-  return new NextResponse(
-    `<!DOCTYPE html>
+function page(error: string | null): string {
+  const title = error ? 'Furgonetka — błąd autoryzacji' : 'Furgonetka — połączono'
+  const body = error
+    ? `<h1>Nie udało się połączyć</h1><p>${escapeHtml(error)}</p>`
+    : '<h1>Furgonetka połączona</h1><p>Token zapisano po stronie serwera — przesyłki i punkty odbioru działają od razu.</p>'
+  return `<!DOCTYPE html>
 <html lang="pl">
-<head><meta charset="UTF-8"><title>Furgonetka — połączono</title>
-<style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f4f4f4}
-.box{background:#fff;border-radius:16px;padding:40px;max-width:520px;width:100%;box-shadow:0 2px 16px rgba(0,0,0,.08)}
-h1{color:#20201F;margin:0 0 12px}p{color:#555;margin:0 0 20px}
-pre{background:#f0f0f0;padding:16px;border-radius:8px;font-size:13px;word-break:break-all;white-space:pre-wrap}
-.note{font-size:13px;color:#888}</style></head>
-<body><div class="box">
-<h1>✅ Furgonetka połączona!</h1>
-<p>Skopiuj poniższy refresh_token i wklej do <strong>.env</strong>:</p>
-<pre>FURGONETKA_REFRESH_TOKEN=${tokens.refresh_token}</pre>
-<p class="note">Token został już zapisany w Redis — aplikacja działa od razu. Wpis do .env potrzebny jest po restarcie serwera lub nowym deploymencie.</p>
-</div></body></html>`,
-    { headers: { 'Content-Type': 'text/html; charset=utf-8' } },
-  )
+<head><meta charset="UTF-8"><meta name="robots" content="noindex"><title>${title}</title>
+<style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f4f4f4}
+.box{background:#fff;border-radius:16px;padding:40px;max-width:520px;width:100%;box-sizing:border-box}
+h1{color:#20201F;margin:0 0 12px;font-size:22px}p{color:#555;margin:0 0 20px;line-height:1.5}
+a{color:#20201F;font-weight:600}</style></head>
+<body><div class="box">${body}<p><a href="/admin/settings">Wróć do ustawień panelu</a></p></div></body></html>`
 }

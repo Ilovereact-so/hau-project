@@ -13,11 +13,12 @@ import { dirname, join } from 'node:path'
  * manifest, statyczne /api) dają 500: „Cannot read properties of undefined
  * (reading 'kind')” — format wpisów cache różni się między wersjami.
  *
- * Node szuka pakietu od katalogu `server.js` w górę, więc stary
- * `public_html/standalone/node_modules/next` (pierwsza wersja workflow wgrywała
- * ten katalog przez FTP) PRZYKRYWA świeżą instalację w `public_html/node_modules`
- * — wtedy „NPM Install” niczego nie zmienia. Dlatego zbieramy wszystkie kopie
- * na ścieżce wyszukiwania, a nie tylko pierwszą. Sprawdzamy to raz na proces.
+ * Node szuka pakietu od katalogu `server.js` (`public_html/standalone`) w górę.
+ * „Uruchom NPM Install” instaluje do `public_html/node_modules` (środowisko
+ * nodevenv katalogu `public_html`), ale stary `public_html/standalone/node_modules`
+ * z dawnego deployu — jeśli istnieje — PRZYKRYWA tę instalację i „NPM Install”
+ * niczego nie zmienia (awaria 22.10.2026). Dlatego zbieramy wszystkie kopie na
+ * ścieżce wyszukiwania, a nie tylko pierwszą. Sprawdzamy to raz na proces.
  */
 
 export type NextCopy = { path: string; version: string }
@@ -80,12 +81,17 @@ export function nextVersionMismatch(): string | null {
   if (!versions || versions.built === versions.running.version) return null
   const { built, running, shadowed } = versions
   const hidden = shadowed.find((copy) => copy.version === built)
+  const runningModules = dirname(running.path)
   const fix = hidden
-    ? `Poprawna wersja leży w ${hidden.path}, ale przykrywa ją stary katalog ${dirname(running.path)} — usuń go (menedżerem plików albo FTP) i zrestartuj aplikację.`
-    : 'Kliknij „Uruchom NPM Install” w panelu Node.js hostingu, potem zrestartuj aplikację.'
+    ? // Poprawna instalacja (z „Uruchom NPM Install”) istnieje wyżej, ale przykrywa ją
+      // stary katalog bliżej `server.js` — zwykle `standalone/node_modules` z dawnego deployu.
+      `Poprawna wersja leży w ${hidden.path}, ale przykrywa ją starszy katalog ${runningModules}. ` +
+      `Przenieś go w bezpieczne miejsce (np. mv ${runningModules} ~/node_modules_stare) i zrestartuj aplikację.`
+    : `Sprawdź, czy ${join(dirname(runningModules), 'package.json')} przypina "next": "${built}", ` +
+      'kliknij „Uruchom NPM Install” w panelu Node.js i zrestartuj aplikację.'
   return (
     `Paczka sklepu jest zbudowana na Next.js ${built}, a serwer ładuje ${running.version} z ${running.path}. ` +
-    `Favicon, manifest i część tras /api będą zwracać błąd 500. ${fix}`
+    `Favicon, manifest i część tras /api mogą zwracać błąd 500. ${fix}`
   )
 }
 

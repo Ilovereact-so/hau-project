@@ -76,6 +76,9 @@ const deployPkg = {
   name: `${rootPkg.name}-server`,
   version: rootPkg.version,
   private: true,
+  // `server.js` ze standalone jest modułem ESM (projekt ma "type": "module") —
+  // bez tego pola w `standalone/package.json` Node potraktowałby go jak CommonJS.
+  ...(rootPkg.type ? { type: rootPkg.type } : {}),
   description: 'Zależności runtime dla .next/standalone — generowane przez scripts/deployPackage.mjs',
   dependencies,
 };
@@ -88,6 +91,22 @@ execSync('npm install --package-lock-only --ignore-scripts --no-audit --no-fund'
   cwd: outDir,
   stdio: 'inherit',
 });
+
+// TO SAMO do `.next/standalone/`. `next build` kopiuje tam PEŁNY package.json
+// projektu (zakresy `^`, bez lockfile) — gdyby ktoś zainstalował zależności
+// w `standalone/`, dostałby inne wersje niż paczka (np. stare 15.5.25 spełnia
+// `^15.5.7`, a paczka jest z 15.5.27 → 500 na favicon/manifeście/statycznych
+// /api, „reading 'kind'”, awaria 22.10.2026). Teraz każdy package.json na
+// serwerze ma te same, dokładnie przypięte wersje i lockfile. Instalacja i tak
+// ma być w `public_html/node_modules` — `standalone/node_modules` nie powinien
+// istnieć (przykrywa ją, bo Node szuka od katalogu `server.js` w górę).
+const standaloneDir = path.join(root, '.next', 'standalone');
+if (fs.existsSync(standaloneDir)) {
+  for (const file of ['package.json', 'package-lock.json']) {
+    fs.copyFileSync(path.join(outDir, file), path.join(standaloneDir, file));
+  }
+  console.info('Zapisano też .next/standalone/package.json i package-lock.json (przypięte wersje).');
+}
 
 console.info('Zależności serwera:', dependencies);
 if (skipped.length) console.info('Pominięte (brak w node_modules — opcjonalne):', skipped);

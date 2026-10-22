@@ -21,7 +21,6 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 postępy.json
-.gitignore
 
 # env — sekrety (DB, Clerk, webhooki) nigdy nie powinny trafić do repo
 .env
@@ -29,5 +28,7 @@ postępy.json
 .env.development
 .env.production
 !.env.example
-.env
 dump.rdb
+
+# robocze pliki od Claude (kopie .env, poprawki do ręcznego wgrania)
+/Claude outputs/

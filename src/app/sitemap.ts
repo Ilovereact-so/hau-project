@@ -7,9 +7,26 @@ import { WITHDRAWAL_PATH } from '@/lib/withdrawals'
 /**
  * Mapa strony: sekcje stałe + wszystko, co admin dodaje w Sanity
  * (produkty, kategorie, subkategorie, kolekcje, poradniki, dokumenty pomocy).
- * Odświeżana co godzinę — nowy produkt trafia do mapy sam.
+ * Renderowana na żądanie (odporna na inną wersję Next.js na serwerze — patrz
+ * manifest.ts); dane z Sanity buforowane w procesie przez godzinę, więc nowy
+ * produkt trafia do mapy najpóźniej po godzinie.
  */
-export const revalidate = 3600
+export const dynamic = 'force-dynamic'
+
+// Bufor procesu na godzinę. `getSitemapData` przy awarii Sanity zwraca PUSTE
+// listy zamiast błędu — takiego wyniku nie zapamiętujemy, żeby mapa nie była
+// pusta przez godzinę (następne wejście robota spróbuje ponownie).
+const SITEMAP_TTL_MS = 60 * 60 * 1000
+let sitemapCache: { data: Awaited<ReturnType<typeof getSitemapData>>; until: number } | null = null
+
+async function sitemapData() {
+  if (sitemapCache && sitemapCache.until > Date.now()) return sitemapCache.data
+  const data = await getSitemapData()
+  if (Object.values(data).some((list) => Array.isArray(list) && list.length > 0)) {
+    sitemapCache = { data, until: Date.now() + SITEMAP_TTL_MS }
+  }
+  return data
+}
 
 const date = (value?: string | null) => {
   if (!value) return undefined
@@ -18,7 +35,7 @@ const date = (value?: string | null) => {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const data = await getSitemapData()
+  const data = await sitemapData()
 
   const staticPages: MetadataRoute.Sitemap = [
     { url: absoluteUrl('/'), changeFrequency: 'daily', priority: 1 },
