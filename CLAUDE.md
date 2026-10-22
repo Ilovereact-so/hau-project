@@ -630,6 +630,8 @@ zanim się go ruszy:
 - **Nagłówki z `next.config.ts` (w tym CSP) powstają przy budowaniu** i trafiają
   do manifestu. `CSP_MODE` ustawia się w środowisku builda, nie na serwerze.
 
+**Po każdej zmianie wersji zależności (`package-lock.json`) kliknij na serwerze „Uruchom NPM Install”, potem restart.** Paczka zbudowana na innej wersji Next.js niż ta w `node_modules` serwera działa tylko częściowo: strony dynamiczne się renderują, ale trasy prerenderowane przy budowaniu (favicon, `manifest.webmanifest`, statyczne `/api/*` jak `/api/shop-settings`) dają 500 z `TypeError: Cannot read properties of undefined (reading 'kind')` — format wpisów cache różni się między wersjami (tak było po podbiciu `next` 15.5.25 → 15.5.27). Pilnuje tego `lib/runtimeCheck.ts`: `next.config.ts` wkleja wersję z builda jako `HAU_NEXT_BUILD_VERSION`, a serwer porównuje ją z `node_modules/next` (szukanym ręcznie od `process.cwd()` w górę — webpack podmienia `require`/`createRequire`). Rozjazd = „BŁĄD” w logu przy starcie (`reportEnvOnce`, plus linijka `[env] Next.js: paczka X, serwer Y (ścieżka)`) i czerwony komunikat w `/admin/settings`. **Uwaga na `public_html/standalone/node_modules`**: Node szuka pakietów od katalogu `server.js` w górę, więc stary katalog w `standalone/` (pierwsza wersja workflow wgrywała go przez FTP) przykrywa instalację z „NPM Install” w `public_html/node_modules` — NPM Install wtedy niczego nie zmienia. Ten katalog ma na serwerze NIE istnieć; kontrola wykrywa przykrytą kopię i każe go usunąć.
+
 **`package.json` na serwerze NIE jest package.json projektu.** Generuje go
 `scripts/deployPackage.mjs` po buildzie: tylko pakiety, których skompilowane
 chunki `.next/server` wymagają w runtime (`next`, `react`, `jsdom` dla Studio…),

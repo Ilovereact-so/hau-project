@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { appUrl, getIntegrationChecks } from '@/lib/admin/integrations'
 import { requireAdmin } from '@/lib/admin/guard'
 import { findEnvIssues } from '@/lib/env'
+import { nextVersionMismatch } from '@/lib/runtimeCheck'
 import { IntegrationsView } from '@/components/admin/settings/IntegrationsView'
 import {
   DEFAULT_OAUTH_REDIRECT_URI,
@@ -52,6 +53,7 @@ export default async function AdminSettingsPage() {
       checks={checks}
       endpoints={endpoints}
       envIssues={findEnvIssues()}
+      runtimeIssue={nextVersionMismatch()}
       isProduction={process.env.NODE_ENV === 'production'}
       furgonetkaRedirect={savedRedirect || DEFAULT_OAUTH_REDIRECT_URI}
       furgonetka={{ ...furgonetka, webhookUrl: `${base}/api/webhooks/furgonetka` }}

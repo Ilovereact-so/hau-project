@@ -14,6 +14,7 @@ import type { FurgonetkaAddressEntry, FurgonetkaWebhookSettings } from '@/lib/fu
 import { Badge, type BadgeTone } from '../kit/Badge'
 import { Button, buttonClass } from '../kit/Button'
 import { Card, CardHeader } from '../kit/Card'
+import { ErrorBox } from '../kit/EmptyState'
 import { CopyField } from '../kit/CopyField'
 import { PillButton } from '../kit/Pill'
 import { TextField } from '../kit/TextField'
@@ -41,6 +42,7 @@ export function IntegrationsView({
   checks,
   endpoints,
   envIssues,
+  runtimeIssue,
   isProduction,
   furgonetkaRedirect,
   furgonetka,
@@ -48,6 +50,8 @@ export function IntegrationsView({
   checks: IntegrationCheck[]
   endpoints: Array<{ label: string; value: string; hint: string }>
   envIssues: EnvIssue[]
+  /** Rozjazd wersji Next.js między paczką a `node_modules` serwera (`lib/runtimeCheck.ts`). */
+  runtimeIssue: string | null
   isProduction: boolean
   furgonetkaRedirect: string
   furgonetka: FurgonetkaPanel
@@ -82,6 +86,7 @@ export function IntegrationsView({
 
   return (
     <section className="flex flex-col gap-4 animate-fade-in">
+      {runtimeIssue && <ErrorBox>{runtimeIssue}</ErrorBox>}
       {envIssues.length > 0 && (
         <Card className="flex flex-col">
           <CardHeader

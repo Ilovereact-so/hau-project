@@ -1,4 +1,5 @@
 import 'server-only'
+import { nextVersionMismatch, nextVersionSummary } from '@/lib/runtimeCheck'
 
 /*
  * Kontrola konfiguracji produkcyjnej.
@@ -67,6 +68,11 @@ export function reportEnvOnce(): void {
   if (reported) return
   reported = true
   if (process.env.NODE_ENV !== 'production') return
+
+  const summary = nextVersionSummary()
+  if (summary) console.info(`[env] ${summary}`)
+  const mismatch = nextVersionMismatch()
+  if (mismatch) console.error(`[env] BŁĄD: ${mismatch}`)
 
   const issues = findEnvIssues()
   if (!issues.length) {

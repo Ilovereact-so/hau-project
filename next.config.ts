@@ -1,9 +1,27 @@
 import type { NextConfig } from "next";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { securityHeaders } from "./src/lib/securityHeaders";
+
+// Wersja Next.js, na której powstaje TA paczka. Trafia do kodu jako
+// `process.env.HAU_NEXT_BUILD_VERSION`, a `lib/runtimeCheck.ts` porównuje ją
+// z wersją w `node_modules` serwera. Rozjazd (np. nowy build, a na hostingu
+// nie kliknięto „Uruchom NPM Install”) daje 500 na favicon, manifeście
+// i statycznych trasach /api, choć strony działają.
+const nextBuildVersion = (() => {
+  try {
+    return JSON.parse(readFileSync(join(process.cwd(), "node_modules/next/package.json"), "utf8")).version as string;
+  } catch {
+    return "";
+  }
+})();
 
 const isDev = process.env.NODE_ENV !== "production";
 
 const nextConfig: NextConfig = {
+  env: {
+    HAU_NEXT_BUILD_VERSION: nextBuildVersion,
+  },
   experimental: {
     middlewareClientMaxBodySize: '100mb', // lub np. '100mb'
     // Panel admina wysyła przez server actions zdjęcia produktów (do 10 MB)
