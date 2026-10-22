@@ -36,8 +36,8 @@ const ProductCarusel = ({title, subtitle, className, categorySlug = 'feeding'}:P
     <div className={twMerge('w-full h-auto font-poppins lg:mt-12 mt-8', className)}>
         <div className='flex justify-between items-start lg:mx-25 md:mx-18 mx-10 lg:mb-11 mb-8'>
             <div className='flex md:flex-row flex-col md:space-x-2 max-md:space-y-0'>
-                <h1 className='text-black sm:text-[clamp(16px,1.9vw,30px)] text-[16px] '>{title}: </h1>
-                <h1 className='text-black font-bold sm:text-[clamp(16px,1.9vw,30px)] text-[16px]'>{subtitle}</h1>
+                <h2 className='text-black sm:text-[clamp(16px,1.9vw,30px)] text-[16px] '>{title}: </h2>
+                <p className='text-black font-bold sm:text-[clamp(16px,1.9vw,30px)] text-[16px]'>{subtitle}</p>
             </div>
             <div className='inline-flex h-fit max-sm:w-min justify-center sm:items-start items-center space-x-2 sm:px-5 px-2 lg:py-3 py-2 border-1 border-black bg-transparent rounded-[15px] '>
                 <p className='text-black text-[clamp(13px,1.3vw,20px)] font-bold max-sm:hidden'>Zobacz więcej</p>
@@ -60,4 +60,4 @@ const ProductCarusel = ({title, subtitle, className, categorySlug = 'feeding'}:P
   )
 }
 
-export default ProductCarusel
+export default ProductCarusel

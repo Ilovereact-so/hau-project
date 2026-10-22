@@ -7,6 +7,7 @@ import { promotionRank, sortProducts, type ProductSort, type SortSignals } from 
 import {
   HOME_LAYOUT_ID,
   normalizeHomeLayout,
+  type HomeAbout,
   type HomeLayoutData,
   type HomeProductsSection,
   type HomeSection,
@@ -54,9 +55,14 @@ const PRODUCT_PROJECTION = `{
 
 const CANDIDATES = 300
 
+/** Projekcja dokumentu `homeLayout` (z adresem zdjęcia pieska do podglądu i sklepu). */
+export const HOME_LAYOUT_PROJECTION = `sections, _updatedAt,
+  about{ heading, text, dogTitle, dogName, dogText, showSocial,
+    "dogImage": dogImage{ alt, "assetId": asset._ref, "url": asset->url } }`
+
 export async function getHomeLayout(fetcher: Fetcher = cachedFetch): Promise<HomeLayoutData> {
   try {
-    const doc = await fetcher<unknown>(`*[_id == $id][0]{ sections, _updatedAt }`, { id: HOME_LAYOUT_ID })
+    const doc = await fetcher<unknown>(`*[_id == $id][0]{ ${HOME_LAYOUT_PROJECTION} }`, { id: HOME_LAYOUT_ID })
     return normalizeHomeLayout(doc)
   } catch (err) {
     console.error('[home] layout failed — domyślny układ', err)
@@ -66,7 +72,13 @@ export async function getHomeLayout(fetcher: Fetcher = cachedFetch): Promise<Hom
 
 export type ResolvedSection =
   | { section: HomeProductsSection; products: GetSlugProduct[]; moreHref: string | null }
-  | { section: Exclude<HomeSection, HomeProductsSection>; products?: undefined; moreHref?: undefined }
+  | {
+      section: Exclude<HomeSection, HomeProductsSection>
+      products?: undefined
+      moreHref?: undefined
+      /** treść sekcji „O nas” (tylko dla kind === 'about') */
+      about?: HomeAbout
+    }
 
 const IN_STOCK = `(
   stock > 0 || count(variants[stock > 0]) > 0 ||
@@ -93,10 +105,32 @@ function sourceFilter(section: HomeProductsSection): { clause: string; params: R
   }
 }
 
+/** Fisher–Yates — kolejność „Losowo” (zestaw zmienia się przy odświeżeniu cache strony). */
+export function shuffled<T>(list: T[], random: () => number = Math.random): T[] {
+  const copy = [...list]
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1))
+    ;[copy[i], copy[j]] = [copy[j], copy[i]]
+  }
+  return copy
+}
+
 async function orderProducts(products: GetSlugProduct[], section: HomeProductsSection): Promise<GetSlugProduct[]> {
   if (section.order === 'manual' && section.source === 'manual') {
     const position = new Map(section.productIds.map((id, index) => [id, index]))
     return [...products].sort((a, b) => (position.get(a._id) ?? 999) - (position.get(b._id) ?? 999))
+  }
+  if (section.order === 'random') {
+    // „Tylko w promocji” potrzebuje obniżek z rejestru cen — reszta bez sygnałów.
+    let list = products
+    if (section.onlyDiscounted) {
+      const discounts = await getDiscounts(products).catch((e) => {
+        console.error('[home] discounts', e)
+        return null
+      })
+      list = list.filter((p) => (discounts?.get(p._id) ?? 0) > 0)
+    }
+    return shuffled(list)
   }
   const sort: ProductSort =
     section.order === 'featured' || section.order === 'manual' ? 'popular' : (section.order as ProductSort)
@@ -157,6 +191,7 @@ export async function resolveProductsSection(
     '!(_id in $excluded)',
     section.onlyFeatured ? 'isFeatured == true' : null,
     section.onlyBestseller ? 'isBestseller == true' : null,
+    section.onlyNew ? 'isNew == true' : null,
     section.onlyInStock ? IN_STOCK : null,
   ].filter(Boolean)
 
@@ -189,6 +224,7 @@ export async function resolveHomeSections(layout?: HomeLayoutData): Promise<Reso
     data.sections
       .filter((section) => section.enabled)
       .map(async (section): Promise<ResolvedSection | null> => {
+        if (section.kind === 'about') return { section, about: data.about }
         if (section.kind !== 'products') return { section }
         try {
           const { products, moreHref } = await resolveProductsSection(section)

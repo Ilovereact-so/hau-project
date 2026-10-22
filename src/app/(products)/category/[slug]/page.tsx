@@ -100,11 +100,12 @@ const CategoryPage = async ({ params, searchParams }: PageProps) => {
                             <nav aria-label="Ścieżka" className="flex items-center space-x-2 text-black text-[clamp(14px,1.4vw,16px)]">
                                 <Link href="/" className="hover:underline underline-offset-2">Sklep</Link>
                                 <ChevronRight className="w-[20px] h-[20px]" aria-hidden="true" />
-                                <span>{category.title}</span>
+                                {/* H1 = nazwa kategorii (słowo kluczowe strony); wygląd okruszka bez zmian. */}
+                                <h1 className="font-normal">{category.title}</h1>
                             </nav>
-                            <h1 className="font-medium text-black sm:text-[clamp(18px,2vw,26px)] text-[16px]">
+                            <p className="font-medium text-black sm:text-[clamp(18px,2vw,26px)] text-[16px]">
                                 {category.description || category.title}
-                            </h1>
+                            </p>
                         </div>
                     </div>
 

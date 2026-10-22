@@ -11,11 +11,17 @@ const fresh = sanityClient.withConfig({ useCdn: false, perspective: 'published' 
 export async function getShopSettings(options: { fresh?: boolean } = {}): Promise<ShopSettings> {
   try {
     const data = await (options.fresh ? fresh : sanityClient).fetch<{
-      settings: { freeShippingEnabled?: boolean; freeShippingThreshold?: number } | null
+      settings: {
+        freeShippingEnabled?: boolean
+        freeShippingThreshold?: number
+        socialFacebook?: string
+        socialInstagram?: string
+        socialTiktok?: string
+      } | null
       minShipping: number | null
     }>(
       `{
-        "settings": *[_id == $id][0]{ freeShippingEnabled, freeShippingThreshold },
+        "settings": *[_id == $id][0]{ freeShippingEnabled, freeShippingThreshold, socialFacebook, socialInstagram, socialTiktok },
         "minShipping": math::min(*[_type == "shipping_methods" && active == true && defined(internal_price)].internal_price)
       }`,
       { id: SHOP_SETTINGS_ID },

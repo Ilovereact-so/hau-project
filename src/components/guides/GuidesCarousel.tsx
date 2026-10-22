@@ -73,8 +73,8 @@ const GuidesCarousel = ({ className, limit = 2 }: { className?: string; limit?: 
         <Container className={twMerge('w-full h-auto font-poppins sm:px-14 px-8 sm:py-14 py-8 lg:mt-10 sm:mt-10 mt-4 bg-[#edece5] max-w-full', className)}>
             <div id='guides' className=''>
                 <div style={{gridArea: "heading"}} className='flex flex-col max-sm:mb-2'>
-                    <h1 className='text-fancy-black text-[clamp(20px,2vw,40px)] font-bold '>Wiedza, która robi różnicę</h1>                    
-                    <h1 className='text-fancy-black text-[clamp(14px,1.5vw,18px)] mt-2 max-3xl:mb-4'>Praktyczne porady, wskazówki i inspiracje dla świadomych opiekunów.</h1>
+                    <h2 className='text-fancy-black text-[clamp(20px,2vw,40px)] font-bold '>Wiedza, która robi różnicę</h2>                    
+                    <p className='text-fancy-black text-[clamp(14px,1.5vw,18px)] mt-2 max-3xl:mb-4'>Praktyczne porady, wskazówki i inspiracje dla świadomych opiekunów.</p>
                 </div>
                     
                 <div style={{gridArea: "description"}} className='mt-10 max-3xl:grid max-3xl:grid-cols-2 max-sm:grid-cols-1 max-md:gap-2'>
@@ -83,7 +83,7 @@ const GuidesCarousel = ({ className, limit = 2 }: { className?: string; limit?: 
                         <div key={_} className='flex sm:space-x-5 space-x-3 sm:space-y-7 space-y-6'>
                             <div className='flex justify-center items-center w-14 h-14 p-2 rounded-full bg-[#faebd7]'>{i.icon_path}</div>
                             <div className='flex flex-col text-[clamp(14px,1.5vw,16px)] text-fancy-black'>
-                                <h1 className='font-medium'>{i.title}</h1>
+                                <h3 className='font-medium'>{i.title}</h3>
                                 <p className='font-normal text-[#6C6C6C]'>{i.description}</p>
                             </div>
                         </div>

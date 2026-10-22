@@ -9,19 +9,31 @@ import Image from 'next/image'
 import { HELP_DOCUMENTS } from '@/constants'
 import { openConsentSettings } from '@/lib/consent'
 import { useAuthModalStore } from '@/store/authModalStore'
+import { SELLER, SELLER_CONFIGURED } from '@/lib/site'
+import { WITHDRAWAL_PATH } from '@/lib/withdrawals'
+import { useShopSettings } from '@/hooks/useShopSettings'
+import SocialLinksRow from './SocialLinks'
 
 const Footer = ({className}:{className?:string}) => {
     const { user } = useUser()
     const openModal = useAuthModalStore(s => s.openModal)
+    // Linki do social mediów z panelu (Marketing → Strona główna).
+    const shopSettings = useShopSettings()
     // if (!isLoaded) return <Loading />
     // if (!user) return <Loading />
 
     return (
-        <div className='w-full bg-fancy-black font-poppins'>
+        <footer className='w-full bg-fancy-black font-poppins'>
             <Container id='footer' className={cn("sm:px-10 px-7 py-8 w-full",className)}>
-            <div style={{gridArea:"short-info"}} className='space-y-2 flex flex-col max-1md:flex-row max-sm:flex-col 1md:space-x-0 space-x-8 max-sm:mb-5'>
-                <Link href="/#latest-offers" className='text-main font-medium text-[clamp(14px,1.6vw,18px)] hover:opacity-70 transition-opacity'>Sprawdz najnowsze oferty</Link>
-                <Link href="/#newsletterContainer" className='text-white font-medium text-[clamp(14px,1.6vw,18px)] hover:opacity-70 transition-opacity'>Przejdź do newslettera</Link>
+            <div style={{gridArea:"short-info"}} className='space-y-2 flex flex-col max-1md:flex-row 1md:space-x-0 space-x-8 max-sm:mb-5'>
+                <div className='flex flex-col max-1md:flex-row max-sm:flex-col 1md:space-x-0 space-x-8 max-sm:space-y-2'>
+                    <Link href="/#latest-offers" className='text-main font-medium text-[clamp(14px,1.6vw,18px)] hover:opacity-70 transition-opacity text-nowrap'>Sprawdź najnowsze oferty</Link>
+                    <Link href="/#newsletterContainer" className='text-white font-medium text-[clamp(14px,1.6vw,18px)] hover:opacity-70 transition-opacity text-nowrap'>Przejdź do newslettera</Link>
+                </div>
+                {/* Funkcja odstąpienia od umowy musi być stale i łatwo dostępna (dyrektywa (UE) 2023/2673). */}
+                <div className='w-full flex max-1md:justify-end items-start'>
+                <SocialLinksRow links={shopSettings?.social} label={""} className='1md:my-3' />
+                </div>
             </div>
             <div style={{gridArea:"security-nav"}} className='flex sm:flex-row flex-col-reverse justify-end 1md:my-0 my-6'>
                 <div className='bg-[#2C2C2C] rounded-[40px] sm:rounded-br-[0px] flex flex-col items-center 1md:w-auto w-full'>
@@ -50,15 +62,15 @@ const Footer = ({className}:{className?:string}) => {
                 <div className='flex sm:flex-col flex-row-reverse justify-between max-sm:my-10 max-sm:bg-[#2C2C2C] max-sm:px-4 max-sm:rounded-[40px]'>
                     <div className='flex sm:item-start items-center justify-end'>
                         <div className='sm:bg-[#2C2C2C] bg-black rounded-full h-fit p-3 px-4 space-x-4 flex'>
-                            <Link href="/card"><ShoppingBag className='text-white'/></Link>
-                            <Link href="/profile/wishlist"><Heart className='text-white'/></Link>
+                            <Link href="/cart" aria-label='Koszyk'><ShoppingBag className='text-white' aria-hidden='true'/></Link>
+                            <Link href="/profile/wishlist" aria-label='Polubione produkty'><Heart className='text-white' aria-hidden='true'/></Link>
                         </div>
                     </div>
                     <div className='sm:bg-[#2C2C2C] bg-transparent sm:rounded-r-[40px] flex flex-col items-center sm:pr-6 relative'>
                         <div className='absolute sm:block hidden top-0 left-0 translate-y-[-100%] w-[40px] h-[40px] overflow-hidden'>
                             <div id='shadow-bl-footer2' className='w-[40px] h-[40px] rounded-bl-[40px]'></div>
                         </div>
-                        <h1 className='text-white text-[clamp(14px,1.6vw,18px)] font-medium sm:py-3 max-sm:absolute max-sm:-top-2 left-0 max-sm:translate-y-[-100%] text-nowrap'>Moje konto</h1>
+                        <p className='text-white text-[clamp(14px,1.6vw,18px)] font-medium sm:py-3 max-sm:absolute max-sm:-top-2 left-0 max-sm:translate-y-[-100%] text-nowrap'>Moje konto</p>
                         <div className='sm:bg-black bg-transparent sm:rounded-r-[40px] max-sm:rounded-l-[40px] sm:pr-5 sm:py-5 py-3 relative'>
                             <div className='absolute sm:block hidden top-0 left-0 translate-y-[-100%] w-[40px] h-[40px] overflow-hidden'>
                                 <div id='shadow-bl-footer' className='w-[40px] h-[40px] rounded-bl-[40px]'></div>
@@ -68,17 +80,31 @@ const Footer = ({className}:{className?:string}) => {
                                 <Link href="/profile"><Image src={user?.imageUrl} width={40} height={40} alt="Zdjęcie profilowe" className='rounded-full w-12 h-12 cursor-pointer' /></Link>
                             </div>
                             :
-                            <div onClick={() => openModal('signIn')} className='bg-white px-9 py-2 sm:text-[clamp(14px,1.6vw,18px)] text-[16px] font-bold text-black rounded-[15px] cursor-pointer'>Zaloguj</div>
+                            <button type='button' onClick={() => openModal('signIn')} className='bg-white px-9 py-2 sm:text-[clamp(14px,1.6vw,18px)] text-[16px] font-bold text-black rounded-[15px] cursor-pointer'>Zaloguj</button>
                             }
                         </div>
                     </div>
                 </div>
             </div>
+            
             <div style={{gridArea:"brand-label"}} className='flex flex-col max-sm:mt-4 text-white '>
-                <h1 className='text-[clamp(20px,1.9vw,32px)] font-bold'>HAU sklep</h1>
-                <h1 className='sm:text-[clamp(14px,1.6vw,18px)] font-normal text-[14px] mr-5'>© {new Date().getFullYear()} Hau sklep. Wszystkie prawa zastrzeżone.</h1>
+                {/* Bez <h1>: stopka jest na każdej stronie, a strona ma mieć
+                    jeden nagłówek H1 (tytuł produktu, kategorii…). */}
+                <p className='text-[clamp(20px,1.9vw,32px)] font-bold'>HAU sklep</p>
+                <p className='sm:text-[clamp(14px,1.6vw,18px)] font-normal text-[14px] mr-5'>© {new Date().getFullYear()} {SELLER.name || 'Hau sklep'}. Wszystkie prawa zastrzeżone.</p>
+                {/* Dane sprzedawcy — obowiązkowe (art. 5 u.ś.u.d.e.). Źródło: SELLER w lib/site.ts. */}
+                {SELLER_CONFIGURED && (
+                    <address className='not-italic mt-3 text-[13px] leading-relaxed text-white/70'>
+                        {SELLER.name}<br/>
+                        {SELLER.address}<br/>
+                        NIP {SELLER.nip}{SELLER.registry ? <>, {SELLER.registry}</> : null}<br/>
+                        <a href={`mailto:${SELLER.email}`} className='hover:text-main'>{SELLER.email}</a>
+                        {SELLER.phone ? <>{' · '}<a href={`tel:${SELLER.phone.replace(/\s/g, '')}`} className='hover:text-main'>{SELLER.phone}</a></> : null}
+                    </address>
+                )}
                 {/* Wymóg RODO: zgodę na cookies trzeba dać się wycofać równie łatwo,
                     jak się ją wyraziło — stąd stały link w stopce. */}
+                
                 <button
                     type='button'
                     onClick={openConsentSettings}
@@ -88,7 +114,7 @@ const Footer = ({className}:{className?:string}) => {
                 </button>
             </div>
             </Container>
-        </div>
+        </footer>
     )
 }
 

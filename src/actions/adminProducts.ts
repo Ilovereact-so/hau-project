@@ -29,8 +29,10 @@ import {
   bulkProductAction,
   type BulkProductAction,
   type BulkResult,
+  type ProductFlag,
 } from '@/lib/admin/catalog'
 import { runAdminAction, requireAdmin, type ActionResult } from '@/lib/admin/guard'
+import { exportProductsCsv, type ProductExport } from '@/lib/admin/productExport'
 import { listCollectionOptions, resolveProductCollections } from '@/lib/admin/collections'
 import {
   getOmnibusForProducts,
@@ -160,11 +162,10 @@ export async function adminUpdateVariantPrice(id: string, variantKey: string, pr
 
 export async function adminToggleProductFlag(
   id: string,
-  field: 'isFeatured' | 'isBestseller',
+  field: ProductFlag,
   value: boolean
 ): Promise<ActionResult> {
   return runAdminAction(async () => {
-    if (field !== 'isFeatured' && field !== 'isBestseller') throw new Error('Nieznana flaga.')
     await setProductFlag(id, field, value)
     refreshCatalogViews()
     refreshStorefront()
@@ -286,4 +287,9 @@ export async function adminRemoveSubcategoryImage(id: string): Promise<ActionRes
     refreshCatalogViews()
     return null
   }, 'Nie udało się usunąć zdjęcia.')
+}
+
+/** Eksport katalogu do CSV w formacie importu (lib/admin/productExport.ts). */
+export async function adminExportProductsCsv(): Promise<ActionResult<ProductExport>> {
+  return runAdminAction(() => exportProductsCsv(), 'Nie udało się wyeksportować produktów.')
 }

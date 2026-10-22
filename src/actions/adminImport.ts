@@ -4,6 +4,7 @@ import { auth } from '@clerk/nextjs/server'
 import Papa from 'papaparse'
 import { sanityClient } from '@/sanity/sanityClient.server'
 import { hashFromSanityUrl, type CatalogProduct } from '@/lib/zipImageMatching'
+import { parseDecimal } from '@/sanity/helpers/productImportHelpers'
 
 export async function requireAdmin() {
   const { sessionClaims } = await auth()
@@ -49,11 +50,12 @@ export async function adminValidateProductsCsv(csvText: string) {
       else seenSlugs.set(slug, n)
     }
 
-    const price = Number(r.price)
-    if (!r.price || isNaN(price) || price <= 0) errors.push({ row: n, field: 'price', message: `Błędna cena: "${r.price}"` })
+    // Polski zapis z Excela („29,99”) też jest poprawny — tak samo liczy import.
+    const price = parseDecimal(r.price)
+    if (price === undefined || price <= 0) errors.push({ row: n, field: 'price', message: `Błędna cena: "${r.price ?? ''}"` })
 
-    const stock = Number(r.stock)
-    if (r.stock !== undefined && r.stock !== '' && (isNaN(stock) || stock < 0)) {
+    const stock = parseDecimal(r.stock)
+    if (r.stock !== undefined && r.stock.trim() !== '' && (stock === undefined || stock < 0 || !Number.isInteger(stock))) {
       errors.push({ row: n, field: 'stock', message: `Błędny stan: "${r.stock}"` })
     }
   }

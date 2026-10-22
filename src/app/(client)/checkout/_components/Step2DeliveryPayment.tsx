@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronRight, Check, Loader2, Map, SquarePen, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -12,19 +12,13 @@ import PriceFormatter from '@/components/PriceFormatter'
 import Field from './Field'
 import Step2PaymentForm, { type PaymentMethod, type GatewaySelection } from './Step2PaymentForm'
 import Image from 'next/image'
+import {
+  carrierLabel, formatPostcodeQuery, isCompletePostcode, nearestByCarrier, normalizeServiceCode, pointKindLabel,
+  sortedByDistance, type PickupCandidate,
+} from '@/lib/pickupPoints'
 
-
-// ─── types ────────────────────────────────────────────────────────────────────
-
-interface PickupCandidate {
-  code:     string
-  name:     string
-  carrier:  string
-  distance: number | null
-  street:   string
-  city:     string
-  postcode: string
-}
+/** Ile najbliższych punktów pokazujemy dla każdego przewoźnika. */
+const NEAREST_PER_CARRIER = 3
 
 export interface Step2Result {
   serviceCode:   string
@@ -70,28 +64,38 @@ function ShippingPrice({ amount, free, className }: { amount: number; free?: boo
 
 // ─── carrier → asset key ──────────────────────────────────────────────────────
 
+// Logo tylko dla przewoźników, których logotyp mamy w repozytorium; reszta
+// (np. ORLEN Paczka) dostaje nazwę tekstem. DHL NIE dostaje logo DPD.
 const CARRIER_ASSET_MAP: Record<string, string> = {
   inpost: 'inpost-automat',
   dpd:    'dpd-automat',
-  dhl:    'dpd-automat', // fallback
+  orlen:    'orlen-automat',
 }
 
 export function getAssetForCarrier(carrier: string) {
-  const key = CARRIER_ASSET_MAP[carrier.toLowerCase()] ?? carrier.toLowerCase()
-  return SHIPPING_ASSETS[key] ?? null
+  const code = normalizeServiceCode(carrier)
+  const key = CARRIER_ASSET_MAP[code]
+  return key ? SHIPPING_ASSETS[key] ?? null : null
 }
 
+/**
+ * Metoda dostawy (Sanity `shipping_methods`, typ automat) dla przewoźnika
+ * punktu. Kody porównujemy po normalizacji (paczkomat = inpost, kiosk/ruch =
+ * orlen…), bo konfiguracja i API Furgonetki używają różnych nazw.
+ */
 function getServiceForCarrier(services: Shipping_methods[], carrier: string): Shipping_methods | null {
-  const c = carrier.toLowerCase()
-  return services.find(s =>
-    s.type === 'automat' &&
-    (s.furgonetka_service_id?.toLowerCase() === c ||
-     s.furgonetka_service_id?.toLowerCase().includes(c) ||
-     c.includes(s.furgonetka_service_id?.toLowerCase() ?? '__'))
-  ) ?? null
+  const c = normalizeServiceCode(carrier)
+  if (!c) return null
+  const automats = services.filter(s => s.type === 'automat' && s.furgonetka_service_id)
+  return (
+    automats.find(s => normalizeServiceCode(s.furgonetka_service_id) === c) ??
+    automats.find(s => {
+      const id = normalizeServiceCode(s.furgonetka_service_id)
+      return id.includes(c) || c.includes(id)
+    }) ??
+    null
+  )
 }
-const EDGE_FADE_SIZE = 40; // px
-const maskImage = `linear-gradient(to bottom, transparent 0, black ${EDGE_FADE_SIZE}px, black calc(100% - ${EDGE_FADE_SIZE}px), transparent 100%)`
 
 // ─── service card (kurier) ────────────────────────────────────────────────────
 
@@ -152,6 +156,7 @@ function PickupCard({
         {/* point info */}
         <div className="flex-1">
           <p className="text-[clamp(14px,1.4vw,16px)] font-medium text-black">{point.name}</p>
+          {pointKindLabel(point) && <p className="text-[clamp(11px,1.2vw,13px)] text-[#6C6C6C]">{pointKindLabel(point)}</p>}
           {point.street && <p className="text-[clamp(12px,1.4vw,14px)] text-black">{point.street}</p>}
           {(point.postcode || point.city) && (
             <p className="text-[clamp(12px,1.4vw,14px)] text-black">{point.postcode} {point.city}</p>
@@ -164,7 +169,9 @@ function PickupCard({
             <p className="text-[clamp(13px,1.4vw,15px)] font-medium text-black">{point.distance.toFixed(1)}km</p>
           )}
           <div className="flex space-x-2 items-center">
-            {asset?.logo && <Image width={500} height={500} src={asset.logo.src} alt={point.carrier} className="h-[25px] w-max" />}
+            {asset?.logo
+              ? <Image width={500} height={500} src={asset.logo.src} alt={carrierLabel(point.carrier)} className="h-[25px] w-max" />
+              : <span className="rounded-full bg-fancy-black/[0.06] px-2 py-0.5 text-[clamp(11px,1.2vw,12px)] font-medium text-black">{carrierLabel(point.carrier)}</span>}
             {price !== null && (
               free ? (
                 <ShippingPrice amount={price} free />
@@ -200,9 +207,13 @@ export default function Step2DeliveryPayment({ address, deliveryType, services, 
   const [billingPostal, setBillingPostal]       = useState('')
   const [billingCity, setBillingCity]           = useState('')
 
-  // automat: pickup point search
-  const [pickupSearch, setPickupSearch]           = useState('')
-  const [pointCandidates, setPointCandidates]     = useState<PickupCandidate[]>([])
+  // automat: pickup point search — od razu z kodem pocztowym z danych adresata
+  const [pickupSearch, setPickupSearch]           = useState(() => [address.postalCode, address.city].filter(Boolean).join(' ').trim())
+  const [pointCandidates, setPointCandidates]     = useState<PickupCandidate[]>(() =>
+    initialPickupPoint ? [{ ...initialPickupPoint, distance: null, type: null, street: initialPickupPoint.street ?? '', city: initialPickupPoint.city ?? '', postcode: initialPickupPoint.postcode ?? '' }] : [],
+  )
+  const [showAllPoints, setShowAllPoints]         = useState(false)
+  const lastQueryRef                              = useRef('')
   const [isSearching, setIsSearching]             = useState(false)
   const [searchError, setSearchError]             = useState<string | null>(null)
   const [deliveryError, setDeliveryError]         = useState<string | null>(null)
@@ -222,20 +233,24 @@ export default function Step2DeliveryPayment({ address, deliveryType, services, 
     setPickupPoint(null)
     onEdit()
   }
-  async function searchPickupPoints() {
-    const q = pickupSearch.trim()
+  const searchPickupPoints = useCallback(async (raw?: string, options: { silent?: boolean } = {}) => {
+    const q = formatPostcodeQuery(raw ?? pickupSearch)
     if (!q) {
-      setSearchError('Wpisz kod pocztowy lub adres')
-      scrollTo('pickup-search')
+      if (!options.silent) {
+        setSearchError('Wpisz kod pocztowy lub adres')
+        scrollTo('pickup-search')
+      }
       return
     }
+    lastQueryRef.current = q
 
     setIsSearching(true)
     setSearchError(null)
     setPickupPoint(null)
+    setShowAllPoints(false)
 
     try {
-      const params = new URLSearchParams({ query: q, limit: '20' })
+      const params = new URLSearchParams({ query: q, limit: '50' })
       paczkomatServices.forEach(s => {
         if (s.furgonetka_service_id) params.append('services', s.furgonetka_service_id)
       })
@@ -250,7 +265,9 @@ export default function Step2DeliveryPayment({ address, deliveryType, services, 
       }
 
       const data = await res.json() as { points?: PickupCandidate[]; error?: string }
-      const points = data.points ?? []
+      // Odpowiedź na starsze zapytanie (klient pisał dalej) — pomijamy.
+      if (lastQueryRef.current !== q) return
+      const points = sortedByDistance(data.points ?? [])
       setPointCandidates(points)
       if (!points.length) setSearchError('Brak punktów dla podanej lokalizacji')
     } catch (err) {
@@ -258,17 +275,40 @@ export default function Step2DeliveryPayment({ address, deliveryType, services, 
       setSearchError('Wyszukiwanie nie powiodło się')
       setPointCandidates([])
     } finally {
-      setIsSearching(false)
+      if (lastQueryRef.current === q) setIsSearching(false)
     }
-  }
+  // paczkomatServices liczone z `services` przy każdym renderze — zależność od listy usług wystarczy
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickupSearch, services])
+
+  // Punkty pokazują się same: od razu po wejściu (kod pocztowy z danych adresata)
+  // i po wpisaniu pełnego kodu pocztowego — bez klikania lupy.
+  const autoSearchedRef = useRef(false)
+  useEffect(() => {
+    if (deliveryType !== 'automat' || autoSearchedRef.current || initialPickupPoint) return
+    autoSearchedRef.current = true
+    if (pickupSearch.trim()) void searchPickupPoints(pickupSearch, { silent: true })
+  }, [deliveryType, initialPickupPoint, pickupSearch, searchPickupPoints])
+
+  useEffect(() => {
+    if (deliveryType !== 'automat' || !isCompletePostcode(pickupSearch)) return
+    if (formatPostcodeQuery(pickupSearch) === lastQueryRef.current) return
+    const timer = setTimeout(() => void searchPickupPoints(pickupSearch, { silent: true }), 400)
+    return () => clearTimeout(timer)
+  }, [deliveryType, pickupSearch, searchPickupPoints])
 
   function selectPickupPoint(point: PickupCandidate) {
-    const svc = getServiceForCarrier(services, point.carrier)
+    const svc = getServiceForCarrier(paczkomatServices, point.carrier)
     setPickupPoint({ code: point.code, name: point.name, carrier: point.carrier, street: point.street, city: point.city, postcode: point.postcode })
     setServiceCode(svc?.furgonetka_service_id ?? point.carrier)
-    setPointCandidates([point])
     setDeliveryError(null)
   }
+
+  // Lista: 3 najbliższe punkty każdego przewoźnika (np. paczkomat, Żabka,
+  // ORLEN Paczka), „Pokaż więcej” — wszystkie od najbliższego.
+  const pointGroups = nearestByCarrier(pointCandidates, NEAREST_PER_CARRIER)
+  const shownCount = pointGroups.reduce((sum, group) => sum + group.points.length, 0)
+  const selectedCandidate = pickupPoint ? pointCandidates.find(p => p.code === pickupPoint.code) ?? null : null
 
   function handleOpenMap() {
     const q = pickupSearch.trim()
@@ -417,13 +457,16 @@ export default function Step2DeliveryPayment({ address, deliveryType, services, 
                 <input
                   value={pickupSearch}
                   onChange={e => { setPickupSearch(e.target.value); setSearchError(null); setDeliveryError(null); setMapError(null) }}
-                  onKeyDown={e => e.key === 'Enter' && searchPickupPoints()}
+                  onKeyDown={e => e.key === 'Enter' && void searchPickupPoints()}
+                  aria-label="Kod pocztowy, miejscowość lub adres"
+                  inputMode="search"
+                  autoComplete="postal-code"
                   placeholder={address.postalCode ? `${address.postalCode} ${address.city}` : 'np. 33-100 Tarnów'}
                   className="w-full border border-black text-black rounded-full px-4 py-3 text-[clamp(13px,1.4vw,15px)] pr-12 focus:outline-none placeholder:text-[#BBBBBB]"
                 />
                 <button
                   type="button"
-                  onClick={searchPickupPoints}
+                  onClick={() => void searchPickupPoints()}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-black hover:opacity-70"
                   aria-label="Szukaj punktów"
                 >
@@ -438,27 +481,71 @@ export default function Step2DeliveryPayment({ address, deliveryType, services, 
               {mapError && <p role="alert" className="text-[13px] text-red-400">{mapError}</p>}
             </div>
 
-            {/* pickup point list */}
-            {pointCandidates.length > 0 && (
-              <div id='deliveryScroll' style={!pickupPoint ? {WebkitMaskImage: maskImage, maskImage } : {}} className="space-y-2 max-h-[320px] ease-in-out duration-200 overflow-y-auto pr-1">
-                {pointCandidates.map((point,i) => {
-                  const svc = getServiceForCarrier(paczkomatServices, point.carrier)
-                  return (
-                    <div key={point.code} className='flex flex-col'>
-                      <PickupCard
-                        key={point.code}
-                        point={point}
-                        selected={pickupPoint?.code === point.code}
-                        price={svc?.internal_price ?? null}
-                        free={freeShipping}
-                        onClick={() => selectPickupPoint(point)}
-                      />
-                      {pointCandidates.length -1 > i &&
-                      <hr className='from-black/62 to-50% from-0% border-0 to-transparent bg-gradient-to-l h-[1px]'/>
-                      }
-                    </div>
-                  )
-                })}
+            {/* wybrany punkt */}
+            {pickupPoint && (
+              <div className="flex flex-col">
+                <PickupCard
+                  point={selectedCandidate ?? { ...pickupPoint, distance: null, type: null, street: pickupPoint.street ?? '', city: pickupPoint.city ?? '', postcode: pickupPoint.postcode ?? '' }}
+                  selected
+                  price={getServiceForCarrier(paczkomatServices, pickupPoint.carrier)?.internal_price ?? null}
+                  free={freeShipping}
+                  onClick={() => undefined}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPickupPoint(null)
+                    setServiceCode('')
+                    // Powrót z podsumowania: lista ma tylko wybrany punkt — szukamy od nowa.
+                    if (pointCandidates.length <= 1 && pickupSearch.trim()) void searchPickupPoints()
+                  }}
+                  className="w-fit text-[clamp(13px,1.4vw,14px)] text-black underline underline-offset-2 hover:opacity-70"
+                >
+                  Zmień punkt
+                </button>
+              </div>
+            )}
+
+            {/* lista punktów: 3 najbliższe każdego przewoźnika */}
+            {!pickupPoint && pointCandidates.length > 0 && (
+              <div id='deliveryScroll' className="space-y-4">
+                {(showAllPoints
+                  ? [{ carrier: 'all', label: 'Wszystkie punkty — od najbliższego', points: pointCandidates, total: pointCandidates.length }]
+                  : pointGroups
+                ).map(group => (
+                  <div key={group.carrier} className="flex flex-col">
+                    <p className="text-[clamp(12px,1.3vw,14px)] font-medium text-[#6C6C6C]">
+                      {group.label}
+                      {!showAllPoints && group.total > group.points.length && ` — ${group.points.length} najbliższe`}
+                    </p>
+                    {group.points.map((point, i) => {
+                      const svc = getServiceForCarrier(paczkomatServices, point.carrier)
+                      return (
+                        <div key={point.code} className='flex flex-col'>
+                          <PickupCard
+                            point={point}
+                            selected={false}
+                            price={svc?.internal_price ?? null}
+                            free={freeShipping}
+                            onClick={() => selectPickupPoint(point)}
+                          />
+                          {group.points.length - 1 > i &&
+                          <hr className='from-black/62 to-50% from-0% border-0 to-transparent bg-gradient-to-l h-[1px]'/>
+                          }
+                        </div>
+                      )
+                    })}
+                  </div>
+                ))}
+                {pointCandidates.length > shownCount && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllPoints(v => !v)}
+                    className="w-fit text-[clamp(13px,1.4vw,14px)] text-black underline underline-offset-2 hover:opacity-70"
+                  >
+                    {showAllPoints ? 'Pokaż najbliższe punkty' : `Pokaż więcej punktów (${pointCandidates.length - shownCount})`}
+                  </button>
+                )}
               </div>
             )}
           </>

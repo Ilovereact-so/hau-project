@@ -6,6 +6,8 @@ import { getAllCollections } from "@/sanity/helpers";
 import type { Metadata } from "next";
 import { jsonLdScript, organizationJsonLd, pageMetadata } from "@/lib/seo/metadata";
 import { SITE_DESCRIPTION, SITE_TITLE } from "@/lib/site";
+import { getShopSettings } from "@/lib/shopSettings.server";
+import { SOCIAL_NETWORKS } from "@/lib/shopSettings";
 
 export const metadata: Metadata = pageMetadata({
     title: SITE_TITLE,
@@ -29,15 +31,19 @@ export default async function Home() {
 
     // Sekcje pod banerem (kolejność, karuzele i ich produkty) ustawia panel:
     // Marketing → Strona główna. Liczone na serwerze razem z banerami.
-    const [allCollections, sections] = await Promise.all([getAllCollections(), resolveHomeSections()]);
+    const [allCollections, sections, shopSettings] = await Promise.all([getAllCollections(), resolveHomeSections(), getShopSettings()]);
+    const sameAs = SOCIAL_NETWORKS.map((network) => shopSettings.social[network]).filter((url): url is string => Boolean(url));
     const collections = allCollections.filter((c) => c.productCount > 0);
     return (
         <div className="">
             {/* Dane firmy i wyszukiwarki dla Google — raz, na stronie głównej. */}
-            <script {...jsonLdScript(organizationJsonLd())} />
+            <script {...jsonLdScript(organizationJsonLd({ sameAs }))} />
+            {/* Jedyny H1 strony głównej — dla wyszukiwarek i czytników ekranu.
+                Tytuły banerów są H2 (karuzela ma ich kilka naraz w DOM-ie). */}
+            <h1 className="sr-only">{SITE_TITLE}</h1>
             <HomeCarousel collections={collections} />
-            <HomeSections sections={sections} />
+            <HomeSections sections={sections} social={shopSettings.social} />
             <Footer/>
         </div>
     );
-}
+}

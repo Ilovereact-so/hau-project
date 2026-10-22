@@ -78,8 +78,8 @@ const SubCategoryContainer = () => {
                 <div className='flex md:flex-row flex-col md:space-x-3 max-md:space-x-0 md:items-center items-start'>
                     <Paw_Filled className='text-[#6eb0a6] md:h-[34px] sm:h-[20px] h-[18px]'/>
                     <div className='flex lg:flex-row flex-col md:space-x-4 max-md:space-x-0 lg:items-end'>
-                        <h1 className='text-black font-bold  text-[clamp(16px,1.9vw,24px)]'>Odkryj kategorie</h1>
-                        <h1 className='text-black text-[clamp(12px,1.9vw,16px)] mb-1'>Wszytko, czego potrzbuje Twój pies</h1>
+                        <h2 className='text-black font-bold  text-[clamp(16px,1.9vw,24px)]'>Odkryj kategorie</h2>
+                        <p className='text-black text-[clamp(12px,1.9vw,16px)] mb-1'>Wszytko, czego potrzbuje Twój pies</p>
                     </div>
                 </div>
                 <div className='flex space-x-3'>
@@ -128,4 +128,4 @@ const SubCategoryContainer = () => {
   )
 }
 
-export default SubCategoryContainer
+export default SubCategoryContainer

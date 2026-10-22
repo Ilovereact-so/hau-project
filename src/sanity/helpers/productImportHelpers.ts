@@ -207,14 +207,32 @@ export function buildIndexedOptions(options: Array<{ name: string; values: Array
 }
 
 // helper that maps a CSV row to a product partial for Sanity create
+/**
+ * Liczba z komórki CSV — także w polskim zapisie z Excela („29,99”, „1 299,00 zł”).
+ * `undefined` dla pustej albo nieczytelnej komórki (wtedy pole się nie zmienia).
+ */
+export function parseDecimal(value?: string): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  let text = String(value).replace(/\s|\u00a0|zł|pln/gi, '').trim();
+  if (!text) return undefined;
+  // „1.299,99” → 1299.99; „1,299.99” → 1299.99; „29,99” → 29.99
+  if (text.includes(',') && text.includes('.')) {
+    text = text.lastIndexOf(',') > text.lastIndexOf('.') ? text.replace(/\./g, '').replace(',', '.') : text.replace(/,/g, '');
+  } else {
+    text = text.replace(',', '.');
+  }
+  const parsed = Number(text);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 export function mapCsvRowToProductPartial(row: Record<string, string | undefined>) {
   const images = splitList(row.images || '').map(url => url.trim()).filter(Boolean);
   const tags = splitList(row.tags || ';').map(t => t.trim()).filter(Boolean);
   const options = parseOptionColumns(row);
   const dimensions: any = {};
-  if (row.properties_width_cm) dimensions.width_cm = Number(row.properties_width_cm);
-  if (row.properties_height_cm) dimensions.height_cm = Number(row.properties_height_cm);
-  if (row.properties_depth_cm) dimensions.depth_cm = Number(row.properties_depth_cm);
+  if (parseDecimal(row.properties_width_cm) !== undefined) dimensions.width_cm = parseDecimal(row.properties_width_cm);
+  if (parseDecimal(row.properties_height_cm) !== undefined) dimensions.height_cm = parseDecimal(row.properties_height_cm);
+  if (parseDecimal(row.properties_depth_cm) !== undefined) dimensions.depth_cm = parseDecimal(row.properties_depth_cm);
   if (row.properties_units) dimensions.unit = String(row.properties_units);
   const product: any = {
     _type: 'product',
@@ -225,10 +243,10 @@ export function mapCsvRowToProductPartial(row: Record<string, string | undefined
     slug: row.slug || undefined,
     shortDescription: row.shortDescription || undefined,
     description: row.description || undefined,
-    price: row.price ? Number(row.price) : undefined,
+    price: parseDecimal(row.price),
     currency: row.currency || undefined,
-    compareAtPrice: row.compareAtPrice ? Number(row.compareAtPrice) : undefined,
-    stock: row.stock ? Number(row.stock) : undefined,
+    compareAtPrice: parseDecimal(row.compareAtPrice),
+    stock: parseDecimal(row.stock),
     visibility: row.visibility || undefined,
     category: row.category || undefined, // importer should resolve to reference
     type: row.type || undefined,
@@ -238,13 +256,14 @@ export function mapCsvRowToProductPartial(row: Record<string, string | undefined
     images,
     options,
     dimensions,
-    weight_g: row.weight_g ? Number(row.weight_g) : undefined,
+    weight_g: parseDecimal(row.weight_g),
     material: row.material || undefined,
     care: row.care || undefined,
     isMachineWashable: parseBoolean(row.isMachineWashable),
     isWaterproof: parseBoolean(row.isWaterproof),
     isFeatured: parseBoolean(row.isFeatured),
     isBestseller: parseBoolean(row.isBestseller),
+    isNew: parseBoolean(row.isNew),
     chew_strength: row.chew_strength || undefined,
     metaTitle: row.metaTitle || undefined,
     metaDescription: row.metaDescription || undefined,
@@ -366,4 +385,4 @@ export function matchZipImagesToSlug(
 }
 
 
-// End of helpers
+// End of helpers

@@ -57,6 +57,8 @@ const isPublicRoute = createRouteMatcher([
   '/api/search',
   // Newsletter: potwierdzenie zapisu i wypisanie się linkiem z maila.
   '/newsletter/(.*)',
+  // Wypisanie jednym kliknięciem z nagłówka List-Unsubscribe (RFC 8058).
+  '/api/newsletter/(.*)',
 ])
 
 // `/upload` to dawny uploader CSV z grupy (admin) — dziś tylko przekierowuje

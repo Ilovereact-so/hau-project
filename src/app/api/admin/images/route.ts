@@ -3,6 +3,7 @@ import { revalidatePath } from 'next/cache'
 import { adminDenied, errorMessage } from '@/lib/admin/guard'
 import { addProductImage, setSubcategoryImage, withTimeout } from '@/lib/admin/catalog'
 import { setCollectionImage } from '@/lib/admin/collections'
+import { uploadHomeImage } from '@/lib/admin/homeLayout'
 
 /*
  * Wysyłka zdjęć z panelu (kolekcje, subkategorie, produkty, import ZIP).
@@ -18,8 +19,12 @@ import { setCollectionImage } from '@/lib/admin/collections'
 export const runtime = 'nodejs'
 export const maxDuration = 120
 
-type Target = 'product' | 'collection' | 'subcategory'
-const TARGETS: Target[] = ['product', 'collection', 'subcategory']
+/**
+ * `home` — zdjęcie do sekcji „O nas”, `campaign` — zdjęcie do kampanii newslettera.
+ * Oba tylko wgrywają plik do Sanity (bez `id`); zapis w treści robi formularz.
+ */
+type Target = 'product' | 'collection' | 'subcategory' | 'home' | 'campaign'
+const TARGETS: Target[] = ['product', 'collection', 'subcategory', 'home', 'campaign']
 const SAVE_TIMEOUT_MS = 30_000
 
 export async function POST(req: Request) {
@@ -43,6 +48,8 @@ export async function POST(req: Request) {
     if (target === 'product') {
       const variantKeys = form.getAll('variantKeys').map(String).filter(Boolean).slice(0, 200)
       data = await addProductImage(id, file, alt, variantKeys)
+    } else if (target === 'home' || target === 'campaign') {
+      data = await uploadHomeImage(file)
     } else if (target === 'collection') {
       data = await setCollectionImage(id, file, alt)
       revalidatePath('/kolekcje', 'layout')

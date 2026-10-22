@@ -17,8 +17,15 @@ type PointsApiResponse = {
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const q        = searchParams.get('q')?.trim() ?? ''
-  const services = searchParams.get('services')?.split(',').filter(Boolean) ?? []
+  const q        = (searchParams.get('q')?.trim() ?? '').slice(0, 80)
+  // Trasa jest publiczna — każda usługa to osobne żądanie do Furgonetki,
+  // więc ograniczamy ich liczbę i format (bez tego jedno wywołanie mogło
+  // wygenerować setki zapytań na naszym tokenie API).
+  const services = [...new Set(
+    (searchParams.get('services')?.split(',') ?? [])
+      .map(s => s.trim())
+      .filter(s => /^[a-z0-9_-]{1,32}$/i.test(s)),
+  )].slice(0, 6)
 
   if (!q) return NextResponse.json({ points: [] })
 

@@ -190,6 +190,13 @@ export const HELP_DOCUMENTS: HelpDocumentLink[] = [
     group: "dokumenty",
     description: "Jakich plików cookies używamy i jak zmienić swoje ustawienia.",
   },
+  {
+    title: "Odstąp od umowy",
+    slug: "odstapienie-od-umowy",
+    column: 1,
+    group: "dokumenty",
+    description: "Formularz zwrotu.",
+  },
 ];
 
 type BanerItem = {

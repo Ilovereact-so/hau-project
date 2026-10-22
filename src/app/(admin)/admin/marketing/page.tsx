@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { MailCheck, MailQuestion, MailX, UserPlus } from 'lucide-react'
 import { getNewsletterStats } from '@/lib/admin/ordersQueries'
 import {
@@ -53,8 +54,10 @@ export default async function AdminMarketingPage() {
           <li>Po kliknięciu linku i przycisku „Potwierdzam zapis” subskrypcja staje się aktywna, a sklep wysyła <b className="text-text">mail powitalny z kodem</b> (kod musi istnieć w Marketing → Kody rabatowe).</li>
           <li>Każdy mail powitalny ma link wypisania; wypisanie ręczne jest w tabeli poniżej.</li>
           <li>
-            Kolejne kampanie (nowości, promocje) wysyła się z narzędzia mailingowego (np. Brevo, MailerLite) — panel nie
-            wysyła masowych maili. Listę aktywnych adresów pobierzesz przyciskiem „Eksport CSV” i zaimportujesz tam.
+            Kolejne maile (nowości, promocje, poradniki) wysyła się w{' '}
+            <Link href="/admin/campaigns" className="font-medium text-text underline underline-offset-2">Marketing → Kampanie</Link>{' '}
+            — do aktywnych subskrybentów, z mailem testowym, planowaniem i linkiem wypisania. Przy bardzo dużej liście
+            (tysiące adresów) lepsze będzie narzędzie mailingowe (np. Brevo, MailerLite) — listę pobierzesz przyciskiem „Eksport CSV”.
           </li>
         </ol>
       </Card>

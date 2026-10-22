@@ -9,7 +9,8 @@
  * + KOLEJNOŚĆ (najczęściej zamawiane, nowości, promowane…) + FILTRY
  * + przypięte na początek / wykluczone produkty + limit.
  * Pozostałe sekcje to stałe moduły strony (pasek zalet, subkategorie,
- * poradniki, „O nas”) — można je przestawiać i ukrywać.
+ * poradniki, „O nas”) — można je przestawiać i ukrywać. Treść „O nas”
+ * (tekst, zdjęcie pieska) trzyma pole `about` tego samego dokumentu.
  */
 
 export const HOME_LAYOUT_ID = 'homeLayout'
@@ -21,7 +22,7 @@ export const HOME_STATIC_LABELS: Record<HomeStaticKind, { title: string; hint: s
   valueBar: { title: 'Pasek zalet sklepu', hint: 'Dostawa, zwroty, płatności — ikony w jednym rzędzie.' },
   subcategories: { title: 'Kafelki subkategorii', hint: 'Siatka subkategorii ze zdjęciami.' },
   guides: { title: 'Poradniki', hint: 'Najnowsze wpisy z /poradniki.' },
-  about: { title: 'O nas', hint: 'Sekcja „O nas” na dole strony.' },
+  about: { title: 'O nas', hint: 'Tekst o sklepie, zdjęcie pieska i linki do social mediów — kliknij, aby edytować.' },
 }
 
 export const PRODUCT_SOURCES = ['all', 'collection', 'category', 'subcategory', 'manual'] as const
@@ -43,6 +44,7 @@ export const HOME_ORDERS = [
   'discount',
   'price-asc',
   'price-desc',
+  'random',
   'manual',
 ] as const
 export type HomeOrder = (typeof HOME_ORDERS)[number]
@@ -55,6 +57,7 @@ export const HOME_ORDER_LABELS: Record<HomeOrder, { title: string; hint: string 
   discount: { title: 'Największa obniżka', hint: 'Procent obniżki z rejestru cen.' },
   'price-asc': { title: 'Najtańsze', hint: 'Cena rosnąco.' },
   'price-desc': { title: 'Najdroższe', hint: 'Cena malejąco.' },
+  random: { title: 'Losowo', hint: 'Inna kolejność przy każdej wizycie (a zestaw produktów zmienia się co kilka minut) — dobre do odkrywania oferty.' },
   manual: { title: 'Kolejność ręczna', hint: 'Tak, jak ułożysz produkty na liście.' },
 }
 
@@ -80,6 +83,8 @@ export type HomeProductsSection = {
   onlyBestseller: boolean
   onlyInStock: boolean
   onlyDiscounted: boolean
+  /** tylko produkty z plakietką „Nowość” */
+  onlyNew: boolean
   limit: number
   /** link „Zobacz wszystkie” do strony kolekcji / subkategorii */
   showMoreLink: boolean
@@ -87,7 +92,93 @@ export type HomeProductsSection = {
 
 export type HomeStaticSection = { key: string; kind: HomeStaticKind; enabled: boolean }
 export type HomeSection = HomeProductsSection | HomeStaticSection
-export type HomeLayoutData = { sections: HomeSection[]; updatedAt?: string | null }
+
+/** Zdjęcie w Sanity (asset `image-…`) + adres do podglądu. */
+export type HomeImage = { assetId: string; url: string | null; alt: string }
+
+/**
+ * Sekcja „O nas”. Akapity rozdziela pusta linia; tekst w *gwiazdkach* jest
+ * wyróżniony kolorem (jak dotąd pierwsze zdanie akapitu). Blok z pieskiem
+ * pokazuje się dopiero, gdy ma zdjęcie.
+ */
+export type HomeAbout = {
+  heading: string
+  text: string
+  dogTitle: string
+  dogName: string
+  dogText: string
+  dogImage: HomeImage | null
+  /** Linki do social mediów pod tekstem (adresy w ustawieniach sklepu). */
+  showSocial: boolean
+}
+
+export const ABOUT_LIMITS = { heading: 40, text: 3000, dogTitle: 120, dogName: 60, dogText: 1500, alt: 160 } as const
+
+export const DEFAULT_ABOUT: HomeAbout = {
+  heading: 'Hau sklep',
+  text:
+    '*HAU sklep powstał z bezgranicznej miłości do psów!* Sami mamy psiaki i szukając smaczków, zabawek czy innych akcesoriów dla naszych pupili byliśmy czasem przerażeni, jak wiele złych i szkodliwych produktów dla zwierząt znajduje się na rynku oraz jak wiele fałszywych informacji i mitów jest wciąż powielanych. Postanowiliśmy więc coś z tym zrobić!\n\n' +
+    '*Skupiamy się na sprawdzonych markach i świetnej jakości.* Wspieramy polskich przedsiębiorców, a szczególnie rękodzielników i firmy z pasją. Odwiedzając więc nasz sklep nie musisz mieć ogromnej wiedzy i zastanawiać się, który produkt kupić, analizując skrupulatnie składy czy metki, *bo nie mamy po prostu złych towarów!*',
+  dogTitle: 'Poznaj naszą psią kontrolerkę jakości!',
+  dogName: 'Fiona',
+  dogText:
+    'Adoptowana chartka — dostojna, rozsądna i odrobinę nieśmiała. Uwielbia wiatr w uszach, długie drzemki i (prawie) wszystko, co da się zjeść. Każdy produkt w sklepie przechodzi przez jej łapy, a oficjalnie pełni u nas funkcję prezeski.',
+  dogImage: null,
+  showSocial: true,
+}
+
+export type HomeLayoutData = { sections: HomeSection[]; about: HomeAbout; updatedAt?: string | null }
+
+const multiline = (value: unknown, max: number) =>
+  String(value ?? '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+    .slice(0, max)
+
+const ASSET_RE = /^image-[A-Za-z0-9]+-\d+x\d+-[a-z0-9]+$/
+
+/** Normalizacja „O nas” (Sanity albo formularz); brak danych = treść domyślna. */
+export function normalizeHomeAbout(input: unknown): HomeAbout {
+  if (!input || typeof input !== 'object') return { ...DEFAULT_ABOUT }
+  const a = input as Record<string, unknown>
+  const image = (a.dogImage ?? null) as Record<string, unknown> | null
+  const assetId = String(image?.assetId ?? (image?.asset as { _ref?: string } | undefined)?._ref ?? '')
+  const url = String(image?.url ?? a.dogImageUrl ?? '')
+  return {
+    heading: str(a.heading, ABOUT_LIMITS.heading),
+    text: multiline(a.text, ABOUT_LIMITS.text),
+    dogTitle: str(a.dogTitle, ABOUT_LIMITS.dogTitle),
+    dogName: str(a.dogName, ABOUT_LIMITS.dogName),
+    dogText: multiline(a.dogText, ABOUT_LIMITS.dogText),
+    dogImage: ASSET_RE.test(assetId)
+      ? { assetId, url: /^https:\/\/cdn\.sanity\.io\//.test(url) ? url : null, alt: str(image?.alt, ABOUT_LIMITS.alt) }
+      : null,
+    showSocial: bool(a.showSocial, true),
+  }
+}
+
+/**
+ * Tekst z *wyróżnieniami* → kawałki do renderowania (akapity × fragmenty).
+ * Bez HTML-a: sklep renderuje to Reactem, więc nic z panelu nie trafi do DOM jako kod.
+ */
+export function aboutParagraphs(text: string): Array<Array<{ text: string; highlight: boolean }>> {
+  return text
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.replace(/\s*\n\s*/g, ' ').trim())
+    .filter(Boolean)
+    .map((paragraph) =>
+      paragraph
+        .split(/(\*[^*]+\*)/g)
+        .filter(Boolean)
+        .map((part) =>
+          part.length > 2 && part.startsWith('*') && part.endsWith('*')
+            ? { text: part.slice(1, -1), highlight: true }
+            : { text: part.replace(/\*/g, ''), highlight: false },
+        ),
+    )
+}
 
 export const LIMIT_MIN = 4
 export const LIMIT_MAX = 24
@@ -117,6 +208,7 @@ export function newProductsSection(patch: Partial<HomeProductsSection> = {}): Ho
     onlyBestseller: false,
     onlyInStock: true,
     onlyDiscounted: false,
+    onlyNew: false,
     limit: 12,
     showMoreLink: true,
     ...patch,
@@ -139,6 +231,7 @@ export function defaultHomeLayout(): HomeLayoutData {
       { key: 'default-guides', kind: 'guides', enabled: true },
       { key: 'default-about', kind: 'about', enabled: true },
     ],
+    about: { ...DEFAULT_ABOUT },
     updatedAt: null,
   }
 }
@@ -158,8 +251,8 @@ const oneOf = <T extends string>(value: unknown, list: readonly T[], fallback: T
  * panel ostrzega o tym przy zapisie (`sectionProblems`).
  */
 export function normalizeHomeLayout(input: unknown): HomeLayoutData {
-  const raw = (input ?? {}) as { sections?: unknown; updatedAt?: unknown; _updatedAt?: unknown }
-  if (!Array.isArray(raw.sections)) return defaultHomeLayout()
+  const raw = (input ?? {}) as { sections?: unknown; about?: unknown; updatedAt?: unknown; _updatedAt?: unknown }
+  if (!Array.isArray(raw.sections)) return { ...defaultHomeLayout(), about: normalizeHomeAbout(raw.about) }
   const seen = new Set<string>()
   const sections: HomeSection[] = []
   for (const item of raw.sections.slice(0, MAX_SECTIONS)) {
@@ -190,6 +283,7 @@ export function normalizeHomeLayout(input: unknown): HomeLayoutData {
         onlyBestseller: bool(s.onlyBestseller, false),
         onlyInStock: bool(s.onlyInStock, true),
         onlyDiscounted: bool(s.onlyDiscounted, false),
+        onlyNew: bool(s.onlyNew, false),
         limit: Math.min(LIMIT_MAX, Math.max(LIMIT_MIN, Math.round(Number(s.limit) || 12))),
         showMoreLink: bool(s.showMoreLink, true),
       })
@@ -200,7 +294,7 @@ export function normalizeHomeLayout(input: unknown): HomeLayoutData {
     }
   }
   const updated = raw.updatedAt ?? raw._updatedAt
-  return { sections, updatedAt: typeof updated === 'string' ? updated : null }
+  return { sections, about: normalizeHomeAbout(raw.about), updatedAt: typeof updated === 'string' ? updated : null }
 }
 
 /** Ostrzeżenia dla panelu (nie blokują zapisu). */
@@ -232,6 +326,7 @@ export function describeSection(section: HomeProductsSection): string {
     section.onlyFeatured && 'tylko promowane',
     section.onlyBestseller && 'tylko bestsellery',
     section.onlyDiscounted && 'tylko w promocji',
+    section.onlyNew && 'tylko nowości',
     section.onlyInStock && 'dostępne',
   ].filter(Boolean)
   return [source, HOME_ORDER_LABELS[section.order].title.toLowerCase(), ...filters, `do ${section.limit} szt.`].join(' · ')

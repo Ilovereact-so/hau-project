@@ -5,6 +5,7 @@ import { redis } from '@/lib/redis'
 import { LOW_STOCK_THRESHOLD, invalidateLowStockCounter } from '@/lib/admin/counters'
 import { normalizePromotionInput, type ProductPromotion } from '@/lib/promotion'
 import { hasRichText, sanitizeRichText } from '@/lib/richText'
+import { infoSectionsToSanity, normalizeInfoSections, type ProductInfoSection } from '@/lib/productInfo'
 
 /*
  * Warstwa Sanity dla panelu admina.
@@ -24,7 +25,7 @@ import { hasRichText, sanitizeRichText } from '@/lib/richText'
 const raw = sanityClient.withConfig({ perspective: 'raw', useCdn: false })
 
 const DRAFT_PREFIX = 'drafts.'
-const PRODUCTS_CACHE_KEY = 'admin:products:list:v4'
+const PRODUCTS_CACHE_KEY = 'admin:products:list:v5'
 const PRODUCTS_CACHE_TTL = 60
 
 export const baseId = (id: string) => (id.startsWith(DRAFT_PREFIX) ? id.slice(DRAFT_PREFIX.length) : id)
@@ -74,12 +75,18 @@ export type AdminProduct = {
   stock: number | null
   isFeatured: boolean
   isBestseller: boolean
+  isNew: boolean
   intro: string | null
   shortDescription: string | null
   /** Długi opis (Portable Text) — sekcja „Opis produktu” pod galerią. */
   description: unknown[] | null
   /** Promocja (lib/promotion.ts) — osobno od ceny regularnej. */
   promotion: ProductPromotion | null
+  /** Zakładki „Informacje o produkcie” (lib/productInfo.ts); `null` = nigdy nie zapisane. */
+  infoSections: Array<{ _key?: string; title?: string; body?: string }> | null
+  /** Stare pola — panel zamienia je na zakładki przy pierwszej edycji. */
+  material: string | null
+  care: string | null
   category: { id: string; title: string } | null
   subcategory: { id: string; title: string; slug: string | null } | null
   /** Identyfikatory kolekcji (bazowe `_id`, także szkiców) — nazwy dokleja widok z listy kolekcji. */
@@ -105,10 +112,14 @@ type RawProduct = {
   stock?: number
   isFeatured?: boolean
   isBestseller?: boolean
+  isNew?: boolean
   intro?: string
   shortDescription?: string
   description?: unknown[] | null
   promotion?: ProductPromotion | null
+  infoSections?: Array<{ _key?: string; title?: string; body?: string }> | null
+  material?: string | null
+  care?: string | null
   category?: { _id: string; title?: string } | null
   subcategory?: { _id: string; title?: string; slug?: string } | null
   collectionIds?: Array<string | null> | null
@@ -121,7 +132,8 @@ type RawProduct = {
 
 const PRODUCT_PROJECTION = `{
   _id, _updatedAt, title, subtitle, sku, "slug": slug.current, brand,
-  price, compareAtPrice, stock, isFeatured, isBestseller, intro, shortDescription, description, promotion,
+  price, compareAtPrice, stock, isFeatured, isBestseller, isNew, intro, shortDescription, description, promotion,
+  infoSections, material, care,
   "category": category->{ _id, title },
   "subcategory": type->{ _id, title, "slug": slug.current },
   "collectionIds": collections[]._ref,
@@ -178,10 +190,14 @@ function toAdminProduct(doc: RawProduct, status: PublishState): AdminProduct {
     stock: typeof doc.stock === 'number' ? doc.stock : null,
     isFeatured: Boolean(doc.isFeatured),
     isBestseller: Boolean(doc.isBestseller),
+    isNew: Boolean(doc.isNew),
     intro: doc.intro ?? null,
     shortDescription: doc.shortDescription ?? null,
     description: Array.isArray(doc.description) ? doc.description : null,
     promotion: doc.promotion ?? null,
+    infoSections: Array.isArray(doc.infoSections) ? doc.infoSections : null,
+    material: doc.material ?? null,
+    care: doc.care ?? null,
     category: doc.category?._id ? { id: doc.category._id, title: doc.category.title || '—' } : null,
     subcategory: doc.subcategory?._id
       ? { id: doc.subcategory._id, title: doc.subcategory.title || '—', slug: doc.subcategory.slug ?? null }
@@ -248,7 +264,7 @@ export async function listAdminProducts({ fresh = false }: { fresh?: boolean } =
 
 export async function invalidateCatalogCache() {
   try {
-    await redis.del([PRODUCTS_CACHE_KEY, 'admin:products:list:v2', 'admin:products:list', 'admin:insights:wishlistNames'])
+    await redis.del([PRODUCTS_CACHE_KEY, 'admin:products:list:v4', 'admin:products:list:v2', 'admin:products:list', 'admin:insights:wishlistNames'])
   } catch {
     /* jw. */
   }
@@ -373,6 +389,12 @@ export type ProductInput = {
   subcategoryId?: string | null
   isFeatured?: boolean
   isBestseller?: boolean
+  isNew?: boolean
+  /**
+   * Zakładki „Informacje o produkcie”. `undefined` = bez zmian. Zapis czyści
+   * stare pola `material`/`care` (edytor pokazał ich treść jako zakładki).
+   */
+  infoSections?: ProductInfoSection[]
   /** Istniejące kolekcje (id). `undefined` = bez zmian. */
   collectionIds?: string[]
   /** Nowe kolekcje po nazwie — powstaną jako szkic. `undefined` = bez zmian. */
@@ -413,6 +435,7 @@ export function validateProductInput(input: ProductInput): ProductInput {
     shortDescription: cleanText(input.shortDescription, 2000),
     price: Math.round(input.price * 100) / 100,
     description: input.description === undefined ? undefined : sanitizeRichText(input.description, { images: true }).value,
+    infoSections: input.infoSections === undefined ? undefined : normalizeInfoSections(input.infoSections),
     promotion: input.promotion === undefined ? undefined : normalizePromotionInput(input.promotion),
     compareAtPrice:
       input.compareAtPrice === null || input.compareAtPrice === undefined
@@ -450,6 +473,7 @@ export async function createProductDraft(input: ProductInput, collections?: Coll
     visibility: 'published',
     isFeatured: Boolean(data.isFeatured),
     isBestseller: Boolean(data.isBestseller),
+    isNew: Boolean(data.isNew),
   }
   if (data.subtitle) doc.subtitle = data.subtitle
   if (data.brand) doc.brand = data.brand
@@ -457,6 +481,7 @@ export async function createProductDraft(input: ProductInput, collections?: Coll
   if (data.shortDescription) doc.shortDescription = data.shortDescription
   if (data.description && hasRichText(data.description)) doc.description = data.description
   if (data.promotion) doc.promotion = { _type: 'object', ...data.promotion }
+  if (data.infoSections?.length) doc.infoSections = infoSectionsToSanity(data.infoSections)
   if (data.compareAtPrice) doc.compareAtPrice = data.compareAtPrice
   if (data.stock !== null && data.stock !== undefined) doc.stock = data.stock
   if (data.categoryId) doc.category = ref(data.categoryId)
@@ -477,6 +502,7 @@ export async function updateProduct(id: string, input: ProductInput, collections
     price: data.price,
     isFeatured: Boolean(data.isFeatured),
     isBestseller: Boolean(data.isBestseller),
+    isNew: Boolean(data.isNew),
   }
   const unset: string[] = []
   const optional: Array<[string, unknown]> = [
@@ -503,6 +529,12 @@ export async function updateProduct(id: string, input: ProductInput, collections
   if (data.promotion !== undefined) {
     if (data.promotion) set.promotion = data.promotion
     else unset.push('promotion')
+  }
+  if (data.infoSections !== undefined) {
+    // Pusta lista też jest zapisem („wszystko usunięte”) — inaczej sklep
+    // wróciłby do starych pól material/care, które właśnie czyścimy.
+    set.infoSections = infoSectionsToSanity(data.infoSections)
+    unset.push('material', 'care')
   }
   if (data.categoryId) set.category = ref(data.categoryId)
   else unset.push('category')
@@ -532,7 +564,11 @@ export async function setVariantPrice(id: string, variantKey: string, price: num
   else await patchAllVersions(id, { set: { [path]: Math.round(price * 100) / 100 } })
 }
 
-export async function setProductFlag(id: string, field: 'isFeatured' | 'isBestseller', value: boolean) {
+export const PRODUCT_FLAGS = ['isFeatured', 'isBestseller', 'isNew'] as const
+export type ProductFlag = (typeof PRODUCT_FLAGS)[number]
+
+export async function setProductFlag(id: string, field: ProductFlag, value: boolean) {
+  if (!(PRODUCT_FLAGS as readonly string[]).includes(field)) throw new Error('Nieznana flaga.')
   await patchAllVersions(id, { set: { [field]: value } })
 }
 
@@ -888,6 +924,8 @@ export const BULK_PRODUCT_ACTIONS = [
   'unfeature',
   'bestseller',
   'unbestseller',
+  'new',
+  'unnew',
   'delete',
 ] as const
 export type BulkProductAction = (typeof BULK_PRODUCT_ACTIONS)[number]
@@ -939,6 +977,9 @@ export async function bulkProductAction(ids: string[], action: BulkProductAction
       case 'bestseller':
       case 'unbestseller':
         return patchAllVersions(id, { set: { isBestseller: action === 'bestseller' } })
+      case 'new':
+      case 'unnew':
+        return patchAllVersions(id, { set: { isNew: action === 'new' } })
       case 'delete':
         return deleteDocument(id)
     }

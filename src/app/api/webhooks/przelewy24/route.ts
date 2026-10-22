@@ -3,6 +3,7 @@ import { verifyIPN, verifyTransaction, type P24IPN } from '@/lib/przelewy24'
 import { db } from '@/lib/db'
 import { orders, paymentTransactions } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
+import { isPaymentSettled } from '@/lib/orderStatus'
 
 export async function POST(req: NextRequest) {
   let payload: P24IPN
@@ -30,8 +31,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Order not found' }, { status: 404 })
   }
 
-  // idempotency — already confirmed
-  if (order.status === 'paid' || order.status === 'processing') {
+  // Idempotencja — zamówienie już rozliczone (także wysłane, doręczone albo
+  // zwrócone). Powtórzone powiadomienie nie może cofnąć statusu.
+  if (isPaymentSettled(order.status)) {
     return NextResponse.json({ status: 'OK' })
   }
 

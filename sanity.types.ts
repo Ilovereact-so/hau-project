@@ -244,6 +244,9 @@ export type ShopSettings = {
   _rev: string;
   freeShippingEnabled?: boolean;
   freeShippingThreshold?: number;
+  socialFacebook?: string;
+  socialInstagram?: string;
+  socialTiktok?: string;
 };
 
 export type HomeLayout = {
@@ -272,11 +275,33 @@ export type HomeLayout = {
     onlyBestseller?: boolean;
     onlyInStock?: boolean;
     onlyDiscounted?: boolean;
+    onlyNew?: boolean;
     limit?: number;
     showMoreLink?: boolean;
     _type: "homeSection";
     _key: string;
   }>;
+  about?: {
+    heading?: string;
+    text?: string;
+    dogTitle?: string;
+    dogName?: string;
+    dogText?: string;
+    dogImage?: {
+      asset?: {
+        _ref: string;
+        _type: "reference";
+        _weak?: boolean;
+        [internalGroqTypeReferenceTo]?: "sanity.imageAsset";
+      };
+      media?: unknown;
+      hotspot?: SanityImageHotspot;
+      crop?: SanityImageCrop;
+      alt?: string;
+      _type: "image";
+    };
+    showSocial?: boolean;
+  };
 };
 
 export type BanerVariants = {
@@ -484,12 +509,26 @@ export type Product = {
   };
   weight_g?: number;
   shipping_weight_g?: number;
+  infoSections?: Array<{
+    title?: string;
+    body?: string;
+    _type: "productInfoSection";
+    _key: string;
+  }>;
   material?: string;
   care?: string;
+  safety?: {
+    manufacturerName?: string;
+    manufacturerAddress?: string;
+    manufacturerContact?: string;
+    responsiblePerson?: string;
+    warnings?: string;
+  };
   isMachineWashable?: boolean;
   isWaterproof?: boolean;
   isFeatured?: boolean;
   isBestseller?: boolean;
+  isNew?: boolean;
   filterValues?: Array<{
     _ref: string;
     _type: "reference";
@@ -927,12 +966,26 @@ export type PRODUCTS_QUERYResult = Array<{
   };
   weight_g?: number;
   shipping_weight_g?: number;
+  infoSections?: Array<{
+    title?: string;
+    body?: string;
+    _type: "productInfoSection";
+    _key: string;
+  }>;
   material?: string;
   care?: string;
+  safety?: {
+    manufacturerName?: string;
+    manufacturerAddress?: string;
+    manufacturerContact?: string;
+    responsiblePerson?: string;
+    warnings?: string;
+  };
   isMachineWashable?: boolean;
   isWaterproof?: boolean;
   isFeatured?: boolean;
   isBestseller?: boolean;
+  isNew?: boolean;
   filterValues?: Array<{
     _ref: string;
     _type: "reference";
@@ -1137,12 +1190,26 @@ export type PRODUCT_BY_ID_QUERYResult = {
   };
   weight_g?: number;
   shipping_weight_g?: number;
+  infoSections?: Array<{
+    title?: string;
+    body?: string;
+    _type: "productInfoSection";
+    _key: string;
+  }>;
   material?: string;
   care?: string;
+  safety?: {
+    manufacturerName?: string;
+    manufacturerAddress?: string;
+    manufacturerContact?: string;
+    responsiblePerson?: string;
+    warnings?: string;
+  };
   isMachineWashable?: boolean;
   isWaterproof?: boolean;
   isFeatured?: boolean;
   isBestseller?: boolean;
+  isNew?: boolean;
   filterValues: Array<{
     filter: {
       _ref: string;
@@ -1291,12 +1358,26 @@ export type PRODUCT_BY_SUBCATEGORY_QUERYResult = Array<{
   };
   weight_g?: number;
   shipping_weight_g?: number;
+  infoSections?: Array<{
+    title?: string;
+    body?: string;
+    _type: "productInfoSection";
+    _key: string;
+  }>;
   material?: string;
   care?: string;
+  safety?: {
+    manufacturerName?: string;
+    manufacturerAddress?: string;
+    manufacturerContact?: string;
+    responsiblePerson?: string;
+    warnings?: string;
+  };
   isMachineWashable?: boolean;
   isWaterproof?: boolean;
   isFeatured?: boolean;
   isBestseller?: boolean;
+  isNew?: boolean;
   filterValues: Array<{
     filter: {
       _ref: string;

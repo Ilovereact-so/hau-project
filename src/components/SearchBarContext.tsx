@@ -345,9 +345,9 @@ const ProductCard = ({ product, mode, onClick }: { product: RecentProduct & { va
             }
             <div className="w-auto flex flex-col font-poppins relative z-2 ">
                 <div className="2lg:mb-2">
-                    <h1 className="sm:text-[14px] text-[12px] text-black cursor-pointer">{product?.brand}</h1>
-                    <h1 className="sm:text-[16px] text-[14px] text-black font-medium">{product?.title}</h1>
-                    <h1 className="sm:text-[13px] text-[11px] text-black ">{product?.subtitle}</h1>
+                    <p className="sm:text-[14px] text-[12px] text-black cursor-pointer">{product?.brand}</p>
+                    <p className="sm:text-[16px] text-[14px] text-black font-medium">{product?.title}</p>
+                    <p className="sm:text-[13px] text-[11px] text-black ">{product?.subtitle}</p>
                 </div>
                 
                 <div className=''>
@@ -455,9 +455,9 @@ const Context = ({loading, mode, mobile, showSearchBar, results, query, suggesti
                         {((showSuggestions && mobile) || (showSuggestions && showSearchBar)) && showTerms && (
                             <motion.div initial={{opacity:0, height:"0px",width:"20px"}} animate={{ opacity: startContentDelay || mobile? 1 : 0, height:"auto",width:"100%"}} exit={{opacity:0, height:"0px", width:"20px"}} className={`z-10 w-full overflow-hidden `}>
                                     <div className='flex flex-col p-2 pb-3 px-3 pt-4 font-poppins'>
-                                        <h1 className={` text-black font-medium ${
+                                        <p className={` text-black font-medium ${
                                             mode === 1 ? "text-[clamp(14px,1.6vw,15px)]":"text-[clamp(14px,1.6vw,16px)]"
-                                        }`}>{termsLabel}</h1>
+                                        }`}>{termsLabel}</p>
                                         <div className='flex flex-wrap max-sm:max-w-[60vw] gap-2 mt-2'>
                                             {displayTerms.map((term) => (
                                                 <button
@@ -481,9 +481,9 @@ const Context = ({loading, mode, mobile, showSearchBar, results, query, suggesti
                                 {query && !loading && showSearchBar && results.length != 0 &&
                                     <motion.div initial={{opacity:0, height:"0px"}} animate={{ opacity:1, height:"auto"}} exit={{opacity:0, height:"0px"}} className='flex w-full overflow-hidden'>
                                         <div className='flex flex-col p-2 pt-4 font-poppins w-full'>
-                                            <h1 className={` text-black font-medium ${
+                                            <p className={` text-black font-medium ${
                                                 mode === 1 ? "text-[clamp(12px,1.6vw,14px)]":"text-[clamp(14px,1.6vw,16px)]"
-                                            }`}>Podpowiedzi wyszukiwania:</h1>
+                                            }`}>Podpowiedzi wyszukiwania:</p>
                                             <div className='flex flex-col mt-2 px-4 w-full 2md:text-nowrap 2md:space-y-1 space-y-2'>
                                                 {suggestions.map((suggestion) => {
                                                     const href = `/subcategory/${encodeURIComponent(suggestion.slug)}`
@@ -565,7 +565,7 @@ const Context = ({loading, mode, mobile, showSearchBar, results, query, suggesti
                             className={`z-10 max-md:w-full w-fit overflow-hidden ${mode === 0 ? "max-w-full min-w-0" : ""}`}>
                             
                         <div  className='flex flex-col p-2 pt-2 font-poppins w-fit overflow-hidden'>
-                            <h1 className='text-black font-medium text-[clamp(14px,1.6vw,15px)] w-full'>Ostatnio oglądane:</h1>
+                            <p className='text-black font-medium text-[clamp(14px,1.6vw,15px)] w-full'>Ostatnio oglądane:</p>
                             <div id='recent-products-scroll' className={`grid md:grid-cols-2 md:gap-x-4 max-md:gap-y-4 mt-3 w-fit overflow-hidden `}>
                                 {recentProducts.slice(0,2).map((product) => (
                                     <ProductCard key={product._id} product={product} mode={mode} onClick={() => onProductClick(product)} />

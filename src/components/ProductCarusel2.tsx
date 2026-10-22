@@ -25,15 +25,29 @@ type Props =  {
     subtitle?: string
     /** Link „Zobacz wszystkie” (strona kolekcji / subkategorii). */
     moreHref?: string | null
+    /** Kolejność „Losowo” — tasowanie w przeglądarce po wyrenderowaniu (bez błędu hydracji). */
+    shuffle?: boolean
+    /** Ile pierwszych produktów jest przypiętych — tasowanie ich nie rusza. */
+    pinnedCount?: number
 }
 
-const ProductCarusel2 = ({title, id, className, categorySlug = 'feeding', products: initialProducts, subtitle, moreHref}:Props) => {
+function shuffleTail<T>(list: T[], keep: number): T[] {
+    const head = list.slice(0, keep)
+    const tail = list.slice(keep)
+    for (let i = tail.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[tail[i], tail[j]] = [tail[j], tail[i]]
+    }
+    return [...head, ...tail]
+}
+
+const ProductCarusel2 = ({title, id, className, categorySlug = 'feeding', products: initialProducts, subtitle, moreHref, shuffle = false, pinnedCount = 0}:Props) => {
     const [products, setProducts] = useState<GetSlugProduct[]>(initialProducts ?? [])
     const [loading, setLoading] = useState<boolean>(!initialProducts)
 
     useEffect(() => {
         if (initialProducts) {
-            setProducts(initialProducts)
+            setProducts(shuffle ? shuffleTail(initialProducts, pinnedCount) : initialProducts)
             setLoading(false)
             return
         }
@@ -42,7 +56,7 @@ const ProductCarusel2 = ({title, id, className, categorySlug = 'feeding', produc
             setProducts(data)
             setLoading(false)
         })
-    }, [categorySlug, initialProducts])
+    }, [categorySlug, initialProducts, shuffle, pinnedCount])
 
 
     const leftChevronRef = React.useRef<HTMLDivElement>(null);
@@ -86,4 +100,4 @@ const ProductCarusel2 = ({title, id, className, categorySlug = 'feeding', produc
   )
 }
 
-export default ProductCarusel2
+export default ProductCarusel2

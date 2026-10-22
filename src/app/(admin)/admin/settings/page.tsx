@@ -44,6 +44,7 @@ export default async function AdminSettingsPage() {
     { label: 'Sanity — webhook cen', value: `${base}/api/webhooks/sanity-prices`, hint: 'sanity.io/manage → API → Webhooks. Adres musi być PEŁNY (z https://), filtr _type == "product", projekcja {_id}, secret = SANITY_PRICE_WEBHOOK_SECRET.' },
     { label: 'Rejestr cen — zadanie cykliczne', value: `${base}/api/cron/price-history`, hint: 'Wywołuj co godzinę z nagłówkiem Authorization: Bearer $CRON_SECRET (GitHub Actions albo cron hostingu).' },
     { label: 'Nieopłacone zamówienia — zadanie cykliczne', value: `${base}/api/cron/unpaid-orders`, hint: 'Wywołuj co godzinę z nagłówkiem Authorization: Bearer $CRON_SECRET. Przypomnienia o płatności (po 1 h i 12 h przed terminem) oraz anulowanie po terminie (ORDER_PAYMENT_DEADLINE_HOURS, domyślnie 72 h).' },
+    { label: 'Kampanie newslettera — zadanie cykliczne', value: `${base}/api/cron/newsletter-campaigns`, hint: 'Wywołuj co 5–10 minut z nagłówkiem Authorization: Bearer $CRON_SECRET. Uruchamia zaplanowane kampanie i wysyła kolejne partie, gdy panel kampanii jest zamknięty.' },
   ]
 
   return (

@@ -1,11 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { EMPTY_SHOP_SETTINGS, type ShopSettings } from '@/lib/shopSettings'
+import { EMPTY_SHOP_SETTINGS, normalizeSocialLinks, type ShopSettings } from '@/lib/shopSettings'
 
 /*
- * Ustawienia koszyka (próg darmowej dostawy) dla koszyka, mini koszyka
- * i kasy. Jedno żądanie na kartę przeglądarki (pamięć modułu, 5 min).
+ * Ustawienia sklepu (próg darmowej dostawy, linki social) dla koszyka,
+ * mini koszyka, kasy i stopki. Jedno żądanie na kartę przeglądarki (pamięć modułu, 5 min).
  */
 
 const FRESH_MS = 5 * 60_000
@@ -21,6 +21,7 @@ async function load(): Promise<ShopSettings> {
       const clean: ShopSettings = {
         freeShippingThresholdCents: typeof data?.freeShippingThresholdCents === 'number' ? data.freeShippingThresholdCents : null,
         minShippingCents: typeof data?.minShippingCents === 'number' ? data.minShippingCents : null,
+        social: normalizeSocialLinks(data?.social),
       }
       cache = { data: clean, at: Date.now() }
       return clean

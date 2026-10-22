@@ -378,3 +378,84 @@ export const discountRedemptions = mysqlTable('discount_redemptions', {
   index('discount_redemptions_code_customer').on(t.discountCodeId, t.customerKey),
   index('discount_redemptions_code_email').on(t.discountCodeId, t.customerEmail),
 ])
+
+// ─── odstąpienie od umowy (funkcja odstąpienia online) ───────────────────────
+
+/*
+ * Oświadczenia o odstąpieniu od umowy złożone przez formularz
+ * /help/odstapienie-od-umowy (dyrektywa (UE) 2023/2673 — „przycisk odstąpienia”,
+ * obowiązuje od 19.06.2026). Wiersz = dowód złożenia oświadczenia (treść
+ * i chwila złożenia); klient dostaje potwierdzenie mailem, sklep —
+ * powiadomienie. `order_id` jest wypełnione, gdy numer zamówienia i e-mail
+ * pasują do zamówienia w bazie (formularz przyjmuje oświadczenie także bez
+ * dopasowania — prawo nie pozwala go odrzucić z powodu literówki).
+ */
+export const orderWithdrawals = mysqlTable('order_withdrawals', {
+  id:          varchar('id', { length: 36 }).primaryKey(),
+  orderId:     varchar('order_id', { length: 36 }),
+  // numer zamówienia tak, jak podał go klient (np. „3F2A9C1B”)
+  orderNumber: varchar('order_number', { length: 64 }).notNull(),
+  name:        varchar('name', { length: 200 }).notNull(),
+  email:       varchar('email', { length: 256 }).notNull(),
+  // których produktów dotyczy (puste = całe zamówienie)
+  items:       text('items'),
+  note:        text('note'),
+  userId:      varchar('user_id', { length: 128 }),
+  createdAt:   datetime('created_at', { mode: 'date', fsp: 3 }).notNull().default(sql`(now(3))`),
+}, t => [
+  index('order_withdrawals_order').on(t.orderId),
+  index('order_withdrawals_created').on(t.createdAt),
+])
+
+// ─── kampanie newslettera (panel: Marketing → Kampanie) ──────────────────────
+//
+// Kampania = jeden mail do aktywnych (potwierdzonych) subskrybentów. Treść to
+// JSON (`lib/campaigns/content.ts`), HTML składa się przy wysyłce. Przy
+// „Wyślij” powstaje lista odbiorców (migawka) w `newsletter_campaign_recipients`,
+// a maile wychodzą partiami z limitem na minutę i na dobę
+// (`lib/campaigns/campaigns.server.ts`). Migracja: drizzle/0005_*.sql.
+
+export const CAMPAIGN_STATUSES = ['draft', 'scheduled', 'sending', 'paused', 'sent', 'cancelled'] as const
+export type CampaignStatus = typeof CAMPAIGN_STATUSES[number]
+
+export const newsletterCampaigns = mysqlTable('newsletter_campaigns', {
+  id:          varchar('id', { length: 36 }).primaryKey(),
+  name:        varchar('name', { length: 160 }).notNull(),
+  subject:     varchar('subject', { length: 200 }).notNull().default(''),
+  preheader:   varchar('preheader', { length: 200 }).notNull().default(''),
+  // JSON treści (CampaignContent)
+  content:     text('content').notNull(),
+  status:      mysqlEnum('status', CAMPAIGN_STATUSES).notNull().default('draft'),
+  scheduledAt: datetime('scheduled_at', { mode: 'date', fsp: 3 }),
+  startedAt:   datetime('started_at', { mode: 'date', fsp: 3 }),
+  finishedAt:  datetime('finished_at', { mode: 'date', fsp: 3 }),
+  // liczniki (przeliczane z listy odbiorców po każdej partii)
+  totalCount:  int('total_count').notNull().default(0),
+  sentCount:   int('sent_count').notNull().default(0),
+  failedCount: int('failed_count').notNull().default(0),
+  lastError:   varchar('last_error', { length: 500 }),
+  createdBy:   varchar('created_by', { length: 128 }),
+  createdAt:   datetime('created_at', { mode: 'date', fsp: 3 }).notNull().default(sql`(now(3))`),
+  updatedAt:   datetime('updated_at', { mode: 'date', fsp: 3 }).notNull().default(sql`(now(3))`),
+}, t => [
+  index('newsletter_campaigns_status').on(t.status, t.scheduledAt),
+  index('newsletter_campaigns_created').on(t.createdAt),
+])
+
+export const CAMPAIGN_RECIPIENT_STATUSES = ['pending', 'sent', 'failed', 'skipped'] as const
+export type CampaignRecipientStatus = typeof CAMPAIGN_RECIPIENT_STATUSES[number]
+
+export const newsletterCampaignRecipients = mysqlTable('newsletter_campaign_recipients', {
+  campaignId:   varchar('campaign_id', { length: 36 }).notNull(),
+  subscriberId: varchar('subscriber_id', { length: 36 }).notNull(),
+  email:        varchar('email', { length: 256 }).notNull(),
+  status:       mysqlEnum('status', CAMPAIGN_RECIPIENT_STATUSES).notNull().default('pending'),
+  attempts:     tinyint('attempts').notNull().default(0),
+  error:        varchar('error', { length: 300 }),
+  sentAt:       datetime('sent_at', { mode: 'date', fsp: 3 }),
+}, t => [
+  primaryKey({ columns: [t.campaignId, t.subscriberId] }),
+  index('newsletter_recipients_queue').on(t.campaignId, t.status),
+  // limit dobowy liczony po wszystkich kampaniach
+  index('newsletter_recipients_sent_at').on(t.sentAt),
+])

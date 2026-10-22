@@ -29,6 +29,20 @@
       "when": 1791623989155,
       "tag": "0003_newsletter_double_optin",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1791980580753,
+      "tag": "0004_order_withdrawals",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1792594653530,
+      "tag": "0005_newsletter_campaigns",
+      "breakpoints": true
     }
   ]
-}
+}

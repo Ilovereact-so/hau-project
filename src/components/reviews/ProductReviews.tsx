@@ -323,18 +323,29 @@ export function ProductReviews({
 
           {!formOpen && (
             <div className="flex flex-col items-start gap-2">
+              {/* onClick na samym przycisku: wcześniej był na wewnętrznym <div>,
+                  więc klik w obrzeże przycisku i Enter/Spacja z klawiatury nic nie robiły. */}
               <button
-                                                
+                type="button"
+                onClick={openForm}
                 className="w-fit rounded-full font-bold bg-[#EDEDED] text-fancy-black 2xl:text-[16px] text-[clamp(13px,1.8vw,15px)] md:py-3 py-2 md:px-8 px-6 hover:bg-[#EDEDED]/40 hover:text-fancy-black transition-colors cursor-pointer"
-              ><div onClick={openForm}>
+              >
                 {myReview ? 'Edytuj swoją opinię' : summary.count ? 'Napisz opinię' : 'Napisz pierwszą opinię'}
-                </div>
               </button>
               {!signedIn && (
                 <p className="text-center text-[12px] text-[#6C6C6C]">Opinie mogą dodawać zalogowani klienci.</p>
               )}
             </div>
           )}
+
+          {/* Obowiązek informacyjny (art. 7 pkt 6 ustawy o przeciwdziałaniu
+              nieuczciwym praktykom rynkowym, dyrektywa Omnibus): czy i jak
+              sklep sprawdza, że opinie pochodzą od kupujących. */}
+          <p className="text-[12px] leading-relaxed text-[#6C6C6C]">
+            Jak weryfikujemy opinie: dodawać je mogą zalogowani klienci sklepu. Znacznik „Zweryfikowany zakup”
+            oznacza, że autor kupił ten produkt w naszym sklepie — sprawdzamy to automatycznie na podstawie zamówień.
+            Pozostałe opinie nie są weryfikowane pod kątem zakupu.
+          </p>
         </aside>
 
         {/* Lista */}

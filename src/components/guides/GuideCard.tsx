@@ -102,7 +102,7 @@ const GuideCard = ({
                 <div className='flex min-w-0 flex-1 flex-col px-1 pb-1 @min-[560px]:px-0 @min-[560px]:py-1'>
                     <div className='hidden items-start justify-between gap-3 @min-[560px]:flex'>
                         {guide.category ? (
-                            <span className='rounded-full bg-[#f5f9f7] px-3 py-[5px] text-[12px] font-semibold uppercase tracking-[0.06em] text-[#4E8F85]'>
+                            <span className='py-[2px] text-[12px] font-semibold uppercase tracking-[0.06em] text-[#4E8F85]'>
                                 {guide.category.title}
                             </span>
                         ) : (

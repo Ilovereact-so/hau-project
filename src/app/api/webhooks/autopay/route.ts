@@ -12,6 +12,7 @@ import { db } from '@/lib/db'
 import { orders, paymentTransactions } from '@/db/schema'
 import { eq, and, desc } from 'drizzle-orm'
 import { deactivateCardByToken, isGuestOwner, upsertSavedCard } from '@/lib/savedCards.server'
+import { isPaymentSettled } from '@/lib/orderStatus'
 
 export const dynamic = 'force-dynamic'
 export const runtime  = 'nodejs'
@@ -118,8 +119,9 @@ async function applyTransaction(transaction: AutopayItnTransaction): Promise<boo
     return false
   }
 
-  // Idempotencja — zamówienie już rozliczone, potwierdzamy bez zmian.
-  if (order.status === 'paid' || order.status === 'processing') {
+  // Idempotencja — zamówienie już rozliczone (także wysłane, doręczone albo
+  // zwrócone), potwierdzamy bez zmian. Powtórzony ITN nie może cofnąć statusu.
+  if (isPaymentSettled(order.status)) {
     return true
   }
 

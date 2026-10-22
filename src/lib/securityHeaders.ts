@@ -22,7 +22,33 @@
 
 const SELF = "'self'"
 
-const CLERK = ['https://*.clerk.com', 'https://*.clerk.accounts.dev', 'https://*.clerk.services']
+/**
+ * Adres Frontend API Clerka zakodowany w kluczu publicznym
+ * (`pk_live_<base64("clerk.ehau.pl$")>`). Instancja PRODUKCYJNA Clerka nie
+ * działa z *.clerk.accounts.dev, tylko z własnej subdomeny sklepu
+ * (clerk.<domena>) — bez niej `CSP_MODE=enforce` zablokowałby skrypt
+ * logowania na produkcji.
+ */
+function clerkFrontendApi(): string[] {
+  const key = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ?? ''
+  const encoded = key.split('_')[2]
+  if (!encoded) return []
+  try {
+    const host = Buffer.from(encoded, 'base64').toString('utf8').replace(/\$$/, '').trim()
+    return /^[a-z0-9.-]+$/i.test(host) ? [`https://${host}`] : []
+  } catch {
+    return []
+  }
+}
+
+const CLERK = [
+  'https://*.clerk.com',
+  'https://*.clerk.accounts.dev',
+  'https://*.clerk.services',
+  ...clerkFrontendApi(),
+]
+// Ochrona przed botami przy rejestracji/logowaniu w Clerku (Cloudflare Turnstile).
+const CAPTCHA = ['https://challenges.cloudflare.com']
 const SANITY = ['https://cdn.sanity.io', 'https://*.api.sanity.io', 'https://*.apicdn.sanity.io', 'https://*.sanity.io']
 const GOOGLE = ['https://www.googletagmanager.com', 'https://www.google-analytics.com', 'https://*.google-analytics.com', 'https://*.analytics.google.com']
 const PAYMENTS = ['https://*.autopay.eu', 'https://*.blue-media.pl', 'https://*.przelewy24.pl', 'https://*.przelewy24.com']
@@ -42,13 +68,13 @@ export function buildContentSecurityPolicy(isDev: boolean, enforcing = false): s
     'default-src': [SELF],
     // `unsafe-inline` jest potrzebne dla skryptów startowych Next.js i danych
     // strukturalnych JSON-LD; `unsafe-eval` tylko w dev (HMR i Sanity Studio).
-    'script-src': [SELF, "'unsafe-inline'", ...(isDev ? ["'unsafe-eval'"] : []), ...CLERK, ...GOOGLE, ...SANITY, ...SHIPPING, ...VIDEO],
+    'script-src': [SELF, "'unsafe-inline'", ...(isDev ? ["'unsafe-eval'"] : []), ...CLERK, ...CAPTCHA, ...GOOGLE, ...SANITY, ...SHIPPING, ...VIDEO],
     'style-src': [SELF, "'unsafe-inline'", ...FONTS],
     'img-src': [SELF, 'data:', 'blob:', ...SANITY, ...CLERK, ...GOOGLE, ...VIDEO, ...SHIPPING],
     'font-src': [SELF, 'data:', ...FONTS],
-    'connect-src': [SELF, ...CLERK, ...SANITY, ...GOOGLE, ...PAYMENTS, ...SHIPPING, ...(isDev ? ['ws:', 'wss:'] : [])],
+    'connect-src': [SELF, ...CLERK, ...CAPTCHA, ...SANITY, ...GOOGLE, ...PAYMENTS, ...SHIPPING, ...(isDev ? ['ws:', 'wss:'] : [])],
     // Ramki: płatność kartą (Autopay), mapa paczkomatów, odtwarzacze wideo, Clerk.
-    'frame-src': [SELF, ...PAYMENTS, ...SHIPPING, ...VIDEO, ...CLERK],
+    'frame-src': [SELF, ...PAYMENTS, ...SHIPPING, ...VIDEO, ...CLERK, ...CAPTCHA],
     'media-src': [SELF, 'blob:', ...SANITY],
     'worker-src': [SELF, 'blob:'],
     'form-action': [SELF, ...PAYMENTS],

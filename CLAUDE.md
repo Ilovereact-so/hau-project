@@ -81,7 +81,7 @@ App routes are organized into groups under `src/app/`:
 | Group | Purpose |
 |---|---|
 | `(auth)` | Sign-in, sign-up, password reset, SSO callback |
-| `(admin)` | Panel admina `/admin/*` (dashboard, zamówienia, produkty, kategorie, import, blog, klienci, płatności, dostawy, marketing, analityka, integracje) |
+| `(admin)` | Panel admina `/admin/*` (dashboard, zamówienia, produkty, kategorie, import, blog, klienci, płatności, dostawy, marketing, kampanie, analityka, integracje) |
 | `(products)` | Product detail pages `[slug]`, subcategory listings |
 | `(client)` | Cart (także dla gości), checkout, profil (`/profile/wishlist` publiczne), order success |
 | `(errors)` | 403, 404 pages |
@@ -142,10 +142,11 @@ Autopay/Przelewy24, Furgonetka, SMTP).
 - **Statusy przesyłek są automatyczne**: webhook (`/api/webhooks/furgonetka`, logika `lib/furgonetkaWebhook.ts`) + przycisk „Odśwież status” (`adminRefreshShipment` → `GET /packages/{id}/tracking`, najświeższe zdarzenie po dacie). Oba nakładają stan przez `applyShipmentState` (`lib/shipmentStatus.ts`): przesyłka się nie cofa, zamówienie → „wysłane” po odbiorze/transporcie, → „doręczone” po doręczeniu. Przy przesyłce z Furgonetki panel NIE pokazuje ręcznych „Oznacz jako wysłane/Potwierdź doręczenie”.
 - **Webhook**: JSON lub XML, suma `control` = `md5(package_id . package_no . partner_order_id . state . description . datetime . branch . sól)` (to NIE HMAC). Sól = `FURGONETKA_WEBHOOK_SECRET`, a bez niej — pobierana z API (`GET /account/settings/notification/webhook`, cache Redis 10 min, przy niezgodności pobierana ponownie). Odpowiedź ZAWSZE w formacie powiadomienia: HTTP 200 + `{"status":"OK"}` / `<status>OK</status>` (gołe „OK” = test adresu nieudany). Powiadomienie o NIEZNANEJ przesyłce dostaje OK bez weryfikacji (nic nie zmienia; tak wygląda test adresu przy zapisie, gdy API nie zna jeszcze nowej soli). Stany z myślnikami (`collected`, `transit`, `delivery`, `delivered`, `delivery-problem`…) mapuje `TRACKING_STATE_MAP`. `/admin/settings` pokazuje, czy webhook w Furgonetce wskazuje na ten sklep.
 - Zamówienia do paczkomatu nadaje się w panelu Furgonetki i rejestruje numer ręcznie (status też ręcznie).
+- **Kasa — dostawa do punktu jest pierwsza i domyślna** (kurier, gdy żadna metoda `automat` nie jest aktywna; `DeliveryTypeCard` ma `side`). Wyszukiwarka punktów (`Step2DeliveryPayment`) startuje sama z kodem pocztowym adresata i po wpisaniu pełnego kodu (debounce 400 ms), pokazuje **3 najbliższe punkty każdego przewoźnika** (`nearestByCarrier` w `lib/pickupPoints.ts`) + „Pokaż więcej punktów”. Kody usług normalizuje `normalizeServiceCode` (paczkomat = inpost, kiosk/ruch = orlen…) — po obu stronach, bo konfiguracja i API używają różnych nazw. Przewoźnik bez logo w repo (np. ORLEN Paczka) dostaje nazwę tekstem. `/api/furgonetka/points/search` pyta API w środowisku `FURGONETKA_API_URL` (wcześniej NODE_ENV → 403 na stagingu) i zwraca do 50 punktów od najbliższego.
 - `/api/sanity/import-csv` wymaga roli admina (middleware przepuszcza `/api/sanity/*`),
   ZIP ze zdjęciami jest opcjonalny. `/upload` przekierowuje do `/admin/import`.
 - `next.config.ts`: `serverActions.bodySizeLimit = 12mb` (zdjęcia produktów i CSV).
-- **Zdjęcia z panelu idą przez `POST /api/admin/images`** (`target`: `product` | `collection` | `subcategory`), NIE przez server action: na hostingu akcja z plikiem potrafiła zawisnąć bez odpowiedzi („Wysyłam…” w nieskończoność, pusta konsola). Klient (`lib/adminImageUpload.ts` → `uploadAdminImage`) ma limit 150 s, serwer — 30 s na odbiór pliku i 90 s na wysyłkę do Sanity (`withTimeout` w `catalog.ts`); błąd wraca z nazwą etapu, a log serwera ma linie `[images]` z czasami. Nowe miejsca z uploadem zdjęć podpinaj pod tę trasę.
+- **Zdjęcia z panelu idą przez `POST /api/admin/images`** (`target`: `product` | `collection` | `subcategory` | `home` | `campaign` — dwa ostatnie tylko wgrywają plik), NIE przez server action: na hostingu akcja z plikiem potrafiła zawisnąć bez odpowiedzi („Wysyłam…” w nieskończoność, pusta konsola). Klient (`lib/adminImageUpload.ts` → `uploadAdminImage`) ma limit 150 s, serwer — 30 s na odbiór pliku i 90 s na wysyłkę do Sanity (`withTimeout` w `catalog.ts`); błąd wraca z nazwą etapu, a log serwera ma linie `[images]` z czasami. Nowe miejsca z uploadem zdjęć podpinaj pod tę trasę.
 
 ## Blog (poradniki) w panelu (`/admin/blog`)
 
@@ -200,17 +201,22 @@ NEXT_PUBLIC_FURGONETKA_MAP_API_KEY
 NEXT_PUBLIC_FURGONETKA_ENV  # sandbox | production (build-time; mapa + API, patrz niżej)
 # Newsletter — SMTP (wysyłka maili, np. Gmail/Brevo/Mailgun)
 SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM
+NEWSLETTER_RATE_PER_MINUTE   # kampanie: maks. maili na minutę (domyślnie 20)
+NEWSLETTER_DAILY_LIMIT       # kampanie: maks. maili na dobę, wszystkie kampanie (domyślnie 400)
 # Zamówienia bez logowania — podpis linku do zamówienia gościa (opcjonalny;
 # bez niego używany jest CLERK_SECRET_KEY)
 ORDER_LINK_SECRET
 ORDER_PAYMENT_DEADLINE_HOURS # termin płatności nieopłaconego zamówienia (domyślnie 72, 2–720)
 # Rejestr cen (najniższa cena z 30 dni) i zadania cykliczne
-CRON_SECRET                  # Bearer dla /api/cron/price-history i /api/cron/unpaid-orders
+CRON_SECRET                  # Bearer dla /api/cron/price-history, /api/cron/unpaid-orders i /api/cron/newsletter-campaigns
 SANITY_PRICE_WEBHOOK_SECRET  # sekret webhooka Sanity → /api/webhooks/sanity-prices
 # Produkcja — SEO, analityka, bezpieczeństwo
 NEXT_PUBLIC_GA_MEASUREMENT_ID        # G-XXXXXXXXXX — GA4; skrypt ładuje się DOPIERO po zgodzie
 NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION # kod z Google Search Console (opcjonalny)
 CSP_MODE                             # report-only (domyślnie) | enforce | off
+# Dane sprzedawcy (wymóg prawny; build-time — w CI jako vars.SELLER_*)
+NEXT_PUBLIC_SELLER_NAME, NEXT_PUBLIC_SELLER_ADDRESS, NEXT_PUBLIC_SELLER_NIP
+NEXT_PUBLIC_SELLER_REGISTRY, NEXT_PUBLIC_SELLER_EMAIL, NEXT_PUBLIC_SELLER_PHONE
 ```
 
 `src/lib/env.ts` sprawdza tę listę raz przy starcie procesu (woła to layout sklepu) i wypisuje raport w logu: „BŁĄD” dla braków krytycznych, „Uwaga” dla funkcji opcjonalnych. Świadomie nie rzuca wyjątkiem — brak SMTP-a nie może wywrócić sklepu. Tej samej funkcji (`findEnvIssues`) używa panel.
@@ -415,6 +421,8 @@ Sklep sam rejestruje historię cen i z niej wylicza „najniższą cenę z 30 dn
 - **Warianty** = iloczyn kolumn `filter_<opcja>` dla opcji z `productOptions`. Przy aktualizacji (po SKU) istniejąca kombinacja wartości zachowuje `_key`, SKU, własną cenę i stan (koszyki, rejestr cen i przypisania zdjęć przeżywają import). Cena wariantu równa starej cenie produktu (kopia ze starego importu) jest usuwana, żeby wariant dziedziczył nową. Pusta kolumna `stock` nie zmienia stanów. Usunięte kombinacje znikają (log).
 - **Wartości filtrów** tworzą się same (`filterValue-<filtr>-<slug>`), gdy istnieje filtr; dopasowanie po slugu/nazwie bez wielkości liter i polskich znaków. Brak filtra = ostrzeżenie.
 - Istniejącemu produktowi import NIE zmienia sluga, chyba że kolumna `slug` jest wypełniona. Patchowane są obie wersje (opublikowana i szkic).
+- **Aktualizacja zmienia tylko kolumny obecne w pliku** (`UPDATE_FIELD_COLUMNS` w `productImport.ts`), a pusta komórka niczego nie kasuje — CSV z samą ceną nie zeruje tagów, wymiarów, flag ani opcji. Pusta komórka `productOptions` = warianty bez zmian. Pełny opis: pusta komórka albo ten sam tekst co w sklepie (`pt::text`) = zostaje opis z formatowaniem. Liczby w polskim zapisie z Excela („29,99”, „1 299,00 zł”) czyta `parseDecimal`.
+- **Eksport CSV** (`lib/admin/productExport.ts`, przycisk w Katalogu i w Imporcie): ten sam format co import, separator `;` + BOM (polski Excel), szkic przed wersją opublikowaną. Produkty z wariantami mają pustą kolumnę `stock` (stany i ceny wariantów w kolumnach informacyjnych `stany_wariantow`/`ceny_wariantow`, których import nie czyta); warianty, które nie są kompletem kombinacji, dostają pusty `productOptions` (import ich nie przebuduje). Kolumny `status`, `zdjecia_url`, `link` też są tylko informacyjne. Eksport → import bez zmian niczego nie psuje (test na atrapie `groq-js`).
 - **Zdjęcia NIE idą przez serwer paczką** — przeglądarka rozpakowuje ZIP (JSZip), dopasowuje pliki (`src/lib/zipImageMatching.ts`) i wysyła je po jednym (`adminUploadProductImage`, 3 równolegle, w obrębie produktu po kolei). Reguły: kolumna `images` (`front.jpg; zielona.jpg=mint; zielona-m.jpg=mint+m`) → prefiks slug/SKU w nazwie (najdłuższy wygrywa; `slug.jpg`, `slug-2.jpg` wspólne, `slug-mint-2.jpg` warianty z mint) → ręczny wybór w podglądzie. Kolejność: wspólne przed wariantowymi, potem numer z nazwy. Już wgrane zdjęcia (SHA-1 = hash w adresie Sanity) są pomijane, więc ZIP można wysłać ponownie. Sam ZIP (bez CSV) dogrywa zdjęcia do istniejących produktów.
 - Testy przy wdrożeniu: logika dopasowań (`tsx`), pełny cykl na buildzie produkcyjnym z atrapą Sanity opartą o `groq-js` (import, reimport z usuniętym wariantem, duplikaty zdjęć, strona produktu, okno panelu).
 
@@ -430,15 +438,18 @@ Sklep sam rejestruje historię cen i z niej wylicza „najniższą cenę z 30 dn
 
 ### Promowanie (`isFeatured` / `isBestseller`)
 
-- Kafelki (`ProductItem2`, `ProductItemWithoutBTN`, `WishlistProduct`) pokazują plakietki „Bestseller” i „Polecamy” obok obniżki (`components/ProductBadges.tsx`).
+- Kafelki (`ProductItem2`, `ProductItemWithoutBTN`, `WishlistProduct`) pokazują plakietki „Nowość”, „Bestseller” i „Polecamy” obok obniżki (`components/ProductBadges.tsx`). „Nowość” = ręczna flaga `isNew` (Studio, okno produktu, przycisk w katalogu, akcje hurtowe `new`/`unnew`, kolumna CSV `isNew`) — NIE liczy się sama z daty dodania. Flagi przełącza `setProductFlag` (`PRODUCT_FLAGS` w `lib/admin/catalog.ts`).
 - Sortowanie „Popularne” na listingach: najpierw promowane, potem bestsellery, dalej sprzedaż z 90 dni (`promotionRank` w `lib/productSort.ts`).
-- Karuzele strony głównej mogą filtrować „tylko promowane/bestsellery” albo sortować „Promowane i bestsellery”.
+- Karuzele strony głównej mogą filtrować „tylko promowane/bestsellery/nowości” (`onlyNew`) albo sortować „Promowane i bestsellery”.
 
 ### Strona główna (`/admin/home`, Marketing → Strona główna)
 
 - Jeden dokument Sanity `homeLayout` (`_id: "homeLayout"`, schowany w Studio) z listą sekcji w kolejności wyświetlania: karuzele produktów (`products`) + stałe moduły (`valueBar`, `subcategories`, `guides`, `about`) — każdą można przestawiać i ukrywać. Brak dokumentu = `defaultHomeLayout()` (Najczęściej wybierane / Nowości / Polecamy).
-- **Karuzela = reguła**: źródło (cały sklep / kolekcja / kategoria / subkategoria / wybrane ręcznie) + kolejność (najczęściej zamawiane = sprzedaż 90 dni, promowane, nowości, oceny, obniżka, cena, ręczna) + filtry (dostępne, promowane, bestsellery, w promocji) + przypięte na początek + wykluczone + limit 4–24 + link „Zobacz wszystkie” (kolekcja/subkategoria). Typy i walidacja: `lib/homeLayout.ts` (czyste); wyliczanie: `lib/homeLayout.server.ts` (`resolveHomeSections`, GROQ + sygnały z `lib/productListing.ts`).
+- **Karuzela = reguła**: źródło (cały sklep / kolekcja / kategoria / subkategoria / wybrane ręcznie) + kolejność (najczęściej zamawiane = sprzedaż 90 dni, promowane, nowości, oceny, obniżka, cena, **losowo**, ręczna) + filtry (dostępne, promowane, bestsellery, w promocji) + przypięte na początek + wykluczone + limit 4–24 + link „Zobacz wszystkie” (kolekcja/subkategoria). Typy i walidacja: `lib/homeLayout.ts` (czyste); wyliczanie: `lib/homeLayout.server.ts` (`resolveHomeSections`, GROQ + sygnały z `lib/productListing.ts`).
 - **Produkty liczy SERWER** i podaje do `ProductCarusel2` jako props (bez zapytań z przeglądarki). Błąd sekcji = sekcja znika, strona działa. Pusta karuzela się nie pokazuje. Szkice nigdy nie trafiają na stronę główną.
+- **Losowo** (`order: 'random'`): serwer tasuje kandydatów (`shuffled` w `homeLayout.server.ts`), więc zestaw zmienia się przy odświeżeniu cache strony, a `ProductCarusel2` (`shuffle`, `pinnedCount`) tasuje kolejność PO hydracji przy każdej wizycie — przypięte zostają na początku. Nie tasuj w renderze (błąd hydracji).
+- **„O nas”** (`homeLayout.about`, typ `HomeAbout` w `lib/homeLayout.ts`): napis na zdjęciu, tekst (akapity = pusta linia, `*wyróżnienie*` → kolor, renderowane Reactem przez `aboutParagraphs` — bez HTML z panelu), blok z pieskiem (nagłówek, imię, opis, zdjęcie — pokazuje się TYLKO ze zdjęciem) i przełącznik linków social. Brak danych = `DEFAULT_ABOUT` (dotychczasowy tekst). Panel: kliknięcie „O nas” na liście sekcji → `components/admin/marketing/HomeAboutEditor.tsx`; zdjęcie idzie przez `POST /api/admin/images` z `target: 'home'` (tylko asset, zapis w układzie po „Zapisz”). Projekcja dokumentu: `HOME_LAYOUT_PROJECTION`.
+- **Media społecznościowe**: `shopSettings.socialFacebook|socialInstagram|socialTiktok`, karta „Media społecznościowe” w Marketing → Strona główna (`saveSocialLinks`, zapis od razu). Walidacja domen i „@nazwa” → link: `normalizeSocialUrl` (`lib/shopSettings.ts`). Ikony: `components/SocialLinks.tsx` — stopka (przez `/api/shop-settings` → `useShopSettings`) i „O nas”; strona główna dokłada `sameAs` do JSON-LD `Organization`.
 - Panel: lista sekcji, edytor karuzeli, wybór produktów z wyszukiwarką, **podgląd na żywo** liczony tą samą funkcją co sklep (świeże dane, bez cache), ostrzeżenia (`sectionProblems`), zapis → `revalidatePath('/')`. `components/admin/marketing/HomeLayoutEditor.tsx`, `lib/admin/homeLayout.ts`, `actions/adminHome.ts`.
 
 ## Kategorie główne, menu i filtry listingów
@@ -452,7 +463,8 @@ Sklep sam rejestruje historię cen i z niej wylicza „najniższą cenę z 30 dn
 
 ## Opisy: produkt i kategorie (SEO)
 
-- **Produkt**: `shortDescription` = krótki opis przy cenie (zakładka „Opis”, otwarta od razu); `description` (Portable Text) = pełny opis w sekcji `#opis` pod galerią, przed opiniami. W panelu oba pola (pełny opis — `components/admin/kit/RichTextEditor.tsx`, ten sam format co Studio; zapis `sanitizeRichText` z `lib/richText.ts`, tylko bloki tekstu i zdjęcia).
+- **Produkt**: `shortDescription` = krótki opis przy cenie (zakładka „Opis”, otwarta od razu); `description` (Portable Text) = pełny opis w sekcji `#opis` pod galerią, przed opiniami.
+- **Zakładki „Informacje o produkcie”** (`product.infoSections[] = { _key, title, body }`, `lib/productInfo.ts`): dowolny tytuł i treść dla KAŻDEGO produktu (np. „Skład”, „Dodatkowe informacje”), pod „Opis” w `ProductDetailsList`. Zastąpiły sztywną zakładkę „Materiał”. Stare pola `material`/`care` sklep pokazuje tylko produktom bez zapisanych zakładek (jako „Skład” / „Dodatkowe informacje”); pierwszy zapis zakładek w panelu (`ProductInfoSectionsEditor` w oknie produktu) przenosi je do zakładek i czyści stare pola. Pusta lista = zapis („wszystko usunięte”), nie powrót do starych pól. CSV: kolumny `info_<Tytuł>` (np. `info_Skład`) — gdy plik je ma, ustawiają zakładki w całości. „Szczegóły produktu” pokazują tylko wypełnione pola (SKU, wymiary, waga). W panelu oba pola (pełny opis — `components/admin/kit/RichTextEditor.tsx`, ten sam format co Studio; zapis `sanitizeRichText` z `lib/richText.ts`, tylko bloki tekstu i zdjęcia).
 - **Kategoria i subkategoria**: `description` (nagłówek na górze listingu), `seoContent` (długi tekst na DOLE strony, `components/ListingSeoContent.tsx`), `metaTitle`/`metaDescription`. Pola schematu: `sanity/schemaTypes/seoContent.ts`. Panel: Kategorie → „Opis i SEO” (`TaxonomySeoModal`, akcja `adminUpdateTaxonomySeo`).
 - `RichTextEditor` renderuje się dopiero po zamontowaniu (PTE przy SSR nadaje losowe klucze → błąd hydracji).
 
@@ -488,15 +500,32 @@ Model jak w dużych sklepach (Allegro, empik, Zalando): zamówienie złożone z 
 2. `/newsletter/potwierdz?token=` → przycisk „Potwierdzam zapis” (akcja, nie samo wejście w link — skanery poczty) → `confirmed_at`, aktywny, mail powitalny z kodem (`newsletter_welcome`, `{{unsubscribeUrl}}`). Link ważny 7 dni, jednorazowy.
 3. `/newsletter/wypisz?token=` (`unsub_token`) — wypisanie bez logowania.
 - Migracja **`drizzle/0003_newsletter_double_optin.sql`** (ręcznie na bazie, przed wdrożeniem kodu): kolumny `confirm_token`, `confirm_sent_at`, `confirmed_at`; dotychczasowi aktywni = potwierdzeni.
-- Panel Marketing: oba szablony, statystyki (aktywni / czekają / wypisani), eksport CSV aktywnych (do Brevo/MailerLite — panel nie wysyła kampanii). Ręcznie da się przywrócić tylko adres, który kiedyś potwierdził zapis.
+- Panel Marketing: oba szablony, statystyki (aktywni / czekają / wypisani), eksport CSV aktywnych. Ręcznie da się przywrócić tylko adres, który kiedyś potwierdził zapis.
+
+## Kampanie newslettera (`/admin/campaigns`, Marketing → Kampanie)
+
+Maile do aktywnych subskrybentów z potwierdzonym zapisem. Migracja **`drizzle/0005_newsletter_campaigns.sql` — ręcznie na bazie** (tabele `newsletter_campaigns`, `newsletter_campaign_recipients`).
+
+- **Treść** (`lib/campaigns/content.ts`, czyste — panel i serwer): JSON `CampaignContent` = napis obok logo (`eyebrow` → `meta` nagłówka), nagłówek, zdjęcie główne (asset Sanity, upload przez `/api/admin/images` z `target: 'campaign'`), tekst (Portable Text z `RichTextEditor`, sanityzowany `sanitizeRichText`), przycisk, kod rabatowy, do 6 produktów. `renderCampaignEmail` składa mail z klocków `lib/emailLayout.ts` (+ `emailImage`, `emailProducts`) i wersję tekstową. Linki przez `campaignHref` (`normalizeHref`; linki do sklepu dostają `utm_source=newsletter&utm_medium=email&utm_campaign=<slug nazwy>`). Ceny produktów = cena z kafelka (`listingPrice`), BEZ przekreśleń (obniżka w mailu wymagałaby informacji Omnibus). Zdjęcia do maili jako JPG (`emailImageUrl` — Outlook nie pokazuje WebP).
+- **Panel**: lista (`CampaignsView`) i edytor (`CampaignEditor`) — podgląd liczony przez serwer tą samą funkcją co wysyłka (`previewCampaign`, iframe `srcDoc` z `sandbox`), komputer/telefon, mail testowy z dopiskiem `[TEST]`, „Wyślij…” (teraz albo zaplanuj; szacowany czas wg limitów). Po starcie edycja jest zablokowana — widok postępu z pauzą, wznowieniem, zatrzymaniem i listą błędów. `ProductListPicker` jest wspólny ze stroną główną.
+- **Wysyłka** (`lib/campaigns/campaigns.server.ts`): start robi MIGAWKĘ odbiorców (`INSERT IGNORE … SELECT` aktywnych z `confirmed_at`) i uzupełnia brakujące `unsub_token`. `processCampaigns` uruchamia zaplanowane i wysyła partie w limitach `NEWSLETTER_RATE_PER_MINUTE` (domyślnie 20) i `NEWSLETTER_DAILY_LIMIT` (domyślnie 400 / 24 h, wszystkie kampanie — limity zwykłej skrzynki SMTP/Gmaila). Wołają ją: `after()` po starcie/wznowieniu (do 4 min), otwarty panel kampanii (co 3 s krótka partia) i cron `GET /api/cron/newsletter-campaigns` (`Bearer $CRON_SECRET`, co 5–10 min — bez niego kampania idzie tylko przy otwartym panelu). Blokada Redis `newsletter:campaigns:lock:v1` + warunkowe „zajęcie” odbiorcy (`attempts`) = żaden mail nie wychodzi dwa razy.
+- **Błędy SMTP**: 550/551/552/553 → `failed` od razu; 4xx i zerwane połączenie → ponowienie później (maks. 3 próby); `EAUTH` → kampania `paused` z komunikatem. Wypisany w trakcie (`unsubscribeNewsletter` → `skipPendingForSubscriber`) dostaje `skipped`.
+- **Wypisanie**: stopka z linkiem `/newsletter/wypisz?token=` + nagłówki `List-Unsubscribe` i `List-Unsubscribe-Post: List-Unsubscribe=One-Click` → `POST /api/newsletter/unsubscribe?token=` (RFC 8058; publiczne w middleware). GET tej trasy przekierowuje na stronę z przyciskiem.
+- **Daty**: kolumny `datetime` zapisuje drizzle w UTC. W surowym `sql\`…\`` porównuj przez `utc(date)`, nigdy `NOW()` bazy ani gołe `Date` (mysql2 poda czas lokalny serwera) — inaczej limity rozjeżdżają się o 1–2 h.
+- **Testy** (przy wdrożeniu, MariaDB 10.11 + Redis): walidacja, podgląd (escapowanie, UTM, odrzucony `javascript:`), migawka i tokeny, limit minutowy i dobowy, równoległe wywołania (blokada), wypisanie w trakcie (także One-Click), 550 / 421 z ponowieniami / EAUTH → pauza, zatrzymanie, planowanie, usuwanie; zrzuty maila (komputer/telefon) i panelu.
 
 ## Wygląd maili
 
-Wszystkie maile (newsletter: „Potwierdź zapis”, powitalny; zamówienia: potwierdzenie, przypomnienie o płatności, ostatnia szansa, anulowanie) składa `src/lib/emailLayout.ts`: logo na górze, biała karta na jasnym tle, stopka z linkami Sklep · Poradniki · Pomoc. Klocki: `emailEyebrow`, `emailHeading`, `emailParagraph`, `emailButton`, `emailNote` (mięta / bursztyn / szary), `emailCode`, `emailItems`, `emailTotals`, `emailDetails`, `emailDivider`; całość — `emailDocument`. Nowy mail buduj z tych klocków, nie pisz własnego HTML-a.
+Wszystkie maile (zamówienia: potwierdzenie, przypomnienie o płatności, ostatnia szansa, anulowanie; odstąpienie od umowy: klient i sklep; newsletter: „Potwierdź zapis”, powitalny; kampanie) składa `src/lib/emailLayout.ts`. Styl „profil” — ten sam język co `/profile` w sklepie: płasko i biało (bez karty na szarym tle), treść do 560 px; nagłówek = logo z lewej + kontekst z prawej (`meta`: „Zamówienie #…”, „Newsletter”, napis z kampanii) + czarna linia 1 px; tytuł Poppins 500; szare panele `#EDEDED`; czarne przyciski-pigułki (szare = drugorzędne). Kolor tylko z sensem: mięta = rabat, bursztyn = termin mija. **Bez nadtytułów wersalikami, kolorowych pasków przy komunikatach i emoji** — `emailEyebrow` usunięty celowo.
 
-- **Logo to PNG** `public/email/hau-logo.png` (240 px, wyświetlane w 72 × 60, kolor logo `#4ECCB5`) — Gmail i Outlook NIE pokazują SVG. Plik powstał z dużej wersji logo (`logo_hau_white.svg` ma w środku PNG 2084 px; `logo_hau.svg` tylko 107 px — za mały). Obrazek ładuje się z adresu sklepu (`absoluteUrl`), więc na lokalnym `localhost` klient poczty go nie zobaczy.
-- **HTML mailowy**: tabele + style inline, `bgcolor` dla Outlooka, `<style>` w `<head>` tylko jako dodatek (telefon: mniejsze marginesy, kolumny „Dostawa/Płatność” jedna pod drugą). Teksty od klienta escapuje wołający (`escapeHtml`).
-- **Szablony newslettera** (`DEFAULT_NEWSLETTER_*` w `lib/emailTemplates.ts`) też powstają z `emailDocument`, z placeholderami `{{shopUrl}}`, `{{logoUrl}}`, `{{email}}`, `{{confirmUrl}}`, `{{unsubscribeUrl}}`; podgląd w panelu podmienia `{{logoUrl}}`. Szablon zapisany w bazie ma pierwszeństwo — ALE zapis identyczny z jedną z WCZEŚNIEJSZYCH wersji domyślnych (odciski sha256 w `LEGACY_DEFAULT_HTML`) jest traktowany jak brak zapisu, więc nowy wygląd wchodzi sam. Zmieniając domyślny szablon, dopisz odcisk poprzedniego.
+- **Klocki**: `emailHeading`, `emailParagraph`, `emailSmall`, `emailStatus` („Stan zamówienia: …”, etykiety `ORDER_STATUS_LABEL` z `lib/orderStatus.ts` — te same co w profilu), `emailSectionTitle`, `emailNote(html, { title, tone })`, `emailButton(href, label, { secondary })`, `emailCode(kod, opis)`, `emailDetails`, `emailItems` (panel pozycji jak na stronie zamówienia, z miniaturami), `emailTotals` (ostatni wiersz pod czarną linią), `emailImage`, `emailProducts`, `emailDivider`, `emailStrong`, `emailLink`; całość — `emailDocument({ meta, footer, legal, … })` (`legal` = dane sprzedawcy i prawo odstąpienia, najmniejszy tekst na dole). Nowy mail buduj z tych klocków, nie pisz własnego HTML-a.
+- **Miniatury produktów** w mailach o zamówieniu: `order_items.image_url` (adres przysłany przez kasę) przechodzi przez `emailThumbUrl` — przepuszcza WYŁĄCZNIE `https://cdn.sanity.io/images/…` i buduje parametry od nowa (kwadrat 136 px, JPG, białe tło). Inny adres = szary kwadrat zamiast zdjęcia.
+- **Poppins** ładuje się z Google Fonts tam, gdzie klient poczty pozwala (Apple Mail, iOS); Gmail/Outlook pokażą Helveticę/Arial — układ ten sam.
+- **Logo to PNG** `public/email/hau-logo.png` (240 px, wyświetlane w 48 × 40, kolor logo `#4ECCB5`) — Gmail i Outlook NIE pokazują SVG. Plik powstał z dużej wersji logo (`logo_hau_white.svg` ma w środku PNG 2084 px). Obrazek ładuje się z adresu sklepu (`absoluteUrl`), więc na lokalnym `localhost` klient poczty go nie zobaczy.
+- **HTML mailowy**: tabele + style inline, `bgcolor` dla Outlooka, `<style>` w `<head>` tylko jako dodatek (telefon: `hau-col` = kolumny jedna pod drugą, `hau-col-last`, `hau-fluid`, mniejsze miniatury). Teksty od klienta escapuje wołający (`escapeHtml`).
+- **Szablony newslettera** (`DEFAULT_NEWSLETTER_*` w `lib/emailTemplates.ts`) też powstają z `emailDocument`, z placeholderami `{{shopUrl}}`, `{{logoUrl}}`, `{{email}}`, `{{confirmUrl}}`, `{{unsubscribeUrl}}`; podgląd w panelu podmienia `{{logoUrl}}`. Szablon zapisany w bazie ma pierwszeństwo — ALE zapis identyczny z jedną z WCZEŚNIEJSZYCH wersji domyślnych (odciski sha256 w `LEGACY_DEFAULT_HTML`) jest traktowany jak brak zapisu, więc nowy wygląd wchodzi sam. Zmieniając domyślny szablon, dopisz odcisk poprzedniego (i stary temat do `LEGACY_DEFAULT_SUBJECTS`, jeśli się zmienia). Szablon zmieniony ręcznie w panelu zostaje w starym wyglądzie — „Domyślny” w edytorze wczytuje nowy.
+- **Kampanie**: kolejność klocków: zdjęcie, nagłówek, tekst, kod, przycisk, produkty; pole „Napis obok logo” (`content.eyebrow`) trafia do `meta` w nagłówku (pusty = „Newsletter”).
+- **Testy** (przy wdrożeniu): wszystkie 13 wariantów wysłane prawdziwym kodem (MariaDB + Redis, przechwycone lokalnym SMTP), zrzuty 640/390 px; escapowanie nazw (`<Knot>`), odrzucona obca miniatura, oba warianty dopasowania odstąpienia.
 
 ## Wyszukiwarka
 
@@ -505,7 +534,7 @@ Wszystkie maile (newsletter: „Potwierdź zapis”, powitalny; zamówienia: pot
 
 ## Rozmiary psa
 
-Rozmiary to wartości filtra w Sanity. `scripts/migrate-dog-sizes.mjs` (sucha próba; `--apply` zapisuje) zmienia etykietę filtra na „Rozmiar psa”, przemianowuje S/M/L (XS) na Mały/Średni/Duży (Mikro) z zachowaniem `_id` (warianty i zdjęcia działają dalej), dodaje brakujące wartości i poprawia etykiety wariantów. Import CSV rozumie stare oznaczenia (`SIZE_ALIASES` w `productImport.ts`). Przy wyborze rozmiaru na karcie produktu jest link „Jak dobrać rozmiar?” → `/help/jak-dobrac-rozmiar` (dokument w `HELP_DOCUMENTS`; treść do dodania w Studio).
+Rozmiary to wartości filtra w Sanity. `scripts/migrate-dog-sizes.mjs` (sucha próba; `--apply` zapisuje) zmienia etykietę filtra na „Rozmiar psa”, przemianowuje S/M/L (XS) na Mały/Średni/Duży (Mikro) z zachowaniem `_id` (warianty i zdjęcia działają dalej), dodaje brakujące wartości i poprawia etykiety wariantów. Import CSV rozumie stare oznaczenia (`SIZE_ALIASES` w `productImport.ts`). Rozmiarów może być dowolnie wiele — wzór CSV w kreatorze ma `filter_size` = `mikro;maly;sredni;duzy`; brakująca wartość filtra powstaje sama. Przy wyborze rozmiaru na karcie produktu jest link „Jak dobrać rozmiar?” → `/help/jak-dobrac-rozmiar` (dokument w `HELP_DOCUMENTS`; treść do dodania w Studio).
 
 ## Sortowanie listingów
 
@@ -550,7 +579,7 @@ Adres sklepu (`https://ehau.pl`) i wspólne teksty trzyma `src/lib/site.ts` (`SI
 
 `src/lib/securityHeaders.ts` (wpięte w `next.config.ts`) wysyła przy każdej odpowiedzi: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`, HSTS (tylko produkcja) i CSP.
 
-**CSP domyślnie idzie jako `Content-Security-Policy-Report-Only`** — przeglądarka tylko zgłasza naruszenia, nic nie blokuje. Po przeklikaniu kasy, mapy paczkomatów, logowania i Studio z czystą konsolą ustaw `CSP_MODE=enforce`. Lista dozwolonych źródeł odpowiada temu, co sklep faktycznie ładuje (Clerk, Sanity, Google, Autopay/P24, Furgonetka, YouTube/Vimeo) — dokładając integrację, dopisz jej hosty, inaczej po włączeniu `enforce` przestanie działać.
+**CSP domyślnie idzie jako `Content-Security-Policy-Report-Only`** — przeglądarka tylko zgłasza naruszenia, nic nie blokuje. Po przeklikaniu kasy, mapy paczkomatów, logowania i Studio z czystą konsolą ustaw `CSP_MODE=enforce`. Lista dozwolonych źródeł odpowiada temu, co sklep faktycznie ładuje (Clerk — także jego produkcyjna subdomena odczytana z klucza `pk_live_…` i Cloudflare Turnstile, Sanity, Google, Autopay/P24, Furgonetka, YouTube/Vimeo) — dokładając integrację, dopisz jej hosty, inaczej po włączeniu `enforce` przestanie działać.
 
 ### Lint przy budowaniu
 
@@ -561,6 +590,20 @@ Adres sklepu (`https://ehau.pl`) i wspólne teksty trzyma `src/lib/site.ts` (`SI
 - `/admin/settings` pokazuje brakujące zmienne z `.env` (krytyczne vs opcjonalne) oraz gotowe adresy do wklejenia u operatorów — w tym webhook cen Sanity i zadanie cykliczne rejestru cen. Adresy MUSZĄ być pełne (`https://…`); sam `/api/…` Sanity odrzuci.
 - Środowisko Furgonetki (mapa paczkomatów `components/FurgonetkaMap.tsx` i API `lib/furgonetka.ts`) wybiera jedna zmienna `NEXT_PUBLIC_FURGONETKA_ENV` = `sandbox` | `production` (`lib/furgonetkaEnv.ts`; bez niej: build produkcyjny → produkcja, dev → piaskownica). Wkompilowywana przy budowaniu — w workflow stagingu z `vars.FURGONETKA_ENV`, domyślnie `sandbox`. **Klucz mapy, dane OAuth i token muszą pochodzić z konta w TYM SAMYM środowisku** — klucz z piaskownicy na `api.furgonetka.pl` daje 403 na `/points/map`. Na produkcji sklepu ustaw `production` i produkcyjne klucze, inaczej klienci zobaczą testowe paczkomaty.
 - Po pierwszym wdrożeniu: `/robots.txt` i `/sitemap.xml` odpowiadają 200, w Search Console dodaj mapę strony, a w konsoli przeglądarki sprawdź zgłoszenia CSP przed przełączeniem na `enforce`.
+
+## Wymogi prawne sklepu (PL/UE) — gdzie co jest
+
+- **Dane sprzedawcy**: `SELLER` w `src/lib/site.ts` ze zmiennych `NEXT_PUBLIC_SELLER_NAME|ADDRESS|NIP|REGISTRY|EMAIL|PHONE` (wkompilowywane — w GitHub Actions jako `vars.SELLER_*`, plus `.env` serwera). Stopka (`<address>`), mail z potwierdzeniem zamówienia, JSON-LD `Organization`. Brak danych = blok ukryty, `env.ts` zgłasza „BŁĄD”.
+- **Zwroty**: `RETURN_WINDOW_DAYS` w `site.ts` (14 = ustawowe minimum) — jedna liczba dla opisu sklepu, kasy, karty produktu, paska zalet, maili i `hasMerchantReturnPolicy`. Koszt odesłania ponosi kupujący (`RETURN_SHIPPING_PAID_BY_CUSTOMER`, tekst `RETURN_COST_NOTE`: kasa, mail z potwierdzeniem, formularz i mail odstąpienia, `returnFees` w JSON-LD) — konsument musi to wiedzieć przed zakupem (art. 12 ust. 1 pkt 10 u.p.k.). Oba muszą zgadzać się z regulaminem. **Zwrot nie przywraca stanu magazynu** (sklep w ogóle nie zdejmuje stanu po sprzedaży) — stan ustawia się ręcznie w Katalogu.
+- **Kasa**: pod przyciskiem „Zamawiam i płacę” linki do regulaminu, polityki prywatności i zwrotów (nowa karta) + informacja o prawie odstąpienia.
+- **Funkcja odstąpienia od umowy** (dyrektywa (UE) 2023/2673, od 19.06.2026): `/help/odstapienie-od-umowy` — dwa kroki (dane → „Potwierdzam odstąpienie od umowy”), `submitWithdrawal` (`actions/withdrawals.ts`) zapisuje oświadczenie w `order_withdrawals` (migracja **`drizzle/0004_order_withdrawals.sql` — ręcznie na bazie**), wysyła klientowi potwierdzenie z treścią i datą (trwały nośnik), a sklepowi powiadomienie (`SELLER.email`, zapasowo `SMTP_FROM`). Oświadczenie przyjmujemy też bez dopasowania zamówienia. Linki: stopka, strona zamówienia (opłaconego), mail z potwierdzeniem (z wypełnionym numerem i e-mailem). Panel: karta „Odstąpienie od umowy” w szczegółach zamówienia. Limit 10 prób/h na IP.
+- **GPSR** (rozporządzenie (UE) 2023/988): pole produktu `safety` (producent: nazwa, adres, kontakt; osoba odpowiedzialna w UE; ostrzeżenia) → sekcja „Bezpieczeństwo produktu” (`components/product/ProductSafetyInfo.tsx`) i `manufacturer` w JSON-LD. Edycja w Studio.
+- **Opinie**: pod podsumowaniem informacja, jak weryfikujemy opinie (art. 7 pkt 6 u.p.n.p.r.).
+- **Statusy „opłacone”**: `lib/orderStatus.ts` (`isPaidOrderStatus`, `isPaymentSettled`) — webhooki płatności nie zmieniają statusu zamówienia wysłanego/doręczonego/zwróconego (ponowiony ITN cofał je na „opłacone”).
+
+## SEO — zasady nagłówków
+
+Na stronie jest dokładnie JEDEN `<h1>`: produkt = nazwa, kategoria/subkategoria = nazwa (w okruszku), kolekcja = tytuł (bez zdjęcia: `sr-only`), strona główna = `sr-only` z `SITE_TITLE`. Komponenty współdzielone (navbar, stopka, kafelki, karuzele, filtry) NIE używają `<h1>` — sekcje `<h2>`, nazwy produktów w kafelkach `<h3>`, etykiety `<p>`. Galeria produktu: `alt` ze zdjęcia albo „<nazwa> — zdjęcie N”. Strony prywatne mają własne tytuły kart (layouty `cart`, `sign-in`… dla stron klienckich).
 
 ## Wdrożenie (GitHub Actions → FTP)
 

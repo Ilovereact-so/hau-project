@@ -1,5 +1,6 @@
 'use client'
-import { Bone, CreditCard, PawPrint, Truck } from 'lucide-react'
+import { Bone, CreditCard, PawPrint, RotateCcw, Truck } from 'lucide-react'
+import { RETURN_WINDOW_DAYS } from '@/lib/site'
 import React from 'react'
 import {motion} from "framer-motion"
 import { ProductCarousel } from '@/hooks/ProductCarousel'
@@ -10,10 +11,15 @@ const ValueBar = () => {
         icon : React.ComponentType<{ className?: string }>
     }
     const Items:Elements[] = [
+        // {
+        //     title: `${RETURN_WINDOW_DAYS} dni <br/> na zwrot`,
+        //     icon: RotateCcw
+        // },
         {
-            title: "Ekspresowa <br/> dostawa 24h",
+            title: "Ekspresowa <br/> wysyłka 24h",
             icon: Truck
         },
+        
         {
             title: "Bezpieczne i trwałe <br/> produkty",
             icon: Bone
@@ -32,7 +38,7 @@ const ValueBar = () => {
         <ProductCarousel duration={12}>
         {
             Items.map((item,index)=>(
-                <div key={index} className='flex justify-center 1md:space-x-6 space-x-3 lg:min-w-[150px] min-w-[200px]'>
+                <div key={index} className='flex justify-center 1md:space-x-6 space-x-3 lg:min-w-[200px] min-w-[200px]'>
                     <div className='p-3 rounded-full bg-[#94cdc3]'>
                         <item.icon className='text-black lg:w-[30px] w-[22px] lg:h-[30px] h-[22px]'/>
                     </div>

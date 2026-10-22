@@ -53,7 +53,11 @@ export default function CheckoutClient({ services, savedAddress, userSlot, isGue
   const [isPending, startTransition] = useTransition()
 
   const [address, setAddress]             = useState<CheckoutAddress | null>(null)
-  const [deliveryType, setDeliveryType]   = useState<'kurier' | 'automat'>('kurier')
+  // Dostawa do punktu jest pierwsza i domyślna (większość klientów wybiera
+  // paczkomat / punkt) — kurier tylko, gdy żadna metoda „do punktu” nie jest aktywna.
+  const [deliveryType, setDeliveryType]   = useState<'kurier' | 'automat'>(
+    () => (services.some(s => s.active === true && s.type === 'automat') ? 'automat' : 'kurier'),
+  )
   const [serviceCode, setServiceCode]     = useState('')
   const [pickupPoint, setPickupPoint]     = useState<CheckoutPickupPoint | undefined>()
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('autopay')
@@ -212,8 +216,8 @@ export default function CheckoutClient({ services, savedAddress, userSlot, isGue
               <h2 className="text-[clamp(16px,1.5vw,20px)] font-medium text-black my-4">Dostawa</h2>
               {/* delivery type tabs */}
               <div className="flex my-2">
-                <DeliveryTypeCard icon={Truck}  label="Dostawa kurierem"  selected={deliveryType === 'kurier'}  onClick={() => handleDeliveryClick('kurier')} />
-                <DeliveryTypeCard icon={MapPin} label="Dostawa do punktu" selected={deliveryType === 'automat'} onClick={() => handleDeliveryClick('automat')} />
+                <DeliveryTypeCard side="left"  icon={MapPin} label="Dostawa do punktu" selected={deliveryType === 'automat'} onClick={() => handleDeliveryClick('automat')} />
+                <DeliveryTypeCard side="right" icon={Truck}  label="Dostawa kurierem"  selected={deliveryType === 'kurier'}  onClick={() => handleDeliveryClick('kurier')} />
               </div>
             </>
             )}

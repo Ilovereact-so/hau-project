@@ -6,7 +6,7 @@
 
 const TIMEOUT_MS = 150_000
 
-export type AdminImageTarget = 'product' | 'collection' | 'subcategory'
+export type AdminImageTarget = 'product' | 'collection' | 'subcategory' | 'home' | 'campaign'
 
 export async function uploadAdminImage<T>(input: {
   target: AdminImageTarget

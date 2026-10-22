@@ -7,6 +7,8 @@ import ProfileMenu from '@/components/ProfileMenu'
 import PriceFormatter from '@/components/PriceFormatter'
 import type { getOrderDetail } from '@/actions/orders'
 import PayOrderPanel from '@/components/orders/PayOrderPanel'
+import { WITHDRAWAL_PATH } from '@/lib/withdrawals'
+import { ORDER_STATUS_LABEL, isPaidOrderStatus } from '@/lib/orderStatus'
 
 type OrderDetail = NonNullable<Awaited<ReturnType<typeof getOrderDetail>>>
 
@@ -19,16 +21,7 @@ const PAYMENT_LABEL: Record<string, string> = {
 // Te same etykiety stanów co na liście zamówień (../Content.tsx) — w profilu
 // status pokazujemy tekstem ("Stan zamówienia: Opłacone"), bez kolorowych badge,
 // żeby szczegóły wyglądały jak rozwinęcie wiersza z listy.
-const STATUS_LABEL: Record<string, string> = {
-  pending: 'Oczekujące',
-  awaiting_payment: 'Oczekujące na płatność',
-  paid: 'Opłacone',
-  processing: 'W trakcie realizacji',
-  shipped: 'Wysłane',
-  delivered: 'Dostarczone',
-  cancelled: 'Anulowane',
-  refunded: 'Zwrócone',
-}
+const STATUS_LABEL = ORDER_STATUS_LABEL
 
 const SHIPMENT_STATUS_LABEL: Record<string, string> = {
   created: 'Przesyłka utworzona',
@@ -47,7 +40,7 @@ const SHIPMENT_STATUS_LABEL: Record<string, string> = {
  */
 function PaymentBanner({ payment, status }: { payment?: string | null; status: string }) {
   if (!payment) return null
-  const paid = status === 'paid' || status === 'processing' || status === 'shipped' || status === 'delivered'
+  const paid = isPaidOrderStatus(status)
   if (status === 'awaiting_payment' && (payment === 'unpaid' || payment === 'error' || payment === 'failed')) return null
   const text =
     payment === 'cod'
@@ -188,6 +181,16 @@ export default function Content({
           </p>
         </div>
 
+        {/* Funkcja odstąpienia od umowy (dyrektywa (UE) 2023/2673) — przy
+            opłaconym zamówieniu, z wypełnionym numerem i e-mailem. */}
+        {isPaidOrderStatus(order.status) && (
+          <Link
+            href={`${WITHDRAWAL_PATH}?${new URLSearchParams({ zamowienie: order.id.slice(0, 8).toUpperCase(), ...(address?.email ? { email: address.email } : {}) })}`}
+            className='mt-3 w-fit text-[14px] text-[#6C6C6C] underline underline-offset-2 hover:text-black'
+          >
+            Odstąp od umowy
+          </Link>
+        )}
 
         {/* Produkty — otwarte wiersze bez kart, separatory cienką czarną linią */}
         <div className='flex md:flex-row flex-col w-full'>

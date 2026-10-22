@@ -5,7 +5,8 @@ import { eq } from 'drizzle-orm'
 import { createHash } from 'node:crypto'
 import { absoluteUrl, SITE_URL } from '@/lib/site'
 import {
-  EMAIL_LOGO_PATH, emailButton, emailCode, emailDivider, emailDocument, emailEyebrow, emailHeading, emailParagraph,
+  EMAIL_LOGO_PATH, emailButton, emailCode, emailDivider, emailDocument, emailHeading, emailLink, emailParagraph, emailSmall,
+  emailStrong,
 } from '@/lib/emailLayout'
 
 export const NEWSLETTER_WELCOME_KEY = 'newsletter_welcome'
@@ -30,28 +31,28 @@ export interface EmailTemplate {
 const TEMPLATE_URLS = { shopUrl: '{{shopUrl}}', logoUrl: '{{logoUrl}}' }
 
 export const DEFAULT_NEWSLETTER_WELCOME: EmailTemplate = {
-  subject: 'Witaj w HAU — Twój kod -10% na pierwsze zamówienie 🐾',
+  subject: 'Witaj w HAU — Twój kod -10% na pierwsze zamówienie',
   html: emailDocument({
     ...TEMPLATE_URLS,
     title: 'Witaj w HAU',
     preheader: 'Dziękujemy za potwierdzenie zapisu. Na start: -10% na pierwsze zamówienie.',
+    meta: 'Newsletter',
     body: [
-      emailEyebrow('Witamy w HAU'),
       emailHeading('Miło nam, że jesteś z nami'),
       emailParagraph(
-        'Dziękujemy za potwierdzenie zapisu. Od teraz jako pierwszy dowiesz się o nowościach, promocjach i nowych poradnikach dla opiekunów psów — bez zasypywania skrzynki.',
+        'Dziękujemy za potwierdzenie zapisu. Od teraz pierwszy dowiesz się o nowościach, promocjach i poradnikach dla opiekunów psów — bez zasypywania skrzynki.',
         { margin: '0 0 28px' },
       ),
-      emailCode('NEWSLETTER10', 'Twój kod na pierwsze zamówienie', '-10% na wszystkie produkty'),
+      emailCode('NEWSLETTER10', '−10% na pierwsze<br>zamówienie'),
       emailParagraph(
-        'Wpisz kod w koszyku, w polu <strong style="color:#1b1b1b;font-weight:600;">„Masz kod promocyjny?”</strong>. Kod można wykorzystać raz.',
-        { size: 14, margin: '0 0 28px' },
+        `Wpisz kod w koszyku, w polu ${emailStrong('„Masz kod promocyjny?”')}. Kod można wykorzystać raz.`,
+        { size: 14, margin: '0 0 32px' },
       ),
       emailButton('{{shopUrl}}', 'Przejdź do sklepu'),
     ].join('\n'),
     footer:
-      'Otrzymujesz tę wiadomość, ponieważ adres {{email}} został zapisany do newslettera HAU i zapis został potwierdzony.<br>' +
-      '<a href="{{unsubscribeUrl}}" style="color:#8a8a8a;text-decoration:underline;">Wypisz się z newslettera</a>',
+      'Dostajesz tę wiadomość, bo adres {{email}} zapisał się do newslettera HAU i potwierdził zapis. ' +
+      emailLink('{{unsubscribeUrl}}', 'Wypisz się'),
   }),
 }
 
@@ -61,23 +62,19 @@ export const DEFAULT_NEWSLETTER_CONFIRM: EmailTemplate = {
     ...TEMPLATE_URLS,
     title: 'Potwierdź zapis do newslettera',
     preheader: 'Jedno kliknięcie i gotowe — po potwierdzeniu wyślemy Ci kod -10%.',
+    meta: 'Newsletter',
     body: [
-      emailEyebrow('Newsletter'),
       emailHeading('Potwierdź swój zapis'),
       emailParagraph(
-        'Dziękujemy za zainteresowanie newsletterem HAU. Kliknij przycisk poniżej, aby potwierdzić, że adres <strong style="color:#1b1b1b;font-weight:600;">{{email}}</strong> należy do Ciebie.',
-        { margin: '0 0 28px' },
+        `Kliknij przycisk poniżej, aby potwierdzić, że adres ${emailStrong('{{email}}')} należy do Ciebie. Zaraz potem wyślemy Ci kod -10% na pierwsze zamówienie.`,
+        { margin: '0 0 32px' },
       ),
       emailButton('{{confirmUrl}}', 'Potwierdzam zapis'),
-      emailParagraph('Zaraz po potwierdzeniu wyślemy Ci kod -10% na pierwsze zamówienie.', { size: 14, muted: true, margin: '20px 0 0' }),
-      emailDivider(),
-      emailParagraph(
-        'Jeśli to nie Ty zapisałeś ten adres, po prostu zignoruj tę wiadomość — bez potwierdzenia nie wyślemy Ci niczego.',
-        { size: 13, muted: true, margin: '0 0 12px' },
-      ),
-      emailParagraph(
-        'Przycisk nie działa? Skopiuj ten adres do przeglądarki:<br><a href="{{confirmUrl}}" style="color:#1f7f6e;word-break:break-all;">{{confirmUrl}}</a>',
-        { size: 13, muted: true, margin: '0' },
+      emailDivider('36px 0 24px'),
+      emailSmall('Jeśli to nie Ty zapisałeś ten adres, zignoruj tę wiadomość — bez potwierdzenia nie wyślemy Ci niczego.', '0 0 10px'),
+      emailSmall(
+        'Przycisk nie działa? Skopiuj adres do przeglądarki:<br><a href="{{confirmUrl}}" style="color:#20201f;word-break:break-all;">{{confirmUrl}}</a>',
+        '0',
       ),
     ].join('\n'),
   }),
@@ -90,6 +87,8 @@ export const DEFAULT_NEWSLETTER_CONFIRM: EmailTemplate = {
  * Szablony zmienione ręcznie zostają nietknięte.
  */
 const LEGACY_DEFAULT_HTML = new Set([
+  '4c20afb2c42ba0e29caa24cae7cc4d40', // powitalny (wygląd „karta”, 2026-10-21)
+  '720eb18fba8e02836e5beb1e047313f4', // „Potwierdź zapis” (wygląd „karta”, 2026-10-21)
   '02bf905a2b7d3c929aa8b67ad3df678e', // powitalny (double opt-in, 2026-10)
   '8172c02789ee292b6ddfe994ed97c33d', // powitalny (przed double opt-in)
   '78b01a909aa89ba1c9d3701f3f35d0e1', // powitalny (pierwsza wersja)
@@ -97,6 +96,7 @@ const LEGACY_DEFAULT_HTML = new Set([
 ])
 
 const LEGACY_DEFAULT_SUBJECTS = new Set([
+  'Witaj w HAU — Twój kod -10% na pierwsze zamówienie 🐾',
   'Witaj w społeczności e-hau.pl — Twój kod -10% 🐾',
   'Potwierdź zapis do newslettera e-hau.pl 🐾',
 ])

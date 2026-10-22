@@ -11,9 +11,11 @@ import Field from './Field'
 // ─── delivery type tab ────────────────────────────────────────────────────────
 
 export function DeliveryTypeCard({
-  icon: Icon, label, selected, onClick,
+  icon: Icon, label, selected, onClick, side,
 }: {
   icon: React.ElementType; label: string; selected: boolean; onClick: () => void
+  /** Pozycja w parze przełączników — lewy zaokrąglany z lewej, prawy nachodzi na lewy. */
+  side: 'left' | 'right'
 }) {
   return (
     <button
@@ -21,8 +23,8 @@ export function DeliveryTypeCard({
       onClick={onClick}
       className={`
         flex items-center cursor-pointer relative h-[55px] ease-in-out duration-500  ${
-        selected ? 'bg-main px-7 w-[242px] rounded-full justify-between' : 'border-main border-3 w-[100px] justify-center'} ${
-        label == "Dostawa kurierem" ? selected == false ? "rounded-l-full":"" : selected == false ? "rounded-r-full right-5":"right-5" }
+        selected ? 'bg-main px-7 w-[242px] rounded-full justify-between border-main border-3' : 'border-main border-3 w-[100px] justify-center'} ${
+        side === 'left' ? selected == false ? "rounded-l-full":"" : selected == false ? "rounded-r-full right-5":"right-5" }
       `}
     >
       <div className="">
@@ -150,7 +152,7 @@ export default function Step1Address({ savedAddress, onContinue, deliveryType }:
           className={`w-fit rounded-full font-bold bg-fancy-black text-white text-[clamp(14px,1.4vw,15px)] lg:py-6 py-5.5 px-6 hover:bg-fancy-black/90 transition-colors ${
             deliveryType === 'kurier' && additionalField ? "relative left-[calc(100%-200px)]" : deliveryType === 'kurier' ? "absolute bottom-5 right-6" : "lg:absolute lg:bottom-5 lg:right-6 max-lg:relative max-lg:left-[calc(100%-200px)]"
           }`}>
-          Zapisz i kontynuj
+          Zapisz i kontynuuj
           <ChevronRight strokeWidth={3} size={18} className="ml-2" />
         </Button>
       </div>

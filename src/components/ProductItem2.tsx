@@ -30,7 +30,7 @@ const ProductItem2 = memo(function ProductItem2({ product }: { product: GetSlugP
       <div className='flex flex-col px-3 pb-4 max-sm:w-[230px] max-lg:w-[280px] max-2.5xl:w-[calc((100vw-156px)/3.6))] w-[calc((100vw-156px)/5))] 4xl:w-[calc((1900px-156px)/5))]'>
         <div className='text-black mt-3'>
             <p className='2xl:text-[16px] sm:text-[15px] text-[13px] text-[#6C6C6C]'>{product.brand}</p>
-            <h1 className='2xl:text-[18px] sm:text-[16px] text-[14px]  line-clamp-1 pr-1'>{product.title}</h1>
+            <h3 className='2xl:text-[18px] sm:text-[16px] text-[14px]  line-clamp-1 pr-1'>{product.title}</h3>
         </div>
         {/* <p className='mb-1 text-[#6C6C6C] sm:text-[14px] text-[12px] line-clamp-1'>{product.type?.title}</p> */}
         <ProductRatingBadge
@@ -52,7 +52,7 @@ const ProductItem2 = memo(function ProductItem2({ product }: { product: GetSlugP
             referenceClassName='2xl:text-[15px] sm:text-[14px] text-[12px]'
             suffix={<span className="text-[#6C6C6C] text-[12px]"> w tym VAT</span>}
           />
-          <ProductBadges state={priceState} isFeatured={product.isFeatured} isBestseller={product.isBestseller} />
+          <ProductBadges state={priceState} isFeatured={product.isFeatured} isBestseller={product.isBestseller} isNew={product.isNew} />
         </div>
         <AddToCartButton
                 product={product}
@@ -71,4 +71,4 @@ const ProductItem2 = memo(function ProductItem2({ product }: { product: GetSlugP
   )
 })
 
-export default ProductItem2
+export default ProductItem2

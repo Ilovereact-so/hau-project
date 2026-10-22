@@ -15,6 +15,7 @@ import {
   renderTemplate,
 } from '@/lib/emailTemplates'
 import { eq, sql } from 'drizzle-orm'
+import { skipPendingForSubscriber } from '@/lib/campaigns/campaigns.server'
 
 /*
  * Newsletter z potwierdzeniem zapisu (double opt-in):
@@ -220,5 +221,7 @@ export async function unsubscribeNewsletter(token: string): Promise<UnsubscribeR
     .limit(1)
   if (!subscriber) return { ok: false, error: 'Nie znaleźliśmy subskrypcji dla tego linku.' }
   await db.update(newsletterSubscribers).set({ isActive: false }).where(eq(newsletterSubscribers.id, subscriber.id))
+  // Trwająca kampania nie wyśle już maila do tej osoby.
+  await skipPendingForSubscriber(subscriber.id).catch((err) => console.error('[newsletter] skip pending', err))
   return { ok: true, email: subscriber.email }
 }

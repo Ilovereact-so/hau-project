@@ -91,12 +91,12 @@ const CollectionPage = async ({ params, searchParams }: Props) => {
                 <Image className="3xs:w-[clamp(300px,33vw,400px)] w-[250px] absolute bottom-[0] xl:left-[-200px] lg:left-[-15vw] 2md:left-[-12vw] left-[-8vw] z-[2] opacity-80" src='/white-holo.png' alt="white-holo" width={460} height={330}/>
                 <div className="w-full flex justify-between">
                     <div className="flex flex-col w-full z-[3] relative space-y-2 pr-4">
-                        <h1 className="text-white text-[clamp(16px,1.4vw,18px)] ml-1 max-md:hidden">Filtruj:</h1>                            
+                        <p className="text-white text-[clamp(16px,1.4vw,18px)] ml-1 max-md:hidden">Filtruj:</p>                            
                         <SubcategoryFilterContainer subcategoryDetails={subCategoryDetails} products={products} paramsFilter={filters} initialMobile={initialMobile}/> 
                     </div>
                     <div className="flex md:flex-col flex-row-reverse md:space-y-2 h-fit relative z-[3]">
                         <div className="flex items-center justify-between 3xs:px-4 px-2">
-                            <h1 className="text-white text-[clamp(16px,1.4vw,18px)] max-md:hidden">Sortuj:</h1>
+                            <p className="text-white text-[clamp(16px,1.4vw,18px)] max-md:hidden">Sortuj:</p>
                             <ArrowDown className="text-white w-[20px] h-[20px]"/>
                         </div>
                         <div className="xs:text-[clamp(15px,1.4vw,17px)] text-[14px] text-black bg-white 3xs:px-8 px-6 py-2 h-fit rounded-[20px] font-medium">Popularne</div>
@@ -104,6 +104,8 @@ const CollectionPage = async ({ params, searchParams }: Props) => {
                 </div>
             </div>
         </div> */}
+        {/* Bez zdjęcia nie ma baneru z tytułem — H1 i tak musi być na stronie. */}
+        {!hero && <h1 className="sr-only">{collection.title}</h1>}
         {hero && (
           <div className="flex relative w-full h-[400px] mt-3">            
             <Image

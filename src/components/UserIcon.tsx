@@ -94,9 +94,9 @@ const UserIcon = ({ avatarUrl, mode, card }: Props) => {
                             Moje konto <Lock className='w-3 h-3' aria-hidden />
                         </button>
                     ) : (
-                        <Link href="/profile/account"><h1 className=''>Moje konto</h1></Link>
+                        <Link href="/profile/account"><span className=''>Moje konto</span></Link>
                     )}
-                    <Link href="/profile/wishlist" ><h1 className=''>Polubione</h1></Link>
+                    <Link href="/profile/wishlist" ><span className=''>Polubione</span></Link>
                 </div>
                 {isGuest ? (
                     <button
@@ -122,4 +122,4 @@ const UserIcon = ({ avatarUrl, mode, card }: Props) => {
   )
 }
 
-export default UserIcon
+export default UserIcon

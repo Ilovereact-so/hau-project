@@ -7,10 +7,12 @@ import {
   generateSkuForVariant,
   mapCsvRowToProductPartial,
   parseCollectionNames,
+  parseDecimal,
   splitList,
 } from '@/sanity/helpers/productImportHelpers'
 import { buildCollectionRefs, ensureCollectionsByName } from '@/lib/admin/collections'
 import { normalizeToken, pruneVariantKeys } from '@/lib/variantImages'
+import { hasInfoColumns, infoSectionsFromCsvRow, infoSectionsToSanity } from '@/lib/productInfo'
 
 /** Dawne oznaczenia rozmiaru → slug rozmiaru psa (scripts/migrate-dog-sizes.mjs). */
 const SIZE_ALIASES: Record<string, string> = { xs: 'mikro', s: 'maly', m: 'sredni', l: 'duzy' }
@@ -47,6 +49,8 @@ type ExistingVariant = { _key: string; sku?: string; price?: number; stock?: num
 type ExistingProduct = {
   _id: string
   slug?: string
+  /** Pełny opis jako tekst — do sprawdzenia, czy CSV go naprawdę zmienia. */
+  descriptionText?: string | null
   price?: number
   collectionIds?: string[] | null
   variants?: ExistingVariant[] | null
@@ -164,6 +168,41 @@ function cartesian<T>(lists: T[][]): T[][] {
 
 const signature = (refs: Array<string | null | undefined>) => refs.filter(Boolean).slice().sort().join('|')
 
+/**
+ * Pola produktu → kolumny CSV, z których powstają. Przy AKTUALIZACJI zmieniamy
+ * tylko pola, których kolumny są w pliku — CSV z samą ceną nie czyści wymiarów,
+ * tagów ani flag (wcześniej brak kolumny `tags` zerował tagi, a brak `dimensions`
+ * nadpisywał wymiary pustym obiektem). Pusta komórka też niczego nie zmienia.
+ */
+const UPDATE_FIELD_COLUMNS: Record<string, string[]> = {
+  title: ['title'],
+  subtitle: ['subtitle'],
+  intro: ['intro'],
+  shortDescription: ['shortDescription'],
+  price: ['price'],
+  currency: ['currency'],
+  compareAtPrice: ['compareAtPrice'],
+  stock: ['stock'],
+  brand: ['brand'],
+  vendor: ['vendor'],
+  tags: ['tags'],
+  dimensions: ['properties_width_cm', 'properties_height_cm', 'properties_depth_cm', 'properties_units'],
+  weight_g: ['weight_g'],
+  material: ['material'],
+  care: ['care'],
+  isMachineWashable: ['isMachineWashable'],
+  isWaterproof: ['isWaterproof'],
+  isFeatured: ['isFeatured'],
+  isBestseller: ['isBestseller'],
+  isNew: ['isNew'],
+  chew_strength: ['chew_strength'],
+  metaTitle: ['metaTitle'],
+  metaDescription: ['metaDescription'],
+  indexedOptions: ['productOptions'],
+}
+
+const plainText = (value: unknown) => String(value ?? '').replace(/\s+/g, ' ').trim()
+
 export async function importProductRow(
   session: ImportSession,
   row: Record<string, string | undefined>,
@@ -185,6 +224,15 @@ export async function importProductRow(
   delete partial.visibility
 
   if (!partial.sku) throw new Error('Brak SKU — po nim import rozpoznaje produkt.')
+
+  // Zakładki „Informacje o produkcie” z kolumn `info_<Tytuł>` (np. info_Skład).
+  // Gdy plik je ma, ustawiają zakładki w całości i zastępują stare pola material/care.
+  const withInfo = hasInfoColumns(row)
+  if (withInfo) {
+    partial.infoSections = infoSectionsToSanity(infoSectionsFromCsvRow(row))
+    delete partial.material
+    delete partial.care
+  }
 
   // Kategoria i subkategoria.
   if (row.category_slug) {
@@ -246,6 +294,7 @@ export async function importProductRow(
   const versions = await raw.fetch<ExistingProduct[]>(
     `*[_type == "product" && sku == $sku && !(_id in path("versions.**"))]{
       _id, "slug": slug.current, price, "collectionIds": collections[]._ref,
+      "descriptionText": pt::text(description),
       variants[]{ _key, sku, price, stock, "sig": optionValues[].value._ref },
       images[]{ _key, variantKeys }
     }`,
@@ -257,7 +306,7 @@ export async function importProductRow(
   if (options.length) {
     const byTokens = new Map((existing?.variants ?? []).map((variant) => [signature(variant.sig ?? []), variant]))
     let kept = 0
-    const csvStock = row.stock !== undefined && row.stock !== '' ? Number(row.stock) : undefined
+    const csvStock = parseDecimal(row.stock)
     partial.variants = cartesian(options.map((option) => option.values.map((value) => ({ option, value })))).map(
       (combo, index) => {
         const sig = signature(combo.map(({ value }) => value.id))
@@ -314,6 +363,19 @@ export async function importProductRow(
   if (existing) {
     // Adres istniejącego produktu zmieniamy tylko na wyraźne życzenie (kolumna slug).
     if (!row.slug?.trim()) delete partial.slug
+    // Tylko pola z kolumn obecnych w pliku (patrz UPDATE_FIELD_COLUMNS).
+    for (const [field, columns] of Object.entries(UPDATE_FIELD_COLUMNS)) {
+      if (!columns.some((column) => column in row)) delete partial[field]
+    }
+    // Pusta komórka productOptions = opcje i warianty bez zmian (jak każda pusta komórka).
+    if (!row.productOptions?.trim()) delete partial.productOptions
+    if (!Object.keys(row).some((column) => column.toLowerCase().startsWith('filter_'))) delete partial.filterValues
+    // Pełny opis: CSV niesie go jako zwykły tekst. Pusta komórka albo ten sam
+    // tekst co w sklepie (np. plik z eksportu) = zostawiamy opis z formatowaniem
+    // (nagłówki, listy, zdjęcia). Wcześniej pusty opis zastępowano krótkim opisem.
+    if (!row.description?.trim() || plainText(row.description) === plainText(existing.descriptionText)) {
+      delete partial.description
+    }
     const variantKeys = ((partial.variants as Array<{ _key: string }> | undefined) ?? existing.variants ?? []).map((v) => v._key)
     const tx = raw.transaction()
     for (const version of versions) {
@@ -334,7 +396,7 @@ export async function importProductRow(
           payload[`images[_key=="${image._key}"].variantKeys`] = pruned
         }
       }
-      tx.patch(version._id, (patch) => patch.set(payload))
+      tx.patch(version._id, (patch) => (withInfo ? patch.set(payload).unset(['material', 'care']) : patch.set(payload)))
     }
     await tx.commit()
     const id = existing._id.replace(DRAFT, '')

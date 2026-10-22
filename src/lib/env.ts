@@ -35,6 +35,12 @@ const REQUIREMENTS: Requirement[] = [
   { keys: ['NEXT_PUBLIC_APP_URL'], label: 'Adres sklepu (kanoniczne adresy, powroty z płatności)', level: 'critical' },
   { keys: ['AUTOPAY_SERVICE_ID', 'P24_MERCHANT_ID'], label: 'Bramka płatności (Autopay albo Przelewy24)', level: 'critical' },
   { keys: ['AUTOPAY_HASH_KEY', 'P24_CRC_KEY'], label: 'Klucz podpisu płatności', level: 'critical' },
+  // Dane sprzedawcy: wymóg prawny (stopka, mail z potwierdzeniem, formularz odstąpienia).
+  { keys: ['NEXT_PUBLIC_SELLER_NAME'], label: 'Dane sprzedawcy — nazwa firmy (stopka, maile)', level: 'critical' },
+  { keys: ['NEXT_PUBLIC_SELLER_ADDRESS'], label: 'Dane sprzedawcy — adres', level: 'critical' },
+  { keys: ['NEXT_PUBLIC_SELLER_NIP'], label: 'Dane sprzedawcy — NIP', level: 'critical' },
+  { keys: ['NEXT_PUBLIC_SELLER_EMAIL'], label: 'Dane sprzedawcy — e-mail kontaktowy', level: 'critical' },
+  { keys: ['NEXT_PUBLIC_SELLER_PHONE'], label: 'Dane sprzedawcy — telefon', level: 'optional' },
   { keys: ['CLERK_WEBHOOK_SECRET'], label: 'Webhook Clerka (tworzenie kont w bazie)', level: 'optional' },
   { keys: ['FURGONETKA_CLIENT_ID'], label: 'Furgonetka (przesyłki i paczkomaty)', level: 'optional' },
   { keys: ['SMTP_HOST'], label: 'SMTP (maile i newsletter)', level: 'optional' },

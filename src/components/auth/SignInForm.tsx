@@ -191,7 +191,7 @@ export default function SignInForm({ isStandalone = false }: SignInFormProps) {
             </div>
           </label>
           <div id="clerk-captcha" data-cl-theme="dark" data-cl-size="flexible" />
-          {error && <h1 onClick={handleResetPassword} className="text-[14px] text-main mt-1 cursor-pointer hover:underline">Zapomniałeś hasła?</h1>}
+          {error && <p onClick={handleResetPassword} className="text-[14px] text-main mt-1 cursor-pointer hover:underline">Zapomniałeś hasła?</p>}
           <button
             type="submit"
             className="w-full bg-[#94cdc3] text-white py-3 px-4 rounded-full hover:brightness-75 transition text-[16px] font-bold cursor-pointer mt-4"
@@ -201,12 +201,12 @@ export default function SignInForm({ isStandalone = false }: SignInFormProps) {
         </form>
         
         <hr className="mt-6 border-white/20"/>
-        <h1 className="text-[14px] text-white text-center mt-4">
+        <p className="text-[14px] text-white text-center mt-4">
           Nie masz jeszcze konta?{" "}
           <button onClick={handleGoToSignUp} type="button" className="text-[#94cdc3] font-bold cursor-pointer hover:underline">
             Zarejestruj się
           </button>
-        </h1>
+        </p>
       </div>
   );
 }

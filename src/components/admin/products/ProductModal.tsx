@@ -15,6 +15,8 @@ import { PriceHistoryPanel } from './PriceHistoryPanel'
 import { ProductImagesManager } from './ProductImagesManager'
 import { PromotionFields, promotionDraftFrom, promotionFromDraft, type PromotionDraft } from './PromotionFields'
 import { RichTextEditor, type RichTextEditorHandle } from '../kit/RichTextEditor'
+import { ProductInfoSectionsEditor, type InfoSectionDraft } from './ProductInfoSectionsEditor'
+import { infoSectionsForEditor } from '@/lib/productInfo'
 
 export type CategoryOptions = {
   categories: Array<{ id: string; title: string }>
@@ -58,6 +60,11 @@ export function ProductModal({
   const [shortDescription, setShortDescription] = useState(product?.shortDescription ?? '')
   const [isFeatured, setIsFeatured] = useState(product?.isFeatured ?? false)
   const [isBestseller, setIsBestseller] = useState(product?.isBestseller ?? false)
+  const [newFlag, setNewFlag] = useState(product?.isNew ?? false)
+  // Zakładki „Informacje o produkcie” — stare pola (materiał, pielęgnacja)
+  // pokazujemy jako zakładki; zapis następuje dopiero, gdy ktoś je zmieni.
+  const [infoSections, setInfoSections] = useState<InfoSectionDraft[]>(() => infoSectionsForEditor(product))
+  const [infoTouched, setInfoTouched] = useState(false)
   const [promotion, setPromotion] = useState<PromotionDraft>(() => promotionDraftFrom(product?.promotion))
   const [promotionTouched, setPromotionTouched] = useState(false)
   // Długi opis żyje w stanie edytora — czytamy go dopiero przy zapisie
@@ -120,6 +127,10 @@ export function ProductModal({
       subcategoryId: subcategoryId || null,
       isFeatured,
       isBestseller,
+      isNew: newFlag,
+      ...(infoTouched || (isNew && infoSections.some((section) => section.body.trim()))
+        ? { infoSections: infoSections.map(({ key, title, body }) => ({ key, title, body })) }
+        : {}),
       ...(promotionTouched ? { promotion: promotionFromDraft(promotion) } : {}),
       ...(descriptionTouched ? { description: descriptionRef.current?.getValue() ?? [] } : {}),
       // Niezmienione kolekcje nie są wysyłane — zapis nie ruszy pola `collections`.
@@ -248,6 +259,10 @@ export function ProductModal({
               <Toggle checked={isBestseller} onChange={() => setIsBestseller((v) => !v)} label="Bestseller" />
               Bestseller
             </label>
+            <label className="flex items-center gap-2 text-xs font-medium text-text-2">
+              <Toggle checked={newFlag} onChange={() => setNewFlag((v) => !v)} label="Nowość" />
+              Nowość
+            </label>
           </div>
         </div>
 
@@ -270,12 +285,21 @@ export function ProductModal({
         </div>
       </div>
 
+      <ProductInfoSectionsEditor
+        value={infoSections}
+        disabled={saving}
+        onChange={(next) => {
+          setInfoSections(next)
+          setInfoTouched(true)
+        }}
+      />
+
       <div className="flex flex-col gap-1.5">
         <span className="text-xs font-medium text-text-2">Opis produktu (pełny — pod zdjęciami, ważny dla SEO)</span>
         <RichTextEditor
           ref={descriptionRef}
           initialValue={product?.description ?? null}
-          placeholder="Szczegółowy opis: zastosowanie, materiały, rozmiary, pielęgnacja… „## ” tworzy śródtytuł, „- ” listę."
+          placeholder="Szczegółowy opis: zastosowanie, rozmiary, dla jakiego psa… „## ” tworzy śródtytuł, „- ” listę."
           onEdit={() => setDescriptionTouched(true)}
         />
       </div>

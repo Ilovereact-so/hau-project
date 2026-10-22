@@ -6,13 +6,13 @@ import { describePromotion, promotionState, type ProductPromotion } from '@/lib/
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import {
-  Boxes, ChevronDown, ExternalLink, Eye, EyeOff, ImageOff, PackageOpen, Pencil, Plus, RefreshCw, Star, Trash2, Trophy, X,
+  Boxes, ChevronDown, ExternalLink, Eye, EyeOff, ImageOff, PackageOpen, Pencil, Plus, RefreshCw, Sparkles, Star, Trash2, Trophy, X,
 } from 'lucide-react'
 import type { AdminProduct } from '@/lib/admin/catalog'
 import {
   adminBulkProducts, adminDeleteProduct, adminRefreshProducts, adminSetPublished, adminToggleProductFlag,
 } from '@/actions/adminProducts'
-import type { BulkProductAction } from '@/lib/admin/catalog'
+import type { BulkProductAction, ProductFlag } from '@/lib/admin/catalog'
 import { PublishStateLabel } from '@/lib/admin/labels'
 import { Badge, Dot, PUBLISH_TONES, toneFor } from '../kit/Badge'
 import { Button, IconButton } from '../kit/Button'
@@ -25,6 +25,7 @@ import { cn } from '../kit/utils'
 import { useQueryNav } from '../orders/useQueryNav'
 import { ProductModal, type CategoryOptions } from './ProductModal'
 import { VariantStockTable } from './VariantStockTable'
+import { ExportProductsButton } from './ExportProductsButton'
 
 // Niski stan = 1 sztuka albo brak (lib/stock.ts).
 const LOW_STOCK = LOW_STOCK_THRESHOLD
@@ -190,7 +191,7 @@ export function ProductsView({
     })
   }
 
-  const toggleFlag = (product: AdminProduct, field: 'isFeatured' | 'isBestseller') =>
+  const toggleFlag = (product: AdminProduct, field: ProductFlag) =>
     void act(`${field}-${product.id}`, () => adminToggleProductFlag(product.id, field, !product[field]), 'Zapisano')
 
   const refresh = () =>
@@ -244,6 +245,7 @@ export function ProductsView({
               <PillButton icon={RefreshCw} onClick={refresh} disabled={busy === 'refresh'}>
                 Odśwież
               </PillButton>
+              <ExportProductsButton />
               <Button size="sm" onClick={() => setEditing('new')}>
                 <Plus size={14} strokeWidth={2} />
                 Dodaj produkt
@@ -308,6 +310,13 @@ export function ProductsView({
               </Button>
               <Button size="sm" variant="ghost" disabled={Boolean(bulkBusy)} onClick={() => void runBulk('unbestseller', selectedProducts)}>
                 Bez bestsellera
+              </Button>
+              <Button size="sm" variant="secondary" disabled={Boolean(bulkBusy)} onClick={() => void runBulk('new', selectedProducts)}>
+                <Sparkles size={14} strokeWidth={1.5} />
+                Nowość
+              </Button>
+              <Button size="sm" variant="ghost" disabled={Boolean(bulkBusy)} onClick={() => void runBulk('unnew', selectedProducts)}>
+                Bez nowości
               </Button>
               <span className="mx-1 h-5 w-px bg-border" aria-hidden />
               <Button size="sm" variant="danger" disabled={Boolean(bulkBusy)} onClick={() => void runBulk('delete', selectedProducts)}>
@@ -465,6 +474,13 @@ export function ProductsView({
                               disabled={busy === `isBestseller-${product.id}`}
                               onClick={() => toggleFlag(product, 'isBestseller')}
                             />
+                            <FlagButton
+                              active={product.isNew}
+                              label="Nowość"
+                              icon={Sparkles}
+                              disabled={busy === `isNew-${product.id}`}
+                              onClick={() => toggleFlag(product, 'isNew')}
+                            />
                           </div>
                         </Td>
                         <Td>
@@ -573,6 +589,8 @@ const BULK_DONE: Record<BulkProductAction, string> = {
   unfeature: 'Zdjęto promowanie',
   bestseller: 'Oznaczono jako bestseller',
   unbestseller: 'Zdjęto bestseller',
+  new: 'Oznaczono jako nowość',
+  unnew: 'Zdjęto nowość',
   delete: 'Usunięto',
 }
 

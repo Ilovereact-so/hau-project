@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import { adminImageMatchCatalog, adminValidateProductsCsv } from '@/actions/adminImport'
 import {
-  generateVariants, mapCsvRowToProductPartial, parseCollectionNames, slugifyTitle, splitList,
+  generateVariants, mapCsvRowToProductPartial, parseCollectionNames, parseDecimal, slugifyTitle, splitList,
 } from '@/sanity/helpers/productImportHelpers'
 import { normalizeToken, type VariantLike } from '@/lib/variantImages'
 import {
@@ -26,6 +26,7 @@ import { DataTable, Td, Th, Tr } from '../kit/DataTable'
 import { ErrorBox, NoticeBox } from '../kit/EmptyState'
 import { formatCurrencyPrecise } from '../kit/format'
 import { cn } from '../kit/utils'
+import { ExportProductsButton } from '../products/ExportProductsButton'
 
 type DryResult = {
   total: number
@@ -52,8 +53,8 @@ type Progress = { label: string; done: number; total: number }
 
 /* Wzór zgodny z importerem: opcje wariantów w `productOptions`, ich wartości
    w kolumnach `filter_<opcja>`, zdjęcia w ZIP-ie nazwane po slugu. */
-const SAMPLE_CSV = `title,subtitle,intro,sku,slug,shortDescription,description,price,currency,stock,category_slug,type,brand,vendor,tags,productOptions,filter_color,filter_size,images,properties_width_cm,properties_height_cm,properties_depth_cm,properties_units,weight_g,material,care,isMachineWashable,isWaterproof,isFeatured,isBestseller,chew_strength,collections
-"Pluszowa dynia","Miękka dynia z corduroy","Idealna miękka zabawka dla psów","PUM-001","pluszowa-dynia","Pluszowa dynia — 3 rozmiary","Miękka dynia z materiału corduroy, idealna dla psów małych i średnich.",29.99,PLN,50,toys,plush,PetCo,PetCo,"dynia;halloween","color;size","orange;beige","S;M;L","",12,13,12,cm,140,corduroy,"Prać ręcznie",false,false,true,false,medium,"Halloween 2026;Zabawki pluszowe"`
+const SAMPLE_CSV = `title,subtitle,intro,sku,slug,shortDescription,description,price,currency,stock,category_slug,type,brand,vendor,tags,productOptions,filter_color,filter_size,images,properties_width_cm,properties_height_cm,properties_depth_cm,properties_units,weight_g,info_Skład,info_Dodatkowe informacje,isMachineWashable,isWaterproof,isFeatured,isBestseller,isNew,chew_strength,collections
+"Pluszowa dynia","Miękka dynia z corduroy","Idealna miękka zabawka dla psów","PUM-001","pluszowa-dynia","Pluszowa dynia — 4 rozmiary","Miękka dynia z materiału corduroy, idealna dla psów od mikro do dużych.",29.99,PLN,50,toys,plush,PetCo,PetCo,"dynia;halloween","color;size","orange;beige","mikro;maly;sredni;duzy","",12,13,12,cm,140,"Corduroy (100% bawełna), wypełnienie: włókno poliestrowe","Prać ręcznie w letniej wodzie. Zabawka nie jest niezniszczalna — używaj pod nadzorem.",false,false,true,false,true,medium,"Halloween 2026;Zabawki pluszowe"`
 
 const STEPS = ['Pliki', 'Sprawdzenie', 'Import', 'Gotowe'] as const
 const ROWS_PER_BATCH = 10
@@ -221,14 +222,14 @@ export function ImportWizard() {
           } catch {
             variants = 0
           }
-          const price = Number(row.price)
-          const stock = Number(row.stock)
+          const price = parseDecimal(row.price)
+          const stock = parseDecimal(row.stock)
           return {
             row: index + 2,
             title: row.title ?? '',
             sku: row.sku ?? '',
-            price: Number.isFinite(price) && row.price ? price : null,
-            stock: Number.isFinite(stock) && row.stock ? stock : null,
+            price: price ?? null,
+            stock: stock ?? null,
             category: row.category_slug ?? '',
             subcategory: row.type ?? '',
             collections: parseCollectionNames(row).join(', '),
@@ -440,6 +441,7 @@ export function ImportWizard() {
               <Download size={14} strokeWidth={1.5} />
               Wzór CSV
             </Button>
+            <ExportProductsButton variant="ghost" />
             {(hasInput || logs.length > 0) && (
               <Button size="sm" variant="secondary" onClick={reset} disabled={running}>
                 <X size={14} strokeWidth={1.5} />
@@ -492,7 +494,9 @@ export function ImportWizard() {
         <details className="rounded-xs border border-border bg-surface px-3 py-2 text-[11px] leading-[1.6] text-text-2">
           <summary className="cursor-pointer font-medium text-text">Jak przygotować pliki (najmniej pracy)</summary>
           <ul className="mt-1.5 mb-0 grid gap-1 pl-4">
-            <li><strong>Warianty</strong>: w <code>productOptions</code> wpisz opcje (np. <code>color;size</code>), a wartości w kolumnach <code>filter_color</code> = <code>mint;beige</code>, <code>filter_size</code> = <code>S;M;L</code>. Powstanie 6 wariantów. Brakujące wartości (nowy kolor) utworzą się same.</li>
+            <li><strong>Warianty</strong>: w <code>productOptions</code> wpisz opcje (np. <code>color;size</code>), a wartości w kolumnach <code>filter_color</code> = <code>mint;beige</code>, <code>filter_size</code> = <code>mikro;maly;sredni;duzy</code>. Powstanie 8 wariantów. Rozmiarów psa może być dowolnie wiele (np. tylko <code>mikro</code> dla produktów dla najmniejszych psów); stare <code>XS/S/M/L</code> też zadziałają. Brakujące wartości (nowy kolor) utworzą się same.</li>
+            <li><strong>Zakładki na karcie produktu</strong>: kolumny <code>info_Skład</code>, <code>info_Dodatkowe informacje</code> — albo dowolne <code>info_&lt;Tytuł&gt;</code>. Pusta komórka = zakładka się nie pokaże.</li>
+            <li><strong>Eksport → poprawki → import</strong>: „Eksport CSV” daje plik w tym samym formacie. Popraw go (np. w Excelu, zapisz jako CSV UTF-8) i wgraj tutaj — produkty zaktualizują się po SKU. Zmieniają się tylko kolumny obecne w pliku, a pusta komórka niczego nie kasuje.</li>
             <li><strong>Aktualizacja</strong> istniejącego SKU zachowuje warianty (klucze, SKU, własne ceny i stany), zdjęcia i adres strony. Pusta kolumna <code>stock</code> nie zmienia stanów.</li>
             <li><strong>Zdjęcia w ZIP-ie</strong> (także w podfolderach): <code>slug.jpg</code>, <code>slug-2.jpg</code> — wspólne (pierwsze = główne); <code>slug-mint.jpg</code>, <code>slug-mint-3.jpg</code> — wszystkie warianty w kolorze mint; <code>slug-mint-m.jpg</code> — tylko mint/M. Zamiast sluga można użyć SKU.</li>
             <li>Nazwy dowolne? Wypisz je w kolumnie <code>images</code>: <code>front.jpg; tyl.jpg; zielona.jpg=mint; zielona-m.jpg=mint+m</code>.</li>

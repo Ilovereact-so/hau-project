@@ -1,27 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { FURGONETKA_API_URL } from '@/lib/furgonetkaEnv'
+import { formatPostcodeQuery, normalizeServiceCode, sortedByDistance, type PickupCandidate } from '@/lib/pickupPoints'
 
-const BASE_URL = process.env.NODE_ENV === 'production'
-  ? 'https://api.furgonetka.pl'
-  : 'https://api.sandbox.furgonetka.pl'
-
-function normalizeServiceCode(code: string): string {
-  const value = code.trim().toLowerCase()
-  if (!value) return value
-
-  // Furgonetka map API expects current provider keys.
-  if (value === 'paczkomat') return 'inpost'
-  if (value === 'kiosk' || value === 'ruch') return 'orlen'
-  if (value === 'placowka') return 'poczta'
-  if (value === 'uap') return 'ups'
-  if (value === 'parcelshop') return 'dhl'
-
-  return value
-}
+/*
+ * Wyszukiwarka punktów odbioru w kasie (kod pocztowy / miejscowość / adres).
+ *
+ * Środowisko API = to samo co mapa i reszta integracji (NEXT_PUBLIC_FURGONETKA_ENV,
+ * lib/furgonetkaEnv.ts). Wcześniej wynikało z NODE_ENV, więc staging (build
+ * produkcyjny z kluczem z piaskownicy) pytał produkcyjne API i dostawał 403.
+ *
+ * Zwracamy do 50 punktów od najbliższego — kasa pokazuje z nich 3 najbliższe
+ * KAŻDEGO przewoźnika (lib/pickupPoints.ts → nearestByCarrier).
+ */
 
 type RawPoint = {
   code: string
   name: string
   service: string
+  type?: string | null
+  point_type?: string | null
   distance?: number
   address?: {
     street?: string
@@ -32,10 +29,10 @@ type RawPoint = {
 }
 
 export async function GET(req: NextRequest) {
-  const query = req.nextUrl.searchParams.get('query')?.trim() ?? ''
-  const services = req.nextUrl.searchParams.getAll('services').map(normalizeServiceCode).filter(Boolean)
-  const limitParam = Number(req.nextUrl.searchParams.get('limit') ?? '20')
-  const limit = Number.isFinite(limitParam) ? Math.max(5, Math.min(50, limitParam)) : 20
+  const query = formatPostcodeQuery(req.nextUrl.searchParams.get('query')?.slice(0, 120) ?? '')
+  const services = [...new Set(req.nextUrl.searchParams.getAll('services').map(normalizeServiceCode).filter(Boolean))]
+  const limitParam = Number(req.nextUrl.searchParams.get('limit') ?? '50')
+  const limit = Number.isFinite(limitParam) ? Math.max(5, Math.min(50, limitParam)) : 50
 
   if (!query) {
     return NextResponse.json({ points: [] })
@@ -50,7 +47,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const response = await fetch(`${BASE_URL}/points/map`, {
+    const response = await fetch(`${FURGONETKA_API_URL}/points/map`, {
       method: 'POST',
       headers: {
         Accept: 'application/vnd.furgonetka.v1+json',
@@ -124,15 +121,20 @@ export async function GET(req: NextRequest) {
         { status: 502 },
       )
     }
-    const points = (payload.points ?? []).map(point => ({
-      code: point.code,
-      name: point.name,
-      carrier: point.service,
-      distance: point.distance ?? null,
-      street: point.address?.street ?? '',
-      city: point.address?.city ?? '',
-      postcode: point.address?.postcode ?? '',
-    }))
+    const points: PickupCandidate[] = sortedByDistance(
+      (payload.points ?? [])
+        .filter((point) => point?.code)
+        .map((point) => ({
+          code: point.code,
+          name: point.name,
+          carrier: point.service,
+          type: point.type ?? point.point_type ?? null,
+          distance: typeof point.distance === 'number' && Number.isFinite(point.distance) ? point.distance : null,
+          street: point.address?.street ?? '',
+          city: point.address?.city ?? '',
+          postcode: point.address?.postcode ?? '',
+        })),
+    )
 
     return NextResponse.json({ points })
   } catch (err) {

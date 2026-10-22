@@ -24,7 +24,10 @@ import type { ProductOmnibus } from "@/lib/omnibus";
 import type { Metadata } from "next";
 import { effectivePrice } from "@/lib/omnibus";
 import { breadcrumbJsonLd, jsonLdScript, pageMetadata } from "@/lib/seo/metadata";
-import { absoluteUrl } from "@/lib/site";
+import ProductSafetyInfo, { type ProductSafety } from "@/components/product/ProductSafetyInfo";
+import { getShopSettings } from "@/lib/shopSettings.server";
+import { qualifiesForFreeShipping } from "@/lib/shopSettings";
+import { RETURN_SHIPPING_PAID_BY_CUSTOMER, RETURN_WINDOW_DAYS, absoluteUrl } from "@/lib/site";
 import { urlFor } from "@/sanity/lib/image";
 import { imagesForVariant } from "@/lib/variantImages";
 import { getProductPreviewForAdmin } from "@/lib/productPreview";
@@ -97,7 +100,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     // Kanoniczny adres BEZ ?variant= — warianty to ta sama strona produktu.
     path: `/product/${slug}`,
     images: productOgImage(product),
-    type: "article",
+    // Produkt to nie artykuł — og:type „article” sugerował wpis blogowy.
+    type: "website",
   });
 }
 
@@ -136,10 +140,11 @@ const ProductPage = async ({
   const { userId } = await auth();
   // Omnibus (cena odniesienia) jest potrzebny tylko w czasie promocji.
   const promotionActive = isPromotionActive(product.promotion);
-  const [reviewData, omnibus, promoted] = await Promise.all([
+  const [reviewData, omnibus, promoted, shopSettings] = await Promise.all([
     loadReviewData(product._id, userId),
     promotionActive ? loadOmnibus(product._id) : Promise.resolve(null),
     getPromotedProducts(12, product._id),
+    getShopSettings(),
   ]);
   // Karuzela pod opiniami: produkty w promocji, a gdy żadnej nie ma — inne
   // produkty z tej samej podkategorii.
@@ -162,6 +167,17 @@ const ProductPage = async ({
   const price = effectivePrice(product, selectedVariant);
   const inStock = isVariantAvailable(product, selectedVariant);
   const productUrl = absoluteUrl(`/product/${slug}`);
+  // Dostawa w danych strukturalnych: 0 zł, gdy cena łapie się na darmową
+  // dostawę, inaczej najtańsza aktywna metoda (ta sama co „Dostawa od” w koszyku).
+  const shippingCents = price !== null
+    ? (qualifiesForFreeShipping(shopSettings, Math.round(price * 100)) ? 0 : shopSettings.minShippingCents)
+    : null;
+  const promotionEndsAt = promotionActive && product.promotion?.endsAt
+    ? new Date(product.promotion.endsAt).toISOString().slice(0, 10)
+    : null;
+  // GPSR: dane producenta i ostrzeżenia (pole `safety`; typy Sanity
+  // wygenerują się po `npm run typegen`).
+  const safety = (product as { safety?: ProductSafety | null }).safety ?? null;
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Product",
@@ -171,6 +187,7 @@ const ProductPage = async ({
       ? { description: (product.shortDescription || product.intro || product.metaDescription) as string }
       : {}),
     ...(product.brand ? { brand: { "@type": "Brand", name: product.brand } } : {}),
+    ...(safety?.manufacturerName ? { manufacturer: { "@type": "Organization", name: safety.manufacturerName } } : {}),
     ...(product.sku ? { sku: product.sku } : {}),
     ...(product.barcode ? { gtin: product.barcode } : {}),
     ...(productOgImage(product) ? { image: productOgImage(product)!.map((img) => img.url) } : {}),
@@ -183,6 +200,30 @@ const ProductPage = async ({
             priceCurrency: product.currency || "PLN",
             availability: inStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
             itemCondition: "https://schema.org/NewCondition",
+            ...(promotionEndsAt ? { priceValidUntil: promotionEndsAt } : {}),
+            // Koszt i obszar dostawy oraz polityka zwrotów — bez nich Google
+            // zgłasza ostrzeżenia w „Informacjach o produktach” i nie pokazuje
+            // tych danych w wynikach.
+            ...(shippingCents !== null
+              ? {
+                  shippingDetails: {
+                    "@type": "OfferShippingDetails",
+                    shippingRate: { "@type": "MonetaryAmount", value: (shippingCents / 100).toFixed(2), currency: "PLN" },
+                    shippingDestination: { "@type": "DefinedRegion", addressCountry: "PL" },
+                  },
+                }
+              : {}),
+            hasMerchantReturnPolicy: {
+              "@type": "MerchantReturnPolicy",
+              applicableCountry: "PL",
+              returnPolicyCategory: "https://schema.org/MerchantReturnFiniteReturnWindow",
+              merchantReturnDays: RETURN_WINDOW_DAYS,
+              returnMethod: "https://schema.org/ReturnByMail",
+              returnFees: RETURN_SHIPPING_PAID_BY_CUSTOMER
+                ? "https://schema.org/ReturnFeesCustomerResponsibility"
+                : "https://schema.org/FreeReturn",
+              merchantReturnLink: absoluteUrl("/help/zwroty-i-reklamacje"),
+            },
           },
         }
       : {}),
@@ -245,13 +286,14 @@ const ProductPage = async ({
             </div>
             {/* Galeria wybranego wariantu (jego zdjęcia + wspólne). `key` resetuje
                 aktywne zdjęcie przy zmianie wariantu — pierwsze = zdjęcie wariantu. */}
-            {galleryImages.length > 0 && <ImageView key={selectedVariant} images={galleryImages} />}
+            {galleryImages.length > 0 && <ImageView key={selectedVariant} images={galleryImages} productTitle={product.title} />}
           </div>
           <div className="w-auto flex flex-col font-poppins max-md:px-10 max-sm:px-7 max-md:mt-5 relative z-1">
             <div className="2lg:mb-2">
-              <h1 className="2lg:text-[clamp(16px,1.6vw,20px)] text-[15px]  text-black cursor-pointer font-medium">{product?.brand}</h1>
+              {/* Jeden H1 na stronie = nazwa produktu (marka i podtytuł to zwykły tekst). */}
+              {product?.brand && <p className="2lg:text-[clamp(16px,1.6vw,20px)] text-[15px]  text-black font-medium">{product.brand}</p>}
               <h1 className="2lg:text-[clamp(23px,2.5vw,26px)] text-[21px] text-black font-medium">{product?.title}</h1>
-              <h1 className="text-[clamp(16px,1.6vw,20px)] text-black mb-2">{product?.subtitle}</h1>
+              {product?.subtitle && <p className="text-[clamp(16px,1.6vw,20px)] text-black mb-2">{product.subtitle}</p>}
               <ProductRatingBadge
                 productId={product._id}
                 initial={reviewData.summary}
@@ -281,11 +323,11 @@ const ProductPage = async ({
             <div className="flex mt-8 space-x-8">
               <div className="flex text-[#6C6C6C] 2lg:text-[14px] text-[13px] space-x-3 items-center">
                 <Truck width={20} height={20}/>
-                <p>Ekspresowa <br/> dostawa 24h</p>
+                <p>Ekspresowa <br/> wysyłka 24h</p>
               </div>
               <div className="flex text-[#6C6C6C] 2lg:text-[14px] text-[13px] space-x-3 items-center">
                 <RotateCcw width={20} height={20}/>
-                <p>30 dni <br/> na zwrot</p>
+                <p>{RETURN_WINDOW_DAYS} dni <br/> na zwrot</p>
               </div>
               <div className="flex text-[#6C6C6C] 2lg:text-[14px] text-[13px] space-x-3 items-center">
                 <Lock width={20} height={20}/>
@@ -311,6 +353,7 @@ const ProductPage = async ({
             </div>
           </section>
         )}
+        <ProductSafetyInfo safety={safety} />
         <ProductReviews
           // Zmiana sesji (logowanie z modala odświeża stronę) montuje sekcję od nowa
           // z opinią nowego konta zamiast trzymać stan poprzedniego.
@@ -331,4 +374,4 @@ const ProductPage = async ({
   );
 };
 
-export default ProductPage;
+export default ProductPage;

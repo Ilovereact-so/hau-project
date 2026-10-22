@@ -31,7 +31,7 @@ const WishlistProduct = memo(function WishlistProduct({ product }: Props) {
       } 
         <div className="text-black mt-4">
           <p className="2xl:text-[16px] sm:text-[15px] text-[13px]">{product.brand}</p>
-          <h1 className="2xl:text-[18px] sm:text-[16px] text-[14px] line-clamp-2">{product.title}</h1>
+          <h3 className="2xl:text-[18px] sm:text-[16px] text-[14px] line-clamp-2">{product.title}</h3>
         </div>
       </div>
       <ProductRatingBadge
@@ -45,6 +45,7 @@ const WishlistProduct = memo(function WishlistProduct({ product }: Props) {
         state={priceState}
         isFeatured={product.isFeatured}
         isBestseller={product.isBestseller}
+        isNew={product.isNew}
         className='left-4'
         badgeClassName='2xl:text-[14px] sm:text-[13px] text-[11px]'
       />
@@ -91,4 +92,4 @@ const WishlistProduct = memo(function WishlistProduct({ product }: Props) {
   )
 })
 
-export default WishlistProduct
+export default WishlistProduct

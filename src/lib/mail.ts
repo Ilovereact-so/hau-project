@@ -37,10 +37,17 @@ export interface SendMailOptions {
   to:      string
   subject: string
   html:    string
+  /** Wersja tekstowa (kampanie — część filtrów antyspamowych jej oczekuje). */
+  text?:   string
+  /** Dodatkowe nagłówki, np. List-Unsubscribe przy kampaniach. */
+  headers?: Record<string, string>
 }
 
+/** Czy SMTP jest skonfigurowany (bez niego żaden mail nie wyjdzie). */
+export const isMailConfigured = () => Boolean(smtpTransporter)
+
 /** Zwraca `false`, gdy SMTP nie jest skonfigurowany (mail nie wyszedł). Błąd wysyłki rzuca. */
-export async function sendMail({ to, subject, html }: SendMailOptions): Promise<boolean> {
+export async function sendMail({ to, subject, html, text, headers }: SendMailOptions): Promise<boolean> {
   if (!smtpTransporter) {
     console.warn('⚠️ Mail — brak konfiguracji SMTP (SMTP_HOST/SMTP_PORT), mail nie został wysłany.')
     return false
@@ -52,6 +59,8 @@ export async function sendMail({ to, subject, html }: SendMailOptions): Promise<
       to,
       subject,
       html,
+      ...(text ? { text } : {}),
+      ...(headers ? { headers } : {}),
     })
     return true
   } catch (err) {

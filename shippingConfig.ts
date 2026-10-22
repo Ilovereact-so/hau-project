@@ -1,5 +1,6 @@
 import InPostLogo from './public/InPost_logotype_2024_white_bg.svg';
 import DPDLogo from './public/DPD_logo_redgrad_rgb.png';
+import OrlenLogo from './public/OrlenLogo.svg';
 import { createElement, type ReactNode } from 'react';
 
 type ShippingAsset = {
@@ -32,6 +33,15 @@ export const SHIPPING_ASSETS: Record<string, ShippingAsset> = {
       'p',
       { className: 'text-[16px] text-black' },
       createElement('span', { className: 'text-[#FFCC05]' }, 'InPost'),
+      ' Automat',
+    ),
+  },
+  'orlen-automat': {
+    logo:OrlenLogo ,
+    displayName: createElement(
+      'p',
+      { className: 'text-[16px] text-black' },
+      createElement('span', { className: 'text-[#FFCC05]' }, 'Orlen'),
       ' Automat',
     ),
   },

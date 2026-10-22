@@ -1,24 +1,41 @@
-# Build + wdrożenie na STAGING (e-hau-prod.wibbly.pl).
+# Build + wdrożenie na STAGING (e-hau-prod.wibbly.pl, DirectAdmin + Passenger).
 #
-# Cztery rzeczy, na których stoi ten plik — nie zmieniaj ich bez powodu:
+# UKŁAD NA SERWERZE — wypracowany ręcznie, workflow tylko go odtwarza:
 #
-#  1. NIEUDANY BUILD NIE JEST WDRAŻANY. Poprzednia wersja miała `if: always()`
-#     przy każdym kroku, więc na serwer leciała także paczka z błędem.
-#  2. NA SERWER IDZIE PACZKA `standalone` BEZ `node_modules`. `output:
-#     'standalone'` celowo NIE kopiuje `.next/static` ani `public` — robi to
-#     osobny krok, inaczej strona wstaje bez CSS, JS i obrazków. Zależności
-#     instaluje się NA SERWERZE (`npm ci --omit=dev`) — patrz komentarz przy
-#     kroku wdrożenia.
-#  3. ZMIENNE `NEXT_PUBLIC_*` MUSZĄ BYĆ PRZY BUDOWANIU. Są wkompilowywane
-#     w paczkę przeglądarki — dopisanie ich później do `.env` na serwerze
-#     nic nie zmieni. Sekrety siedzą w GitHub → Settings → Environments →
-#     `staging`.
-#  4. NAGŁÓWKI (w tym CSP) TEŻ POWSTAJĄ PRZY BUDOWANIU — `next.config.ts`
-#     zapisuje je do manifestu. `CSP_MODE` na serwerze jest bez znaczenia.
+#   public_html/                    <- „Katalog główny aplikacji” w panelu Node.js
+#   ├─ package.json                 <- dla przycisku „Uruchom NPM Install”:
+#   ├─ package-lock.json               TYLKO zależności runtime (scripts/deployPackage.mjs)
+#   ├─ node_modules/                <- instalowane NA SERWERZE, nie wgrywane
+#   ├─ _next/static/…               <- statyki serwowane wprost przez Apache
+#   └─ standalone/
+#      ├─ start.js                  <- „Plik startowy aplikacji”
+#      ├─ server.js
+#      ├─ .env                      <- wgrany ręcznie, workflow go nie dotyka
+#      ├─ .next/  (BUILD_ID, manifesty, server/, static/)
+#      └─ public/
 #
-# Reszta konfiguracji (baza, Redis, klucze płatności, SMTP) to zmienne
-# RUNTIME — te wpisujesz w `.env` obok `server.js` na serwerze i tego pliku
-# workflow nie dotyczy.
+# PIĘĆ RZECZY, NA KTÓRYCH TO STOI — każda kosztowała osobną awarię:
+#
+#  1. NIEUDANY BUILD NIE JEST WDRAŻANY (żadnego `if: always()`).
+#  2. `server.js`, `.next/BUILD_ID` i `_next/static/<BUILD_ID>` MUSZĄ pochodzić
+#     z JEDNEGO builda. `server.js` ma konfigurację Next wklejoną w środku
+#     (`const nextConfig = {...}`), więc podmieniony osobno kłamie na temat
+#     m.in. `images.remotePatterns` — objawia się to błędem 400 na obrazkach.
+#  3. `HOSTNAME=localhost` ustawia `start.js`, ZANIM załaduje się `server.js`.
+#     Bez tego Next buduje adres bazowy routera z innego hosta niż rewrite
+#     zwracany przez middleware (Clerk), uznaje go za adres zewnętrzny
+#     i proxuje żądanie sam do siebie: zawieszenie i 500 po 30 sekundach.
+#  4. `node_modules` NIE idzie przez FTP (~20 tys. plików na jednym połączeniu
+#     bez ponawiania — transfer się urywa i akcja gubi katalog roboczy).
+#     Instaluje się je na serwerze przyciskiem „Uruchom NPM Install”;
+#     wgrywany package.json zawiera tylko zależności runtime (kilkadziesiąt
+#     pakietów, bez esbuilda i skryptów instalacyjnych).
+#  5. `NEXT_PUBLIC_*` są wkompilowywane w paczkę przeglądarki, więc muszą być
+#     PRZY BUDOWANIU (GitHub → Settings → Environments → `staging`). To samo
+#     dotyczy nagłówków z `next.config.ts`, w tym `CSP_MODE`.
+#
+# Reszta konfiguracji (baza, Redis, klucze płatności, SMTP) to zmienne runtime
+# — te siedzą w `standalone/.env` na serwerze i workflow ich nie rusza.
 
 name: Deploy staging
 
@@ -38,12 +55,12 @@ jobs:
     name: Build i wdrożenie
     runs-on: ubuntu-latest
     environment: staging
-    timeout-minutes: 180
+    timeout-minutes: 90
 
     # `src/lib/redis.ts` łączy się z Redisem już przy imporcie modułu, a Next
     # importuje wszystkie trasy na etapie „Collecting page data”. Bez Redisa
-    # build stanąłby na ECONNREFUSED. To jest Redis WYŁĄCZNIE na czas builda —
-    # produkcyjny adres siedzi w `.env` serwera.
+    # build stanąłby na ECONNREFUSED. To Redis WYŁĄCZNIE na czas budowania —
+    # produkcyjny adres (na tym hostingu gniazdo uniksowe) jest w `.env`.
     services:
       redis:
         image: redis:7-alpine
@@ -58,10 +75,11 @@ jobs:
       - name: Pobranie kodu
         uses: actions/checkout@v4
 
-      - name: Node.js 20
+      # Ta sama wersja co na hostingu (panel Node.js: 22.23.2).
+      - name: Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: 20.x
+          node-version: 22.x
           cache: npm
 
       # `npm ci` zamiast `npm install`: instaluje dokładnie to, co jest
@@ -88,67 +106,200 @@ jobs:
           NEXT_PUBLIC_CLERK_RESET_PASSWORD_URL: ${{ secrets.NEXT_PUBLIC_CLERK_RESET_PASSWORD_URL }}
           NEXT_PUBLIC_CLERK_VERIFY_EMAIL_URL: ${{ secrets.NEXT_PUBLIC_CLERK_VERIFY_EMAIL_URL }}
           NEXT_PUBLIC_FURGONETKA_MAP_API_KEY: ${{ secrets.NEXT_PUBLIC_FURGONETKA_MAP_API_KEY }}
+          # Środowisko Furgonetki dla mapy I API (lib/furgonetkaEnv.ts). Staging
+          # domyślnie w piaskownicy: klucz mapy i dane OAuth muszą być z tego
+          # samego środowiska, inaczej /points/map zwraca 403. Na produkcyjne
+          # konto: zmienna `FURGONETKA_ENV=production` w środowisku staging.
+          NEXT_PUBLIC_FURGONETKA_ENV: ${{ vars.FURGONETKA_ENV || 'sandbox' }}
           NEXT_PUBLIC_GA_MEASUREMENT_ID: ${{ secrets.NEXT_PUBLIC_GA_MEASUREMENT_ID }}
           NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION: ${{ secrets.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION }}
+          # Dane sprzedawcy (stopka, maile) — jawne, więc jako zmienne (vars), nie sekrety.
+          NEXT_PUBLIC_SELLER_NAME: ${{ vars.SELLER_NAME }}
+          NEXT_PUBLIC_SELLER_ADDRESS: ${{ vars.SELLER_ADDRESS }}
+          NEXT_PUBLIC_SELLER_NIP: ${{ vars.SELLER_NIP }}
+          NEXT_PUBLIC_SELLER_REGISTRY: ${{ vars.SELLER_REGISTRY }}
+          NEXT_PUBLIC_SELLER_EMAIL: ${{ vars.SELLER_EMAIL }}
+          NEXT_PUBLIC_SELLER_PHONE: ${{ vars.SELLER_PHONE }}
 
           # --- czytane przy prerenderowaniu stron ---
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
           SANITY_API_TOKEN: ${{ secrets.SANITY_API_TOKEN }}
 
           # --- decyzje zapadające przy budowaniu ---
-          # Nagłówki z next.config.ts trafiają do manifestu — na serwerze
-          # tej wartości już nie zmienisz. Na start `report-only`; po
-          # sprawdzeniu konsoli ustaw zmienną CSP_MODE=enforce w środowisku.
           CSP_MODE: ${{ vars.CSP_MODE || 'report-only' }}
-          # Staging poza indeksem Google — kopia sklepu pod inną domeną
-          # konkurowałaby z produkcją o te same treści.
           SITE_INDEXABLE: ${{ vars.SITE_INDEXABLE || 'false' }}
-        run: npm run build
+        # Pusty sekret NIE jest pomijany: pusta zmienna z CI przykrywa wartość
+        # z `.env` i trafia do paczki jako "". Tak zniknął klucz mapy
+        # paczkomatów — widżet dostawał 403 z api.furgonetka.pl. Lepiej
+        # zatrzymać build z nazwą brakującego sekretu niż wdrożyć sklep,
+        # który sypie się dopiero w kasie.
+        run: |
+          missing=0
+          for name in NEXT_PUBLIC_APP_URL NEXT_PUBLIC_SANITY_PROJECT_ID \
+                      NEXT_PUBLIC_SANITY_DATASET NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY \
+                      NEXT_PUBLIC_FURGONETKA_MAP_API_KEY; do
+            if [ -z "$(printenv "$name" | tr -d '[:space:]')" ]; then
+              echo "::error::Brak sekretu $name w środowisku 'staging' (GitHub → Settings → Environments → staging → Environment secrets)."
+              missing=1
+            fi
+          done
+          [ "$missing" = 0 ] || exit 1
+          npm run build
 
       # `output: 'standalone'` daje `server.js` i odchudzone `node_modules`,
-      # ale statyków i `public` nie kopiuje (udokumentowane zachowanie Next).
-      # `server.js` szuka ich WEWNĄTRZ swojego katalogu, stąd ten krok.
-      - name: Skompletowanie paczki standalone
+      # ale statyków ani `public` nie kopiuje. Tu składamy komplet.
+      - name: Skompletowanie paczki
         run: |
           set -euo pipefail
+
+          # `.next/static` NIE jest kopiowane do paczki: Apache serwuje te pliki
+          # wprost z `public_html/_next/static` (tak działa też druga aplikacja
+          # na tym koncie). Podwójna kopia tylko podwajałaby transfer FTP.
           rm -rf .next/standalone/.next/static .next/standalone/public
-          cp -r .next/static .next/standalone/.next/
           if [ -d public ]; then cp -r public .next/standalone/; fi
-          # Next kopiuje do standalone `package.json` aplikacji, ale już nie
-          # `package-lock.json`. Dokładamy go, żeby `npm ci --omit=dev`
-          # na serwerze zainstalował dokładnie te wersje co build w CI.
-          cp package-lock.json .next/standalone/
+
+          # Plik startowy dla Passengera. Musi ustawić HOSTNAME przed
+          # załadowaniem server.js — patrz punkt 3 w nagłówku pliku.
+          cat > .next/standalone/start.js <<'JS'
+          // Plik startowy aplikacji w panelu Node.js (DirectAdmin/Passenger).
+          // Generowany przez .github/workflows/node.js.yml — nie edytuj na serwerze.
+          //
+          // HOSTNAME musi być ustawiony ZANIM załaduje się server.js: Next buduje
+          // z niego adres bazowy routera i porównuje go z rewrite'em zwracanym
+          // przez middleware (Clerk przepisuje żądanie na localhost:PORT). Gdy
+          // originy się różnią, Next traktuje rewrite jak adres zewnętrzny
+          // i proxuje żądanie sam do siebie — zawieszenie i 500 po 30 sekundach.
+          //
+          // Na sztywno, bo powłoka hostingu podstawia tu nazwę maszyny.
+          process.env.HOSTNAME = 'localhost'
+
+          // `import()`, nie `require()`: projekt ma "type": "module", więc Next
+          // generuje server.js jako ESM, a ten plik może zostać załadowany
+          // i jako CommonJS (Passenger), i jako ESM (`node start.js`).
+          // Dynamiczny import działa w obu trybach.
+          import('./server.js').catch((err) => {
+            console.error(err)
+            process.exit(1)
+          })
+          JS
+
+          # Pliki dla przycisku „Uruchom NPM Install” w katalogu głównym aplikacji.
+          # NIE pełny package.json projektu, tylko zależności runtime wyciągnięte
+          # ze skompilowanych chunków (next, react, jsdom dla Studio…), z dokładnymi
+          # wersjami z tego builda i własnym lockfile. Powód: panel (CloudLinux)
+          # instaluje w ~/nodevenv/…/lib, więc `.npmrc` z public_html jest
+          # ignorowany, a pełna lista ciągnęła tsx/vite/sanity z trzema wersjami
+          # esbuilda — skrypt instalacyjny esbuilda wywracał instalację
+          # („Expected "0.28.2" but got "0.25.12"”). Szczegóły w skrypcie.
+          node scripts/deployPackage.mjs deploy-root
+
           test -f .next/standalone/server.js
+          test -f .next/standalone/start.js
           test -f .next/standalone/package.json
-          test -d .next/standalone/.next/static
-          echo "--- zawartość paczki ---"
-          ls -la .next/standalone
-          echo "--- rozmiar: ---"
-          du -sh .next/standalone
-          echo "--- liczba plików: ---"
-          find .next/standalone -type f | wc -l
+          test -f .next/standalone/.next/BUILD_ID
+
+          echo "--- BUILD_ID: $(cat .next/standalone/.next/BUILD_ID) ---"
+          echo "--- plików w .next/static:  $(find .next/static -type f | wc -l)"
+          echo "--- plików w standalone/.next: $(find .next/standalone/.next -type f | wc -l)"
+          echo "--- plików w reszcie paczki:  $(find .next/standalone -type f -not -path "*/node_modules/*" -not -path "*/.next/*" | wc -l)"
+
+      # Próba generalna PRZED wysyłką: układ jak na serwerze (node_modules
+      # z deploy-root obok `standalone/`, bez node_modules ze standalone — ten
+      # nie idzie przez FTP), instalacja ZE skryptami, jak robi to panel,
+      # i start przez `start.js`. Brak zależności runtime = czerwony build,
+      # a nie niedziałający staging.
+      - name: Test paczki serwerowej
+        run: |
+          set -euo pipefail
+          SRV="$RUNNER_TEMP/public_html"
+          rm -rf "$SRV" && mkdir -p "$SRV"
+          cp deploy-root/package.json deploy-root/package-lock.json "$SRV/"
+          (cd "$SRV" && npm ci --no-audit --no-fund)
+          cp -r .next/standalone "$SRV/standalone"
+          rm -rf "$SRV/standalone/node_modules"
+          node -e "require('$SRV/node_modules/jsdom')"
+
+          # Redis z serwisu — bez niego moduły tras nie wstaną przy imporcie.
+          (cd "$SRV/standalone" && PORT=3123 REDIS_URL=redis://127.0.0.1:6379 \
+            node start.js > "$RUNNER_TEMP/server.log" 2>&1 &)
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3123/favicon.ico || true)
+            if [ "$code" = "200" ]; then echo "Serwer odpowiada (favicon: 200)"; break; fi
+            sleep 1
+          done
+          pkill -f "node start.js" || true
+          if [ "${code:-}" != "200" ]; then
+            echo "Serwer nie wstał na zależnościach z deploy-root (ostatni kod: ${code:-brak})"
+            cat "$RUNNER_TEMP/server.log"
+            exit 1
+          fi
 
       # Konto FTP loguje się do /home/srv45036/domains/e-hau-prod.wibbly.pl,
-      # więc `/public_html/` to katalog aplikacji Node (ten z `server.js`).
+      # więc ścieżki zaczynają się od /public_html/.
       #
-      # Akcja kasuje na serwerze tylko te pliki, które sama wcześniej wgrała
-      # (pilnuje tego plik stanu `.ftp-deploy-sync-state.json` w katalogu
-      # docelowym). Wgrany ręcznie `.env` i zainstalowane na serwerze
-      # `node_modules` są więc bezpieczne — pod warunkiem, że
+      # Akcja kasuje na serwerze wyłącznie pliki, które sama wcześniej wgrała
+      # (pilnuje tego plik stanu w katalogu docelowym). `.env`, `node_modules`
+      # i wszystko wgrane ręcznie jest bezpieczne — pod warunkiem, że
       # `dangerous-clean-slate` zostaje `false`.
       #
-      # DLACZEGO `node_modules` NIE IDZIE PRZEZ FTP: to ~15–20 tys. plików na
-      # jednym połączeniu bez ponawiania. Gdy transfer się urwie i akcja wstanie
-      # na nowo, traci katalog roboczy i próbuje wejść do `node_modules`
-      # względem katalogu logowania — stąd `550 node_modules: Nie ma takiego
-      # pliku ani katalogu`. Zależności instalujemy na serwerze:
+      # DLACZEGO CZTERY OSOBNE KROKI, A NIE JEDEN: ten serwer FTP zrywa
+      # połączenie przy długich transferach (`ECONNRESET (data socket)`),
+      # a akcja zapisuje plik stanu dopiero po UDANYM przebiegu. Jeden wielki
+      # transfer po zerwaniu zaczynał od zera i nigdy nie dochodził do końca.
+      # Każdy krok ma własny katalog docelowy, czyli własny plik stanu —
+      # po ponownym uruchomieniu workflow kroki, które przeszły, są pomijane
+      # w kilka sekund i transfer posuwa się do przodu.
       #
-      #     cd /home/srv45036/domains/e-hau-prod.wibbly.pl/public_html
-      #     npm ci --omit=dev
-      #
-      # (albo przycisk „NPM install” w panelu hostingu). Powtarzasz to tylko po
-      # zmianie `package.json` / `package-lock.json`, nie po każdym deployu.
-      - name: Wdrożenie przez FTP
+      # Przerwy między krokami są celowe: konto FTP na współdzielonym hostingu
+      # bywa przycinane przy szybkim otwieraniu kolejnych sesji.
+
+      # Statyki idą PIERWSZE: przez chwilę po wdrożeniu przeglądarki mogą
+      # jeszcze prosić o pliki starego builda, ale nowy HTML nigdy nie wskaże
+      # plików, których na serwerze jeszcze nie ma.
+      - name: FTP — statyki (_next/static)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+        with:
+          server: ${{ secrets.SERVER }}
+          username: ${{ secrets.USERNAME }}
+          password: ${{ secrets.PASSWORD }}
+          protocol: ftp
+          port: 21
+          security: loose
+          local-dir: ./.next/static/
+          server-dir: /public_html/_next/static/
+          timeout: 180000
+          log-level: standard
+          dangerous-clean-slate: false
+          exclude: |
+            **/*.map
+
+      - name: Przerwa
+        run: sleep 20
+
+      # Najcięższa część paczki (skompilowane trasy) w osobnym kroku, żeby
+      # zerwane połączenie nie przekreślało reszty.
+      - name: FTP — skompilowana aplikacja (standalone/.next)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+        with:
+          server: ${{ secrets.SERVER }}
+          username: ${{ secrets.USERNAME }}
+          password: ${{ secrets.PASSWORD }}
+          protocol: ftp
+          port: 21
+          security: loose
+          local-dir: ./.next/standalone/.next/
+          server-dir: /public_html/standalone/.next/
+          timeout: 180000
+          log-level: standard
+          dangerous-clean-slate: false
+          exclude: |
+            **/*.map
+
+      - name: Przerwa
+        run: sleep 20
+
+      # server.js, start.js, package.json i katalog public.
+      - name: FTP — pliki startowe i public (standalone)
         uses: SamKirkland/FTP-Deploy-Action@v4.3.6
         with:
           server: ${{ secrets.SERVER }}
@@ -158,30 +309,47 @@ jobs:
           port: 21
           security: loose
           local-dir: ./.next/standalone/
-          server-dir: /public_html/
+          server-dir: /public_html/standalone/
           timeout: 180000
-          # `verbose` przy kilkunastu tysiącach plików zapycha log Actions.
           log-level: standard
-          # NIGDY `true` — skasowałoby `.env` i wszystko wgrane ręcznie.
           dangerous-clean-slate: false
-          # `node_modules` zostaje na serwerze (patrz komentarz wyżej) — akcja
-          # go nie wgrywa i, skoro nie ma go w pliku stanu, nigdy nie skasuje.
+          # `.next` wgrywa krok wyżej, `node_modules` zostaje na serwerze,
+          # a `.env` jest wgrany ręcznie i nie może zostać nadpisany.
           exclude: |
+            .next/**
+            **/.next/**
             **/node_modules/**
-            **/.git*
-            **/.git*/**
             **/.env
             **/.env.*
-            **/cgi-bin*
+            **/.git*
+            **/.git*/**
             **/*.map
 
-      # Next nie podmienia się w locie — po wgraniu plików proces trzeba
-      # zrestartować. Ten krok tylko przypomina, czego workflow nie zrobi sam.
+      - name: Przerwa
+        run: sleep 20
+
+      - name: FTP — package.json w katalogu aplikacji
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+        with:
+          server: ${{ secrets.SERVER }}
+          username: ${{ secrets.USERNAME }}
+          password: ${{ secrets.PASSWORD }}
+          protocol: ftp
+          port: 21
+          security: loose
+          local-dir: ./deploy-root/
+          server-dir: /public_html/
+          timeout: 180000
+          log-level: standard
+          dangerous-clean-slate: false
+
+      # Passenger nie podmienia procesu sam — dopóki go nie zrestartujesz,
+      # serwuje stary build.
       - name: Co zrobić na serwerze
         run: |
-          echo "----------------------------------------------------------"
-          echo "Pliki wgrane. Na serwerze:"
-          echo "  1. cd /home/srv45036/domains/e-hau-prod.wibbly.pl/public_html"
-          echo "  2. npm ci --omit=dev   <- tylko po zmianie package.json / package-lock.json"
-          echo "  3. restart aplikacji Node w panelu hostingu"
-          echo "----------------------------------------------------------"
+          echo "------------------------------------------------------------"
+          echo "Pliki wgrane. W panelu Node.js:"
+          echo "  1. URUCHOM PONOWNIE  <- zawsze, inaczej działa stary build"
+          echo "  2. Uruchom NPM Install  <- tylko po zmianie package.json"
+          echo "                             albo package-lock.json"
+          echo "------------------------------------------------------------"
