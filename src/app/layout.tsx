@@ -45,6 +45,9 @@ export const viewport: Viewport = {
   themeColor: '#1a1a1a',
 }
 
+/** Wersja plików ikon w public/ (favicon, apple-touch-icon, icon-*.png). */
+const ICON_VERSION = "2";
+
 export const metadata: Metadata = {
   // Wszystkie względne adresy w metadanych (kanoniczne, OG) rozwijają się
   // względem tego adresu — bez niego Next zgłasza ostrzeżenie, a linki
@@ -76,7 +79,19 @@ export const metadata: Metadata = {
         googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1, "max-video-preview": -1 },
       }
     : { index: false, follow: false, googleBot: { index: false, follow: false } },
-  icons: { icon: "/favicon.ico" },
+  // Ikony leżą w public/ (NIE w src/app — plik o tej samej nazwie w obu
+  // miejscach to błąd 500 „conflicting public file and page file”; pilnuje tego
+  // scripts/checkPublicConflicts.mjs). `?v=` wymusza pobranie nowej ikony:
+  // przeglądarki trzymają faviconę tygodniami, także zapamiętany błąd.
+  // Podbij ICON_VERSION przy każdej zmianie plików ikon.
+  icons: {
+    icon: [
+      { url: `/favicon.ico?v=${ICON_VERSION}`, sizes: "any" },
+      { url: `/icon-192.png?v=${ICON_VERSION}`, type: "image/png", sizes: "192x192" },
+    ],
+    shortcut: `/favicon.ico?v=${ICON_VERSION}`,
+    apple: { url: `/apple-touch-icon.png?v=${ICON_VERSION}`, sizes: "180x180" },
+  },
   manifest: "/manifest.webmanifest",
   formatDetection: { telephone: false },
   // Kod weryfikacyjny Google Search Console — wystarczy wpisać go w .env.
@@ -111,4 +126,4 @@ export default function RootLayout({
       </html>
     </ClerkProvider>
   );
-}
+}

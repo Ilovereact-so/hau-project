@@ -108,5 +108,18 @@ if (fs.existsSync(standaloneDir)) {
   console.info('Zapisano też .next/standalone/package.json i package-lock.json (przypięte wersje).');
 }
 
+// Ikony do KATALOGU GŁÓWNEGO public_html (ten katalog wgrywa krok
+// „FTP — package.json w katalogu aplikacji”). Apache serwuje istniejące pliki
+// z public_html sam, zanim żądanie trafi do Passengera — tak jak `_next/static`.
+// Dzięki temu /favicon.ico działa niezależnie od procesu Next: także gdy ten
+// wstaje, ma inną wersję w node_modules albo leży (awarie 22.10.2026).
+// Kopie w `standalone/public` zostają jako zapas (lokalnie i bez Apache).
+const ROOT_ICONS = ['favicon.ico', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'];
+for (const file of ROOT_ICONS) {
+  const from = path.join(root, 'public', file);
+  if (fs.existsSync(from)) fs.copyFileSync(from, path.join(outDir, file));
+  else console.warn(`Uwaga: brak public/${file} — nie trafi do katalogu głównego serwera.`);
+}
+
 console.info('Zależności serwera:', dependencies);
 if (skipped.length) console.info('Pominięte (brak w node_modules — opcjonalne):', skipped);

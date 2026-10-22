@@ -17,11 +17,14 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: '/',
     display: 'standalone',
     background_color: '#ffffff',
-    theme_color: '#1a1a1a',
+    theme_color: '#4ECCB5',
     lang: 'pl-PL',
+    // Ikony HAU: miętowe tło (kolor logo), białe „HAU”. Wersja „maskable” ma
+    // znak w bezpiecznej strefie — Android przycina ikonę do koła/kropli.
     icons: [
-      { src: '/favicon.ico', sizes: '48x48', type: 'image/x-icon' },
-      { src: '/logo_hau.svg', sizes: 'any', type: 'image/svg+xml' },
+      { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: '/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
     ],
   }
 }
