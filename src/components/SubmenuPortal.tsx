@@ -10,6 +10,9 @@ interface SubmenuPortalProps {
   exit: () => void;
 }
 
+/** Jak długo zamykający się panel podąża za zakładką (dłużej niż animacja zamykania). */
+const CLOSE_FOLLOW_MS = 300;
+
 export default function SubmenuPortal({ anchorRef, open, children, scrollRef: _scrollRef, exit: _exit }: SubmenuPortalProps) {
   const portalRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -50,18 +53,23 @@ export default function SubmenuPortal({ anchorRef, open, children, scrollRef: _s
 
     // Pozycję liczymy zawsze przy zmianie `open` (także na starcie — zamknięty
     // panel nie może wylądować na końcu strony), ale nasłuchy przewijania
-    // trzymamy TYLKO dla otwartego panelu. Wcześniej każda kategoria w menu
-    // wołała getBoundingClientRect przy każdym przewinięciu czegokolwiek
-    // (także w trakcie płynnego przewijania paska kategorii podczas animacji).
+    // trzymamy tylko dla otwartego panelu — i jeszcze przez czas animacji
+    // zamykania, żeby zwijający się panel nie został w starym miejscu, gdy
+    // w tym momencie przewija się pasek kategorii. Wcześniej każda kategoria
+    // wołała getBoundingClientRect przy każdym przewinięciu czegokolwiek.
     updatePosition();
-    if (!open) return;
 
-    window.addEventListener("scroll", updatePosition, true);
-    window.addEventListener("resize", updatePosition);
-
-    return () => {
+    const remove = () => {
       window.removeEventListener("scroll", updatePosition, true);
       window.removeEventListener("resize", updatePosition);
+    };
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+    const timer = open ? null : setTimeout(remove, CLOSE_FOLLOW_MS);
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      remove();
     };
   }, [open, anchorRef]);
 
@@ -80,4 +88,4 @@ export default function SubmenuPortal({ anchorRef, open, children, scrollRef: _s
     </div>,
     portalRef.current
   );
-}
+}

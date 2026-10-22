@@ -1,5 +1,5 @@
 'use client'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import NavHamburger from './NavHamburger'
 import NavbarItems from './NavbarItems'
 import { GUIDES_NAV } from '@/constants'
@@ -7,7 +7,7 @@ import { filterProductCategories } from '@/lib/categoryNavigation'
 import Link from 'next/link'
 import { ArrowLeft, BookOpen, Search } from 'lucide-react'
 import Image from 'next/image'
-import { animate, AnimatePresence, motion } from 'framer-motion'
+import { animate, AnimatePresence, motion, useMotionValue, useTransform } from 'framer-motion'
 import {useMediaQuery} from '@/hooks/useMediaQuery'
 import SubmenuPortal from './SubmenuPortal'
 import SearchBarContext from './SearchBarContext'
@@ -55,13 +55,13 @@ const NavRMenu = ({ className, style, mode, categories, initialMobile = false}: 
     }, [pathname]);
 
     // ── Który panel kategorii jest otwarty — jeden stan dla CAŁEGO menu ──────
-    // Wcześniej każda zakładka miała własne „najechane”, więc przy przejściu
-    // z kategorii A na B panel B zaczynał się wysuwać, zanim panel A zdążył się
-    // schować — przez chwilę były widoczne oba i menu „skakało”. Teraz otwarta
-    // jest najwyżej jedna kategoria, a `switching` mówi zakładce, że przejmuje
-    // menu po innej: wtedy czeka, aż poprzedni panel się zwinie (SWITCH_DELAY).
-    // Wyjazd kursorem zamyka z małą zwłoką (LEAVE_GRACE_MS) — przelot nad
-    // zakładką albo szczelina między zakładką a panelem niczego nie migają.
+    // Otwarta jest najwyżej jedna kategoria. Gdy któraś jest otwarta, każda
+    // inna jest schowana OD RAZU, w tej samej klatce (`anotherOpen` w NavLink)
+    // — przy szybkim przejeżdżaniu nie ma żadnej chwili, w której widać dwie.
+    // `switching` = kategoria przejęła menu po innej: wysuwa się krótko, bez
+    // czekania na zamykanie poprzedniej (ta już zniknęła). Wyjazd kursorem
+    // zamyka z małą zwłoką (LEAVE_GRACE_MS) — przelot nad zakładką albo
+    // szczelina między zakładką a panelem niczego nie migają.
     const [activeSubmenu, setActiveSubmenu] = useState<{ id: string | null; switching: boolean }>({ id: null, switching: false });
     const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const clearLeaveTimer = () => {
@@ -376,7 +376,7 @@ const NavRMenu = ({ className, style, mode, categories, initialMobile = false}: 
                                 <Image src="/logo_hau_white.svg" alt='logo' className='min-w-[40px] min-h-[40px]' width={40} height={40}/>
                             </div>
                             {visibleCategories.map((item, index) => (
-                                <NavLink navRef={navbarRef} mode={themeMode} item={item} index={index} total={visibleCategories.length} key={item._id ?? index} itemRef={itemRefs.current[index]} globalDelay={globalDelay} initialMobile={initialMobile} open={activeSubmenu.id === (item._id ?? String(index))} afterSwitch={activeSubmenu.switching && activeSubmenu.id === (item._id ?? String(index))} onOpen={openSubmenu} onClose={closeSubmenu} />
+                                <NavLink navRef={navbarRef} mode={themeMode} item={item} index={index} total={visibleCategories.length} key={item._id ?? index} itemRef={itemRefs.current[index]} globalDelay={globalDelay} initialMobile={initialMobile} open={activeSubmenu.id === (item._id ?? String(index))} anotherOpen={activeSubmenu.id !== null && activeSubmenu.id !== (item._id ?? String(index))} afterSwitch={activeSubmenu.switching && activeSubmenu.id === (item._id ?? String(index))} onOpen={openSubmenu} onClose={closeSubmenu} />
                             ))}
                             <GuidesNavLink mode={themeMode} initialMobile={initialMobile} onNavigate={() => setOpenMenu(false)} />
                         </NavbarItems>
@@ -424,7 +424,7 @@ const NavRMenu = ({ className, style, mode, categories, initialMobile = false}: 
                                     <Image src="/logo_hau_white.svg" alt='logo' className='min-w-[40px] min-h-[40px]' width={40} height={40}/>
                                 </div>
                                 {visibleCategories.map((item, index) => (
-                                    <NavLink navRef={navbarRef} mode={themeMode} item={item} index={index} total={visibleCategories.length} key={item._id ?? index} itemRef={itemRefs.current[index]} globalDelay={globalDelay} initialMobile={initialMobile} open={activeSubmenu.id === (item._id ?? String(index))} afterSwitch={activeSubmenu.switching && activeSubmenu.id === (item._id ?? String(index))} onOpen={openSubmenu} onClose={closeSubmenu} />
+                                    <NavLink navRef={navbarRef} mode={themeMode} item={item} index={index} total={visibleCategories.length} key={item._id ?? index} itemRef={itemRefs.current[index]} globalDelay={globalDelay} initialMobile={initialMobile} open={activeSubmenu.id === (item._id ?? String(index))} anotherOpen={activeSubmenu.id !== null && activeSubmenu.id !== (item._id ?? String(index))} afterSwitch={activeSubmenu.switching && activeSubmenu.id === (item._id ?? String(index))} onOpen={openSubmenu} onClose={closeSubmenu} />
                                 ))}
                                 <GuidesNavLink mode={themeMode} initialMobile={initialMobile} onNavigate={() => setOpenMenu(false)} />
                             </NavbarItems>
@@ -524,13 +524,31 @@ const TAB_CLOSED = "inset(0px -60px 100% 0px)"
 // Panel rozwijany od góry; ujemne marginesy na boki i dół zostawiają miejsce
 // na cień (shadow-lg), który inaczej byłby przycięty.
 const PANEL_OPEN = "inset(0% -20% -25% -20%)"
-const PANEL_CLOSED = "inset(0% -20% 100% -20%)"
-// Przejście między kategoriami: nowa zakładka rusza dopiero, gdy poprzedni
-// panel się zwinie (ListClosed trwa 0,14 s). Ta zwłoka działa też jak
-// „zamiar najechania” — przy szybkim przelocie przez kilka zakładek pośrednie
-// w ogóle nie zaczynają się otwierać.
-const SWITCH_DELAY = 0.15
+// ── Rozwijanie jako JEDEN kształt ──────────────────────────────────────────
+// Zakładka i panel to jedna „płachta”: przy najechaniu rozwija się od góry do
+// dołu — najpierw tło zakładki, a gdy dojdzie do jej dołu, płynnie dalej panel.
+// Przy zjechaniu kursorem zwija się od dołu do góry — najpierw panel, potem
+// zakładka. Steruje tym JEDNA wartość postępu 0 → 1 (`progress`) z jedną
+// krzywą ruchu: pierwsze TAB_SHARE postępu to zakładka, reszta to panel. Dzięki
+// temu oba elementy nie mogą się rozjechać ani ruszyć jednocześnie.
+const TAB_SHARE = 0.32
+// Krzywa „wolno–szybko–wolno”: zakładka rozwija się wyraźnie przed panelem,
+// a panel dojeżdża miękko. Zwijanie używa tej samej krzywej w drugą stronę.
+const SHEET_EASE = [0.45, 0, 0.2, 1] as const
+const OPEN_DURATION = 0.42
+// Przejście z jednej OTWARTEJ listy na drugą: nowa NIE rozwija się od góry,
+// tylko pojawia się od razu w całości z szybkim przenikaniem (opacity), a stara
+// w tym czasie szybko gaśnie — podświetlenie płynnie „przechodzi” na nową
+// zakładkę, bez rozwijania od nowa przy każdej kategorii.
+const SWITCH_FADE_IN = 0.16
+const SWITCH_FADE_OUT = 0.12
+const CLOSE_DURATION = 0.3
 const LEAVE_GRACE_MS = 110
+// Telefon (akordeon w przepływie strony): poprzednia lista musi się zwinąć,
+// zanim rozwinie się następna — inaczej strona skacze o sumę obu wysokości.
+const MOBILE_CLOSE_DURATION = 0.18
+
+const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v)
 
 type NavLinkProps = {
     item: CategoryItem, index: number, total: number,
@@ -538,19 +556,25 @@ type NavLinkProps = {
     globalDelay: number, mode: number, initialMobile?: boolean,
     /** Ten panel jest otwarty (stan wspólny dla całego menu — patrz NavRMenu). */
     open: boolean,
-    /** Otwiera się w miejsce innego panelu — czeka, aż tamten się zwinie. */
+    /** Otwarta jest INNA kategoria — ta ma być schowana od razu, bez animacji. */
+    anotherOpen: boolean,
+    /** Otwiera się w miejsce innej kategorii (krótsze wysunięcie). */
     afterSwitch: boolean,
     onOpen: (id: string) => void,
     onClose: (id: string) => void,
 }
 
-const NavLink = React.memo(function NavLink({ item, index, total, navRef, itemRef, globalDelay, mode, initialMobile = false, open, afterSwitch, onOpen, onClose }: NavLinkProps) {
+const NavLink = React.memo(function NavLink({ item, index, total, navRef, itemRef, globalDelay, mode, initialMobile = false, open, anotherOpen, afterSwitch, onOpen, onClose }: NavLinkProps) {
     const mobile  = useMediaQuery('(max-width: 639px)', initialMobile);
     const id = item._id ?? String(index);
     const isHover = open;
     const setIsHover = (value: boolean) => (value ? onOpen(id) : onClose(id));
 
-    const handleMouseEnter = (e: HTMLElement) => {
+    // Przewijanie paska do zakładki TYLKO przy nawigacji klawiaturą (focus).
+    // Wcześniej działo się przy najechaniu myszą: pasek przesuwał się pod
+    // nieruchomym kursorem, kursor lądował na sąsiedniej zakładce i menu samo
+    // przełączało kategorie („skakanie”, dwa panele przy krawędzi paska).
+    const scrollIntoNav = (e: HTMLElement) => {
         const container = navRef as React.RefObject<HTMLElement>;
         if (container?.current) {
             const { left, right } = e.getBoundingClientRect();
@@ -563,40 +587,91 @@ const NavLink = React.memo(function NavLink({ item, index, total, navRef, itemRe
                 container.current.scrollTo({ left: container.current.scrollLeft + right - cRight + offset, behavior: "smooth" });
             }
         }
-        setIsHover(true);
     }
 
-    // Otwarcie: tło zakładki (0,16 s) → panel dołącza, gdy tło jest prawie
-    // gotowe (0,28 s, większość ruchu w pierwszej połowie) — razem ~0,4 s.
-    // Zamknięcie: panel zwija się szybko (0,14 s), tło zakładki znika tuż za
-    // nim. Przy przejściu z innej kategorii (`afterSwitch`) całe otwarcie
-    // przesuwa się o SWITCH_DELAY — najpierw znika stary panel, potem rusza
-    // nowy, nigdy oba naraz. Każdy stan animuje się od BIEŻĄCEJ wartości.
-    const openDelay = afterSwitch ? SWITCH_DELAY : globalDelay
+    // ── Komputer: jedna wartość postępu dla zakładki, panelu i tła napisu ──
+    const progress = useMotionValue(0)
+    const tabT = useTransform(progress, (p) => clamp01(p / TAB_SHARE))
+    const panelT = useTransform(progress, (p) => clamp01((p - TAB_SHARE) / (1 - TAB_SHARE)))
+    // Tło zakładki odsłaniane od góry; prawa krawędź z zapasem na wklęsły narożnik.
+    const tabClip = useTransform(tabT, (t) => `inset(0px -60px ${((1 - t) * 100).toFixed(2)}% 0px)`)
+    // Panel od góry; po pełnym rozwinięciu dolny margines -25% odsłania cień.
+    const panelClip = useTransform(panelT, (t) => (t >= 1 ? PANEL_OPEN : `inset(0% -20% ${((1 - t) * 100).toFixed(2)}% -20%)`))
+    const panelDisplay = useTransform(panelT, (t) => (t > 0 ? "block" : "none"))
+    // Przenikanie przy przejściu między otwartymi listami (patrz SWITCH_FADE_*).
+    const fade = useMotionValue(1)
+    const circleBg = useTransform([tabT, fade], ([t, f]: number[]) => `rgba(246, 246, 246, ${(0.18 * t * f).toFixed(3)})`)
+
+    // useLayoutEffect, nie useEffect: zmiana startuje PRZED namalowaniem
+    // klatki, więc stara i nowa kategoria ruszają w tej samej klatce.
+    useLayoutEffect(() => {
+        if (mobile) return
+        const running: { stop: () => void }[] = []
+        // Gaśnięcie: kształt zostaje w miejscu i znika przez opacity, potem
+        // wraca do stanu „zwinięta” (progress 0, opacity 1 — i tak niewidoczna).
+        const fadeOut = () => {
+            progress.stop()
+            if (progress.get() === 0) { fade.set(1); return }
+            running.push(animate(fade, 0, {
+                duration: SWITCH_FADE_OUT * fade.get(),
+                ease: "easeIn",
+                onComplete: () => { progress.set(0); fade.set(1) },
+            }))
+        }
+        if (isHover) {
+            const visible = progress.get() > 0
+            if (afterSwitch) {
+                // Przejęcie po innej otwartej kategorii: od razu w całości,
+                // tylko przenikanie. Gdy ta lista jeszcze gasła (szybki powrót),
+                // wraca od bieżącej przezroczystości.
+                progress.stop()
+                if (!visible) fade.set(0)
+                progress.set(1)
+                running.push(animate(fade, 1, { duration: SWITCH_FADE_IN * (1 - fade.get()), ease: "easeOut" }))
+            } else if (visible && fade.get() < 1) {
+                // Powrót na listę, która właśnie gasła — dokończ ją z powrotem.
+                running.push(animate(fade, 1, { duration: SWITCH_FADE_IN * (1 - fade.get()), ease: "easeOut" }))
+                running.push(animate(progress, 1, { duration: OPEN_DURATION * (1 - progress.get()), ease: SHEET_EASE }))
+            } else {
+                // Pierwsze otwarcie: rozwijanie od góry do dołu (zakładka → panel).
+                fade.stop()
+                fade.set(1)
+                running.push(animate(progress, 1, { duration: OPEN_DURATION, ease: SHEET_EASE, delay: visible ? 0 : globalDelay }))
+            }
+        } else if (anotherOpen || fade.get() < 1) {
+            // Otwarta jest inna kategoria (albo ta już gasła) — szybkie
+            // przygaszenie zamiast zwijania.
+            fadeOut()
+        } else {
+            // Zjechanie kursorem z menu: zwijanie od dołu do góry (panel → zakładka).
+            running.push(animate(progress, 0, { duration: CLOSE_DURATION, ease: SHEET_EASE }))
+        }
+        return () => running.forEach((c) => c.stop())
+    }, [isHover, anotherOpen, afterSwitch, mobile, globalDelay, progress, fade])
+
+    // ── Telefon: akordeon w przepływie strony ──
+    // Lista rozwija się dopiero po zwinięciu poprzedniej; tło nazwy kategorii
+    // idzie RAZEM z listą (te same czasy). Rośnie wysokość do realnej
+    // wysokości treści ("auto"); `visibility` zamiast `display`, żeby framer
+    // mógł ją zmierzyć.
+    const mobileOpenT = { duration: 0.28, ease: EASE_OUT, delay: afterSwitch ? MOBILE_CLOSE_DURATION : 0.06 + globalDelay }
+    const mobileCloseT = { duration: MOBILE_CLOSE_DURATION, ease: EASE_IN }
     const variants = {
-        borderOpen: { clipPath: TAB_OPEN, transition: { duration: 0.16, ease: EASE_OUT, delay: openDelay } },
-        borderClosed: { clipPath: TAB_CLOSED, transition: { duration: 0.12, ease: EASE_IN, delay: 0.04 } },
-        ListOpen: { clipPath: PANEL_OPEN, display: "block", transition: { duration: 0.28, ease: EASE_OUT, delay: 0.1 + openDelay } },
-        ListClosed: { clipPath: PANEL_CLOSED, transition: { duration: 0.14, ease: EASE_IN }, transitionEnd: { display: "none" } },
-        // Telefon: lista jest w przepływie strony (akordeon), więc tu musi
-        // rosnąć wysokość — do realnej wysokości treści ("auto"), nie do
-        // sztywnego max-height. `visibility` zamiast `display`, żeby framer
-        // mógł zmierzyć wysokość "auto".
-        // Przy przejściu z innej kategorii czekamy, aż tamta lista się zwinie
-        // (0,18 s) — inaczej strona skacze o sumę obu wysokości.
-        mobileListOpen: { height: "auto", opacity: 1, visibility: "visible", transition: { duration: 0.28, ease: EASE_OUT, delay: afterSwitch ? 0.18 : 0.06 + globalDelay } },
-        mobileListClosed: { height: 0, opacity: 0, transition: { duration: 0.18, ease: EASE_IN }, transitionEnd: { visibility: "hidden" } },
-        circleOpen:{backgroundColor: "#f6f6f62e", transition:{duration:0.16, delay:openDelay}},
-        circleClosed:{backgroundColor: "#f6f6f600", transition:{duration:0.16}},
+        mobileTabOpen: { clipPath: TAB_OPEN, transition: mobileOpenT },
+        mobileTabClosed: { clipPath: TAB_CLOSED, transition: mobileCloseT },
+        mobileCircleOpen: { backgroundColor: "#f6f6f62e", transition: mobileOpenT },
+        mobileCircleClosed: { backgroundColor: "#f6f6f600", transition: mobileCloseT },
+        mobileListOpen: { height: "auto", opacity: 1, visibility: "visible", transition: mobileOpenT },
+        mobileListClosed: { height: 0, opacity: 0, transition: mobileCloseT, transitionEnd: { visibility: "hidden" } },
     }
     const categoryHref = `/category/${item.slug}`
     return (
-    <motion.label ref={itemRef} tabIndex={index} onFocus={() => {setIsHover(true)}} onBlur={() => {setIsHover(false)}} onMouseEnter={(e) => {handleMouseEnter(e.currentTarget)}} onMouseLeave={() => setIsHover(false)} style={{ marginRight: index === total - 1 ? "0px" : "" }} key={index} className={`text-black outline-none relative sm:text-[clamp(15px,1.3vw,18px)] max-lg:py-1 text-[16px] font-poppins whitespace-nowrap max-sm:w-fit`}>
+    <motion.label ref={itemRef} tabIndex={index} onFocus={(e) => {scrollIntoNav(e.currentTarget); setIsHover(true)}} onBlur={() => {setIsHover(false)}} onMouseEnter={() => setIsHover(true)} onMouseLeave={() => setIsHover(false)} style={{ marginRight: index === total - 1 ? "0px" : "" }} key={index} className={`text-black outline-none relative sm:text-[clamp(15px,1.3vw,18px)] max-lg:py-1 text-[16px] font-poppins whitespace-nowrap max-sm:w-fit`}>
         {!mobile ? (
         <div className={`px-[6px] flex justify-start sm:justify-center items-center ${
             mode === 1 ? "":"sm:py-1"
         }`}>
-            <motion.div initial={{ clipPath: TAB_CLOSED }} animate={isHover ? "borderOpen" : "borderClosed"} variants={variants} className='rounded-t-[20px] bg-menu-content absolute top-0 left-0 w-full h-full z-[9]'>
+            <motion.div style={{ clipPath: tabClip, opacity: fade }} className='rounded-t-[20px] bg-menu-content absolute top-0 left-0 w-full h-full z-[9]'>
                 <div className='absolute w-[50px] h-full left-[100%] bottom-0 overflow-hidden'>
                     <div className='sh-nav-rounded rounded-bl-[20px]'></div>
                 </div>
@@ -604,14 +679,12 @@ const NavLink = React.memo(function NavLink({ item, index, total, navRef, itemRe
             {/* Główna kategoria jest klikalna — prowadzi na stronę kategorii
                 (/category/[slug]) z produktami ze wszystkich jej podkategorii. */}
             <Link href={categoryHref} className='z-10 outline-none'>
-                <motion.span initial={{backgroundColor: "#f6f6f600"}} animate={isHover ? "circleOpen" : "circleClosed"} variants={variants} className='p-1 rounded-[10px] block'>{item.title}</motion.span>
+                <motion.span style={{ backgroundColor: circleBg }} className='p-1 rounded-[10px] block'>{item.title}</motion.span>
             </Link>
 
             <SubmenuPortal anchorRef={itemRef as React.RefObject<HTMLLabelElement>} scrollRef={navRef as React.RefObject<HTMLDivElement>} open={isHover} exit={()=>setIsHover(false)}>
                 <motion.div
-                    initial={{ clipPath: PANEL_CLOSED, display: "none" }}
-                    animate={isHover ? "ListOpen" : "ListClosed"}
-                    variants={variants}
+                    style={{ clipPath: panelClip, display: panelDisplay, opacity: fade }}
                     className="z-[9999] bg-menu-content w-auto h-auto rounded-b-[20px] rounded-r-[20px] shadow-lg shadow-black/25"
                 >
                     <div className="px-4 pb-3 pt-2 flex flex-col space-y-3">
@@ -637,8 +710,8 @@ const NavLink = React.memo(function NavLink({ item, index, total, navRef, itemRe
         <div className='px-[6px] sm:py-1 flex sm:flex-row flex-col justify-start sm:justify-center sm:items-center items-start'>
 
             <div className='z-10 relative px-2 py-[5px] h-auto'>
-                <motion.p initial={{backgroundColor: "#f6f6f600"}} animate={isHover ? "circleOpen" : "circleClosed"} variants={variants} className='p-1 rounded-[10px]'>{item.title}</motion.p>
-                <motion.div initial={{ clipPath: TAB_CLOSED }} animate={isHover ? "borderOpen" : "borderClosed"} variants={variants} className='rounded-t-[20px] bg-[#D1EAE5]/83 absolute top-0 left-0 w-full h-full z-[-1]'>
+                <motion.p initial={{backgroundColor: "#f6f6f600"}} animate={isHover ? "mobileCircleOpen" : "mobileCircleClosed"} variants={variants} className='p-1 rounded-[10px]'>{item.title}</motion.p>
+                <motion.div initial={{ clipPath: TAB_CLOSED }} animate={isHover ? "mobileTabOpen" : "mobileTabClosed"} variants={variants} className='rounded-t-[20px] bg-[#D1EAE5]/83 absolute top-0 left-0 w-full h-full z-[-1]'>
                     <div className='absolute w-[50px] h-full left-[100%] bottom-0 overflow-hidden'>
                         <div className='sh-nav-rounded2 rounded-bl-[20px]'></div>
                     </div>
