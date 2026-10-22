@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ChevronDown, ExternalLink, LogOut, Moon, PanelLeft, Store, UserRound } from 'lucide-react'
 import { cn } from '../kit/utils'
 import { Brand } from '../kit/Brand'
@@ -44,12 +44,23 @@ export function Sidebar({
   user: AdminUser
   counters: AdminCounters
 }) {
-  const [expanded, setExpanded] = useState<string[]>(() => [activeLabel === 'Produkty' ? 'Produkty' : 'Zamówienia'])
+  const [expanded, setExpanded] = useState<string[]>(() => [hasGroup(activeLabel) ? activeLabel : 'Zamówienia'])
 
   const toggleGroup = (label: string) =>
     setExpanded((current) =>
       current.includes(label) ? current.filter((item) => item !== label) : [...current, label]
     )
+  // Klik w nazwę grupy (np. „Produkty”) przechodzi na jej stronę i ROZWIJA
+  // listę — nie zwija, bo zwinięcie po kliknięciu w nazwę byłoby zaskoczeniem.
+  // Zwija się tylko strzałką.
+  const expandGroup = (label: string) =>
+    setExpanded((current) => (current.includes(label) ? current : [...current, label]))
+
+  // Wejście w sekcję inną drogą (link z dashboardu, wstecz, adres z paska)
+  // też rozwija jej grupę — aktywna pozycja nie może być schowana.
+  useEffect(() => {
+    if (hasGroup(activeLabel)) expandGroup(activeLabel)
+  }, [activeLabel])
 
   const EDGE_FADE_SIZE = 30
   const maskImage = `linear-gradient(to bottom, transparent 0, black ${EDGE_FADE_SIZE}px, black calc(100% - ${EDGE_FADE_SIZE}px), transparent 100%)`
@@ -103,7 +114,10 @@ export function Sidebar({
             active={activeLabel === item.label}
             open={expanded.includes(item.label)}
             onToggleGroup={() => toggleGroup(item.label)}
-            onNavigate={onNavigate}
+            onNavigate={() => {
+              if (item.children?.length) expandGroup(item.label)
+              onNavigate()
+            }}
             pathname={pathname}
             search={search}
             badge={item.badgeKey ? counters[item.badgeKey] : 0}
@@ -166,6 +180,10 @@ export function Sidebar({
       </div>
     </aside>
   )
+}
+
+function hasGroup(label: string) {
+  return NAV_ITEMS.some((item) => item.label === label && Boolean(item.children?.length))
 }
 
 function footerRowClass(collapsed: boolean, tone: 'default' | 'danger' = 'default') {

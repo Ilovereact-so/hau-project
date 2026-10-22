@@ -22,6 +22,9 @@ type Props = {
 // dzieckiem w drzewie, więc strona scrolluje się normalnie, a zamykanie po
 // kliknięciu poza elementem idzie przez ten sam useClickOutside co reszta
 // dropdownów w apce (patrz FilterCard w SubcategoryFilterContainer.tsx).
+// Wszystkie etykiety w jednej komórce siatki (patrz przycisk niżej).
+const STACK: React.CSSProperties = { gridArea: '1 / 1' }
+
 export default function SizeSelect({ option, filterValues, setValue }: Props) {
   const items = React.useMemo(
     () =>
@@ -62,7 +65,7 @@ export default function SizeSelect({ option, filterValues, setValue }: Props) {
   }
 
   return (
-    <div ref={rootRef} className="relative w-fit font-poppins mt-3">
+    <div ref={rootRef} className="w-fit font-poppins mt-3">
       <div className="flex items-baseline gap-3">
         <p className='2lg:text-[16px] text-[15px] text-black '>{option?.name?.label}:</p>
         {isSizeOption && (
@@ -71,6 +74,11 @@ export default function SizeSelect({ option, filterValues, setValue }: Props) {
           </Link>
         )}
       </div>
+      {/* Kotwica listy = sam przycisk. Wcześniej lista brała `w-full` całego
+          bloku, a ten był szerszy od przycisku przez napis
+          „Rozmiar psa: Jak dobrać rozmiar?” — rozwinięta lista wystawała
+          poza pole. Teraz lista ma dokładnie szerokość przycisku. */}
+      <div className="relative w-fit">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -80,7 +88,15 @@ export default function SizeSelect({ option, filterValues, setValue }: Props) {
           open ? "rounded-t-[20px]" : "rounded-[20px]"
         }`}
       >
-        <span className="2lg:text-[16px] text-[15px] leading-6">{selectedLabel}</span>
+        {/* Szerokość przycisku = najdłuższa opcja (niewidoczne etykiety w tej
+            samej komórce siatki), więc zmiana rozmiaru nie zmienia szerokości
+            pola, a lista mieści każdą pozycję. */}
+        <span className="grid 2lg:text-[16px] text-[15px] leading-6 text-left">
+          {items?.map(({ label, value }) => (
+            <span key={value} aria-hidden className="invisible whitespace-nowrap" style={STACK}>{label}</span>
+          ))}
+          <span className="whitespace-nowrap" style={STACK}>{selectedLabel}</span>
+        </span>
         <ChevronDown
           className={`w-4 h-4 shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
         />
@@ -106,13 +122,14 @@ export default function SizeSelect({ option, filterValues, setValue }: Props) {
                   className="flex items-center gap-2 w-full h-[50px] px-5 text-left text-black text-[0.875rem] cursor-pointer hover:bg-white transition-colors"
                 >
                   <Check className={`w-3 h-3 shrink-0 ${value === selected ? "opacity-100" : "opacity-0"}`} />
-                  <span>{label}</span>
+                  <span className="whitespace-nowrap">{label}</span>
                 </button>
               </li>
             ))}
           </motion.ul>
         )}
       </AnimatePresence>
+      </div>
     </div>
   )
 }

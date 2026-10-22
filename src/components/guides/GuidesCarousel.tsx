@@ -1,9 +1,11 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import { twMerge } from 'tailwind-merge'
 import Container from '@/components/Container'
+import { GUIDES_NAV } from '@/constants'
 import GuideCard from './GuideCard'
 import { getLatestGuidesClient, type GuideCardData } from '@/sanity/helpers/clientRequest'
 import { GuideCardSkeleton } from '../ui/Skeleton'
@@ -90,10 +92,15 @@ const GuidesCarousel = ({ className, limit = 2 }: { className?: string; limit?: 
                     ))
                 }
                 </div>
-                <div style={{gridArea: "actions"}} className='flex text-white bg-fancy-black rounded-full py-3 w-fit px-10 text-[clamp(14px,1.5vw,16px)] items-center mt-4'>
-                    <p>Zobacz wszystkie artykuły</p>
-                    <ArrowRight className='w-[20] h-[20px] text-white'/>
-                </div>
+                {/* Prowadzi na listę wszystkich poradników (/poradniki). */}
+                <Link
+                    href={GUIDES_NAV.href}
+                    style={{gridArea: "actions"}}
+                    className='group flex gap-2 text-white bg-fancy-black rounded-full py-3 w-fit px-10 text-[clamp(14px,1.5vw,16px)] items-center mt-4 transition-colors duration-200 hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fancy-black/40 focus-visible:ring-offset-2'
+                >
+                    <span>Zobacz wszystkie artykuły</span>
+                    <ArrowRight aria-hidden className='w-[20px] h-[20px] text-white transition-transform duration-200 group-hover:translate-x-1'/>
+                </Link>
                 
                 <div style={{gridArea: "cards"}} className='flex flex-col w-auto 3xl:space-y-2 space-y-4'>
                    
