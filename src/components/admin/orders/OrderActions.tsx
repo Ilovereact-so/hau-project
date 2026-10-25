@@ -34,13 +34,13 @@ const STATUS_ACTIONS: Partial<Record<OrderStatus, ActionMeta>> = {
     label: 'Anuluj zamówienie',
     icon: Ban,
     variant: 'danger',
-    confirm: 'Anulować to zamówienie? Tej operacji nie da się cofnąć.\n\nJeśli klient zapłacił online, zwrot zlecasz osobno w panelu operatora płatności.',
+    confirm: 'Anulować to zamówienie? Tej operacji nie da się cofnąć.\n\nZdjęty stan wróci na magazyn automatycznie. Jeśli klient zapłacił online, zwrot pieniędzy zlecasz osobno w panelu operatora płatności.',
   },
   refunded: {
     label: 'Oznacz jako zwrócone',
     icon: RotateCcw,
     variant: 'danger',
-    confirm: 'Oznaczyć zamówienie jako zwrócone?\n\nTo zmienia wyłącznie status w sklepie — przelew zwrotny zlecasz w panelu Autopay / Przelewy24.',
+    confirm: 'Oznaczyć zamówienie jako zwrócone?\n\nTo zmienia wyłącznie status w sklepie — przelew zwrotny zlecasz w panelu Autopay / Przelewy24. Stan wraca na magazyn dopiero po kliknięciu „Towar wrócił na magazyn” w karcie Magazyn.',
   },
 }
 
@@ -84,7 +84,7 @@ export function OrderActions({
   )
   const canShip = (status === 'paid' || status === 'processing') && !shipment
 
-  const run = (key: string, fn: () => Promise<{ ok: boolean; error?: string }>, success: string) => {
+  const run = (key: string, fn: () => Promise<{ ok: boolean; error?: string; data?: unknown }>, success: string) => {
     setBusy(key)
     setError('')
     startTransition(async () => {
@@ -95,7 +95,13 @@ export function OrderActions({
         toast.error(result.error ?? 'Operacja nie powiodła się.')
         return
       }
-      toast.success(success)
+      // `data` w postaci tekstu = ostrzeżenie (operacja się udała, ale coś obok nie).
+      if ('data' in result && typeof result.data === 'string' && result.data) {
+        setError(result.data)
+        toast.error(result.data, { duration: 8000 })
+      } else {
+        toast.success(success)
+      }
       router.refresh()
     })
   }

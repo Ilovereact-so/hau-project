@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import {
   parseItn,
   buildItnConfirmation,
@@ -13,6 +13,7 @@ import { orders, paymentTransactions } from '@/db/schema'
 import { eq, and, desc } from 'drizzle-orm'
 import { deactivateCardByToken, isGuestOwner, upsertSavedCard } from '@/lib/savedCards.server'
 import { isPaymentSettled } from '@/lib/orderStatus'
+import { deductStockQuietly } from '@/lib/inventory.server'
 
 export const dynamic = 'force-dynamic'
 export const runtime  = 'nodejs'
@@ -191,6 +192,11 @@ async function applyTransaction(transaction: AutopayItnTransaction): Promise<boo
       .set({ status: 'paid' })
       .where(eq(orders.id, orderId))
   })
+
+  // Zdjęcie stanu magazynu po odpowiedzi — błąd Sanity nie może zablokować
+  // potwierdzenia ITN (inaczej Autopay ponawiałby komunikat). Gdyby się nie
+  // udało, dogrywa je zadanie cykliczne (`reconcileOrderStock`).
+  after(() => deductStockQuietly(orderId, 'paid'))
 
   // Część konfiguracji Autopay dokleja dane karty także do ITN transakcji.
   // Główną drogą zapisu jest jednak komunikat `recurringActivation` (niżej).

@@ -40,6 +40,9 @@ export const ORDER_STATUSES = [
 ] as const
 export type OrderStatus = typeof ORDER_STATUSES[number]
 
+export const ORDER_STOCK_STATES = ['none', 'pending', 'deducted', 'restored', 'legacy'] as const
+export type OrderStockState = typeof ORDER_STOCK_STATES[number]
+
 export const PAYMENT_METHODS = ['przelewy24', 'autopay', 'cod'] as const
 export type PaymentMethod = typeof PAYMENT_METHODS[number]
 
@@ -56,6 +59,14 @@ export const orders = mysqlTable('orders', {
   totalCents:     int('total_cents').notNull(),
   discountCode:   varchar('discount_code', { length: 64 }),
   notes:          varchar('notes', { length: 512 }),
+  // Automatyczne zdejmowanie stanu magazynu (lib/inventory.server.ts):
+  //   none     — jeszcze nie zdjęto (czeka na płatność),
+  //   pending  — zdejmowanie rozpoczęte, nie wszystkie pozycje zapisane (ponowi je cron),
+  //   deducted — stan zdjęty, restored — stan oddany (anulowanie / zwrot towaru),
+  //   legacy   — zamówienie sprzed tej funkcji (nigdy nie zdejmujemy wstecz).
+  stockState:     mysqlEnum('stock_state', ORDER_STOCK_STATES).notNull().default('none'),
+  // Ostrzeżenie dla admina, np. zamówienie opłacone, gdy towaru zabrakło.
+  stockNote:      varchar('stock_note', { length: 512 }),
   createdAt:      timestamp('created_at').defaultNow(),
   updatedAt:      timestamp('updated_at').defaultNow().onUpdateNow(),
 })
@@ -458,4 +469,33 @@ export const newsletterCampaignRecipients = mysqlTable('newsletter_campaign_reci
   index('newsletter_recipients_queue').on(t.campaignId, t.status),
   // limit dobowy liczony po wszystkich kampaniach
   index('newsletter_recipients_sent_at').on(t.sentAt),
+])
+
+// ─── ruchy magazynowe (automatyczne zdejmowanie stanu) ────────────────────────
+// Jeden wiersz = zdjęcie albo oddanie stanu jednej pozycji zamówienia
+// (produkt + wariant). Unikalny klucz pilnuje, że ta sama pozycja nie zejdzie
+// (ani nie wróci) dwa razy — nawet przy powtórzonym ITN albo ponowieniu przez cron.
+
+export const STOCK_MOVEMENT_KINDS = ['deduct', 'restore'] as const
+export type StockMovementKind = typeof STOCK_MOVEMENT_KINDS[number]
+
+export const stockMovements = mysqlTable('stock_movements', {
+  id:           varchar('id', { length: 36 }).primaryKey(),
+  orderId:      varchar('order_id', { length: 36 }).notNull(),
+  productId:    varchar('product_id', { length: 128 }).notNull(),
+  variantKey:   varchar('variant_key', { length: 128 }).notNull().default(''),
+  kind:         mysqlEnum('kind', STOCK_MOVEMENT_KINDS).notNull(),
+  // Ile sztuk wynikało z zamówienia i ile faktycznie zdjęto/oddano
+  // (mniej, gdy towaru zabrakło — stan nie schodzi poniżej zera).
+  requestedQty: int('requested_qty').notNull(),
+  appliedQty:   int('applied_qty').notNull(),
+  // Gdzie był stan: 'variant' | 'product' | 'untracked' (stan nieprowadzony).
+  target:       varchar('target', { length: 16 }).notNull(),
+  stockBefore:  int('stock_before'),
+  stockAfter:   int('stock_after'),
+  reason:       varchar('reason', { length: 32 }).notNull(),
+  createdAt:    datetime('created_at', { mode: 'date', fsp: 3 }).notNull().default(sql`(now(3))`),
+}, t => [
+  uniqueIndex('stock_movements_line').on(t.orderId, t.productId, t.variantKey, t.kind),
+  index('stock_movements_product').on(t.productId, t.createdAt),
 ])

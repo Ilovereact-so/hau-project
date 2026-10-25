@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { verifyIPN, verifyTransaction, type P24IPN } from '@/lib/przelewy24'
 import { db } from '@/lib/db'
 import { orders, paymentTransactions } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { isPaymentSettled } from '@/lib/orderStatus'
+import { deductStockQuietly } from '@/lib/inventory.server'
 
 export async function POST(req: NextRequest) {
   let payload: P24IPN
@@ -87,6 +88,9 @@ export async function POST(req: NextRequest) {
       .set({ status: 'paid' })
       .where(eq(orders.id, sessionId))
   })
+
+  // Stan magazynu zdejmujemy po odpowiedzi (patrz webhook Autopay).
+  after(() => deductStockQuietly(sessionId, 'paid'))
 
   return NextResponse.json({ status: 'OK' })
 }

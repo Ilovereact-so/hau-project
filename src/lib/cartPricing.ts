@@ -1,5 +1,5 @@
 import 'server-only'
-import { client } from '@/sanity/lib/client'
+import { sanityClient } from '@/sanity/sanityClient.server'
 import { effectivePrice } from '@/lib/omnibus'
 import type { ProductPromotion } from '@/lib/promotion'
 
@@ -7,6 +7,10 @@ import type { ProductPromotion } from '@/lib/promotion'
  * Ceny pozycji koszyka liczone po stronie serwera z Sanity — jedno źródło dla
  * kasy (`actions/checkout.ts`) i podglądu kodu rabatowego w koszyku, żeby
  * rabat w koszyku i w zamówieniu wychodził z tych samych kwot.
+ *
+ * Czytamy ŚWIEŻO (bez CDN, perspektywa `published`): kasa sprawdza tu stan
+ * magazynu, a CDN potrafi przez chwilę oddawać stan sprzed zdjęcia po
+ * poprzednim zamówieniu — klient kupiłby sztukę, której już nie ma.
  */
 
 export interface SanityPricedProduct {
@@ -21,7 +25,7 @@ export interface SanityPricedProduct {
 
 export async function fetchSanityPrices(productIds: string[]): Promise<Map<string, SanityPricedProduct>> {
   if (!productIds.length) return new Map()
-  const data = await client.fetch<SanityPricedProduct[]>(
+  const data = await sanityClient.fetch<SanityPricedProduct[]>(
     `*[_type == "product" && _id in $ids]{ _id, title, price, brand, stock, promotion, variants[]{ _key, price, stock } }`,
     { ids: productIds },
   )

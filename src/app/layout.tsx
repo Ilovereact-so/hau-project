@@ -46,7 +46,7 @@ export const viewport: Viewport = {
 }
 
 /** Wersja plików ikon w public/ (favicon, apple-touch-icon, icon-*.png). */
-const ICON_VERSION = "2";
+const ICON_VERSION = "3";
 
 export const metadata: Metadata = {
   // Wszystkie względne adresy w metadanych (kanoniczne, OG) rozwijają się

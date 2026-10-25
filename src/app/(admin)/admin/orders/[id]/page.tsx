@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import {
-  ArrowLeft, BadgeCheck, CreditCard, ExternalLink, MapPin, ShoppingBag, StickyNote, Undo2, UserRound,
+  ArrowLeft, BadgeCheck, CreditCard, ExternalLink, MapPin, Package, ShoppingBag, StickyNote, Undo2, UserRound,
 } from 'lucide-react'
 import { getAdminOrderDetail } from '@/lib/admin/ordersQueries'
 import {
@@ -15,10 +15,12 @@ import { Card, CardHeader, Field, Line } from '@/components/admin/kit/Card'
 import { DataTable, Td, Th, Tr } from '@/components/admin/kit/DataTable'
 import { formatCentsPrecise, formatDateTime, orderNumber } from '@/components/admin/kit/format'
 import { OrderActions } from '@/components/admin/orders/OrderActions'
+import { OrderStockActions } from '@/components/admin/orders/OrderStockActions'
 import { desc, eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { orderWithdrawals, shipments } from '@/db/schema'
+import { orderWithdrawals, orders, shipments } from '@/db/schema'
 import { syncFurgonetkaShipment } from '@/lib/shipmentStatus'
+import { RECONCILABLE_STATUSES, deductStockForOrder, getOrderStockInfo, type OrderStockInfo } from '@/lib/inventory.server'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,6 +48,34 @@ async function syncPendingShipment(orderId: string) {
   }
 }
 
+/**
+ * Opłacone zamówienie, któremu stan jeszcze nie zszedł (awaria Sanity w chwili
+ * ITN): otwarcie w panelu dogrywa zdjęcie — najwyżej 4 s, jak przy przesyłce.
+ */
+async function loadStock(orderId: string): Promise<OrderStockInfo | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(orderId)) return null
+  try {
+    const info = await getOrderStockInfo(orderId)
+    const [order] = await db.select({ status: orders.status }).from(orders).where(eq(orders.id, orderId))
+    if (info && order && RECONCILABLE_STATUSES.includes(order.status) && (info.state === 'none' || info.state === 'pending')) {
+      await Promise.race([deductStockForOrder(orderId, 'reconcile'), new Promise((resolve) => setTimeout(resolve, 4000))])
+      return await getOrderStockInfo(orderId)
+    }
+    return info
+  } catch (err) {
+    console.warn('[inventory] stan zamówienia w panelu', err)
+    return null
+  }
+}
+
+const STOCK_STATE_LABEL: Record<string, string> = {
+  none: 'Stan nie został zdjęty',
+  pending: 'Zdejmowanie niedokończone',
+  deducted: 'Zdjęty ze stanu',
+  restored: 'Oddany na magazyn',
+  legacy: 'Sprzed automatycznego zdejmowania',
+}
+
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { id } = await params
   return { title: `Zamówienie ${orderNumber(id)}` }
@@ -54,6 +84,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 export default async function AdminOrderDetailPage({ params }: { params: Params }) {
   const { id } = await params
   await syncPendingShipment(id)
+  const stock = await loadStock(id)
   const [data, withdrawals] = await Promise.all([
     getAdminOrderDetail(id),
     // Oświadczenia o odstąpieniu złożone formularzem online (dopasowane do zamówienia).
@@ -64,6 +95,11 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
   const { order, items, address, payments, shipment, customerOrderCount } = data
   const isGuest = !order.userId.startsWith('user_')
   const units = items.reduce((sum, item) => sum + item.qty, 0)
+  const itemLabel = new Map(items.map((item) => [`${item.productId}::${item.variantId ?? ''}`, item.variantLabel ? `${item.name} (${item.variantLabel})` : item.name]))
+  const stockState = stock?.state ?? 'none'
+  const isPaidStatus = RECONCILABLE_STATUSES.includes(order.status)
+  const canRestock = (order.status === 'refunded' || order.status === 'cancelled') && (stockState === 'deducted' || stockState === 'pending')
+  const canDeduct = isPaidStatus && (stockState === 'none' || stockState === 'pending')
 
   return (
     <div className="flex flex-col gap-4 animate-fade-in">
@@ -274,6 +310,53 @@ export default async function AdminOrderDetailPage({ params }: { params: Params 
               </Link>
             </div>
           </Card>
+
+          {stock && (
+            <Card className="flex flex-col">
+              <CardHeader
+                icon={Package}
+                title="Magazyn"
+                subtitle={
+                  stockState === 'none' && !isPaidStatus
+                    ? order.status === 'cancelled'
+                      ? 'Zamówienie nie zostało opłacone — stan nie był zdejmowany.'
+                      : 'Stan zejdzie automatycznie po opłaceniu zamówienia.'
+                    : order.status === 'refunded' && stockState === 'deducted'
+                      ? 'Zwrot: gdy paczka wróci i towar nadaje się do sprzedaży, oddaj go na stan.'
+                      : undefined
+                }
+                actions={
+                  <Badge tone={stockState === 'deducted' ? 'success' : stockState === 'restored' ? 'info' : stockState === 'pending' ? 'danger' : 'neutral'}>
+                    {STOCK_STATE_LABEL[stockState] ?? stockState}
+                  </Badge>
+                }
+              />
+              <div className="flex flex-col gap-3 px-4 pt-3 pb-4 text-xs text-text">
+                {stock.note && (
+                  <p className="m-0 rounded-xs border border-danger/30 bg-danger/10 px-2.5 py-2 font-medium text-danger">{stock.note}</p>
+                )}
+                {stock.movements.length > 0 && (
+                  <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                    {stock.movements.map((move) => (
+                      <li key={`${move.kind}-${move.productId}-${move.variantKey}`} className="flex flex-col gap-0.5">
+                        <span className="font-medium">{itemLabel.get(`${move.productId}::${move.variantKey}`) ?? move.productId}</span>
+                        <span className="text-text-2">
+                          {move.target === 'untracked'
+                            ? 'stan nieprowadzony — bez zmian'
+                            : `${move.kind === 'deduct' ? 'zdjęto' : 'oddano'} ${move.appliedQty} szt.${
+                                move.kind === 'deduct' && move.appliedQty < move.requestedQty ? ` z ${move.requestedQty}` : ''
+                              } · stan ${move.stockBefore ?? '—'} → ${move.stockAfter ?? '—'}${move.target === 'product' ? ' (wspólny stan produktu)' : ''}`}
+                          {' · '}
+                          {formatDateTime(move.createdAt)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <OrderStockActions orderId={order.id} canRestock={canRestock} canDeduct={canDeduct} />
+              </div>
+            </Card>
+          )}
 
           {withdrawals.length > 0 && (
             <Card className="flex flex-col">

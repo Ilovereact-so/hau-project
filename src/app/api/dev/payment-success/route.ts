@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { orders, paymentTransactions, savedCards } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { isPaymentSettled } from '@/lib/orderStatus'
+import { deductStockQuietly } from '@/lib/inventory.server'
 
 // DEV-ONLY — blocked in production.
 // Simulates a successful Autopay payment + card saving so the full order flow
@@ -78,6 +79,8 @@ export async function GET(req: NextRequest) {
       })
     }
   })
+
+  await deductStockQuietly(orderId, 'paid')
 
   return NextResponse.redirect(`${appUrl}/orders/${orderId}?payment=success`)
 }

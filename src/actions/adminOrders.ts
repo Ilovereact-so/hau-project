@@ -10,6 +10,7 @@ import { syncFurgonetkaShipment } from '@/lib/shipmentStatus'
 import { runAdminAction, type ActionResult } from '@/lib/admin/guard'
 import { ORDER_TRANSITIONS } from '@/lib/admin/labels'
 import { releaseDiscountForOrder } from '@/lib/discountServer'
+import { RECONCILABLE_STATUSES, deductStockForOrder, restoreStockForOrder } from '@/lib/inventory.server'
 
 /*
  * Akcje zamówień w panelu admina.
@@ -35,7 +36,11 @@ async function loadOrder(orderId: string) {
   return order
 }
 
-export async function adminUpdateOrderStatus(orderId: string, status: OrderStatus): Promise<ActionResult> {
+/**
+ * Zmiana statusu. Wynik `data` = ostrzeżenie do pokazania (np. status zmieniony,
+ * ale stanu magazynu nie udało się oddać) albo `null`.
+ */
+export async function adminUpdateOrderStatus(orderId: string, status: OrderStatus): Promise<ActionResult<string | null>> {
   return runAdminAction(async () => {
     const order = await loadOrder(orderId)
     const allowed = ORDER_TRANSITIONS[order.status] ?? []
@@ -48,9 +53,44 @@ export async function adminUpdateOrderStatus(orderId: string, status: OrderStatu
       // Zwrot („refunded”) NIE oddaje — rabat został wykorzystany.
       if (status === 'cancelled') await releaseDiscountForOrder(tx, orderId)
     })
+    // Anulowanie oddaje zdjęty stan na magazyn. Zwrot („refunded”) — NIE:
+    // towar wraca dopiero, gdy paczka dojedzie (przycisk w karcie „Magazyn”).
+    let warning: string | null = null
+    if (status === 'cancelled') {
+      const result = await restoreStockForOrder(orderId, 'cancelled')
+      if (!result.ok) warning = `Zamówienie anulowane, ale stan magazynu nie wrócił: ${result.error}`
+    }
+    refresh(orderId)
+    return warning
+  }, 'Nie udało się zmienić statusu.')
+}
+
+/** „Towar wrócił na magazyn” — dla zamówień zwróconych (i anulowanych, gdyby oddanie się nie udało). */
+export async function adminRestockOrder(orderId: string): Promise<ActionResult> {
+  return runAdminAction(async () => {
+    const order = await loadOrder(orderId)
+    if (order.status !== 'refunded' && order.status !== 'cancelled') {
+      throw new Error('Stan wraca na magazyn tylko przy zamówieniu zwróconym albo anulowanym.')
+    }
+    const result = await restoreStockForOrder(orderId, order.status === 'refunded' ? 'returned' : 'cancelled')
+    if (!result.ok) throw new Error(result.error)
     refresh(orderId)
     return null
-  }, 'Nie udało się zmienić statusu.')
+  }, 'Nie udało się oddać stanu na magazyn.')
+}
+
+/** Ponowienie zdjęcia stanu (np. po awarii Sanity) dla zamówienia opłaconego. */
+export async function adminDeductOrderStock(orderId: string): Promise<ActionResult> {
+  return runAdminAction(async () => {
+    const order = await loadOrder(orderId)
+    if (!RECONCILABLE_STATUSES.includes(order.status)) {
+      throw new Error('Stan zdejmuje się tylko dla zamówień opłaconych (albo za pobraniem).')
+    }
+    const result = await deductStockForOrder(orderId, 'reconcile')
+    if (!result.ok) throw new Error(result.error)
+    refresh(orderId)
+    return null
+  }, 'Nie udało się zdjąć stanu.')
 }
 
 interface CreateShipmentInput {

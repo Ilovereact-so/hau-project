@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { hasBearer } from '@/lib/server/secrets'
 import { processUnpaidOrders } from '@/lib/unpaidOrders.server'
 import { sendUnpaidOrderEmail } from '@/lib/orderEmails'
+import { reconcileOrderStock } from '@/lib/inventory.server'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -16,6 +17,9 @@ export const maxDuration = 300
  *    status „Anulowane”, kod rabatowy wraca do puli, mail do klienta.
  * Każdy mail idzie najwyżej raz (Redis). Anulowanie działa też bez crona —
  * przy wejściu na zamówienie i próbie zapłaty — ale maile wysyła tylko cron.
+ *
+ * Przy okazji: dogrywka zdejmowania stanu dla zamówień opłaconych, którym
+ * stan nie zszedł (awaria Sanity w chwili ITN) — `reconcileOrderStock`.
  */
 async function handle(req: NextRequest) {
   if (!hasBearer(req.headers.get('authorization'), process.env.CRON_SECRET)) {
@@ -24,9 +28,18 @@ async function handle(req: NextRequest) {
   const started = Date.now()
   try {
     const report = await processUnpaidOrders(sendUnpaidOrderEmail)
+    let stock: Awaited<ReturnType<typeof reconcileOrderStock>> | { error: string }
+    try {
+      stock = await reconcileOrderStock()
+    } catch (err) {
+      console.error('[cron/unpaid-orders] stock reconcile failed', err)
+      stock = { error: 'failed' }
+    }
+    const stockFailed = 'error' in stock || stock.failed > 0
+    const ok = report.failed.length === 0 && !stockFailed
     return NextResponse.json(
-      { ok: report.failed.length === 0, ...report, durationMs: Date.now() - started },
-      { status: report.failed.length ? 500 : 200 },
+      { ok, ...report, stock, durationMs: Date.now() - started },
+      { status: ok ? 200 : 500 },
     )
   } catch (err) {
     console.error('[cron/unpaid-orders] failed', err)

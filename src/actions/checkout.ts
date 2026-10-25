@@ -3,6 +3,7 @@
 import { auth } from '@clerk/nextjs/server'
 import { headers } from 'next/headers'
 import { after } from 'next/server'
+import { deductStockQuietly } from '@/lib/inventory.server'
 import { sendOrderConfirmation } from '@/lib/orderEmails'
 import { db } from '@/lib/db'
 import { orders, orderItems, shippingAddresses, paymentTransactions } from '@/db/schema'
@@ -514,6 +515,9 @@ async function initiatePayment(
   }
 
   await db.update(orders).set({ status: 'processing' }).where(eq(orders.id, orderId))
+  // Za pobraniem: zamówienie jest wiążące od razu, więc stan zdejmujemy teraz
+  // (po odpowiedzi — klient nie czeka; awarie dogrywa zadanie cykliczne).
+  after(() => deductStockQuietly(orderId, 'cod'))
   return { ok: true, redirectUrl: `${APP_URL}/orders/${orderId}?payment=cod` }
 }
 
