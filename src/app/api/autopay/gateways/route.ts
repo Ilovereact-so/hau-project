@@ -2,9 +2,8 @@ import { NextResponse } from 'next/server'
 import {
   fetchGateways,
   isAutopayConfigured,
-  AUTOPAY_RECURRING_ENABLED,
-  AUTOPAY_BLIK0_ENABLED,
   AUTOPAY_CARD_IFRAME_ENABLED,
+  AUTOPAY_ONECLICK_GATEWAY_ID,
   type AutopayGateway,
 } from '@/lib/autopay'
 
@@ -29,11 +28,17 @@ const DEV_GATEWAYS: AutopayGateway[] = [
 
 const CACHE_TTL_MS = 5 * 60 * 1000
 
-/** Flagi trybów obsługiwanych bez opuszczania sklepu — czyta je checkout. */
+/** Flagi trybów płatności — czyta je checkout. */
 const FEATURE_FLAGS = {
-  blik0Enabled:       AUTOPAY_BLIK0_ENABLED,
   cardIframeEnabled:  AUTOPAY_CARD_IFRAME_ENABLED,
 }
+
+/**
+ * One Click (1503) wymaga zapisanej karty — usługa niedostępna na umowie
+ * sklepu, więc kanału nie pokazujemy, nawet gdyby bramka go zwróciła.
+ */
+const visibleGateways = (gateways: AutopayGateway[]) =>
+  gateways.filter(gateway => gateway.gatewayID !== AUTOPAY_ONECLICK_GATEWAY_ID)
 
 let cache: { at: number; gateways: AutopayGateway[] } | null = null
 
@@ -47,21 +52,23 @@ export async function GET() {
         { status: 503 },
       )
     }
-    return NextResponse.json({ gateways: DEV_GATEWAYS, dev: true, recurringEnabled: false, ...FEATURE_FLAGS })
+    return NextResponse.json({ gateways: DEV_GATEWAYS, dev: true, ...FEATURE_FLAGS })
   }
 
   if (cache && Date.now() - cache.at < CACHE_TTL_MS) {
-    return NextResponse.json({ gateways: cache.gateways, recurringEnabled: AUTOPAY_RECURRING_ENABLED, ...FEATURE_FLAGS })
+    return NextResponse.json({ gateways: cache.gateways, ...FEATURE_FLAGS })
   }
 
   try {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 8000)
 
-    const gateways = await fetchGateways(controller.signal).finally(() => clearTimeout(timeout))
+    const gateways = visibleGateways(
+      await fetchGateways(controller.signal).finally(() => clearTimeout(timeout)),
+    )
 
     cache = { at: Date.now(), gateways }
-    return NextResponse.json({ gateways, recurringEnabled: AUTOPAY_RECURRING_ENABLED, ...FEATURE_FLAGS })
+    return NextResponse.json({ gateways, ...FEATURE_FLAGS })
   } catch (err) {
     console.error('[Autopay] Nie udało się pobrać listy kanałów płatności:', err)
 
@@ -71,7 +78,6 @@ export async function GET() {
       return NextResponse.json({
         gateways:         cache.gateways,
         stale:            true,
-        recurringEnabled: AUTOPAY_RECURRING_ENABLED,
         ...FEATURE_FLAGS,
       })
     }
@@ -79,7 +85,6 @@ export async function GET() {
     return NextResponse.json({
       gateways:         [],
       unavailable:      true,
-      recurringEnabled: AUTOPAY_RECURRING_ENABLED,
       ...FEATURE_FLAGS,
     })
   }

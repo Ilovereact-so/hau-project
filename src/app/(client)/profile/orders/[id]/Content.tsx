@@ -139,7 +139,6 @@ export default function Content({
             orderId={order.id}
             totalCents={order.totalCents}
             deadline={paymentDeadline}
-            allowSaveCard={!isGuest}
             accessToken={accessToken}
             highlight={paymentParam === 'unpaid' || paymentParam === 'error' || paymentParam === 'failed' || payment?.status === 'failed'}
           />

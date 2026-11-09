@@ -12,8 +12,8 @@ export const runtime  = 'nodejs'
 
 /**
  * Status zamówienia dla checkoutu — checkout odpytuje ten endpoint, czekając aż
- * ITN z Autopay potwierdzi płatność (BLIK-0 i formularz karty w ramce nie
- * przekierowują przeglądarki, więc nie ma innego sygnału).
+ * ITN z Autopay potwierdzi płatność (formularz karty w ramce nie przekierowuje
+ * przeglądarki, więc nie ma innego sygnału).
  *
  * Dostęp: właściciel zamówienia — zalogowany user albo gość po cookie `guest_id`
  * (w `orders.userId` trzymamy jedno albo drugie) — albo podpisany link

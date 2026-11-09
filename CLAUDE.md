@@ -191,9 +191,7 @@ AUTOPAY_BASE_URL            # opcjonalny override adresu bramki
 AUTOPAY_HASH_ALGO           # domyślnie sha256
 AUTOPAY_HASH_SEPARATOR      # domyślnie |
 AUTOPAY_SEND_RETURN_URL     # true = wysyłamy dynamiczny ReturnURL (wymaga włączenia u Autopay)
-AUTOPAY_RECURRING_ENABLED   # true = zapisane karty / One Click (wymaga kanału 1503 u Autopay)
-AUTOPAY_BLIK0_ENABLED       # false = powrót do przekierowania zamiast BLIK-0 (domyślnie true)
-AUTOPAY_CARD_IFRAME_ENABLED # false = karta przez przekierowanie zamiast iframe (domyślnie true)
+AUTOPAY_CARD_IFRAME_ENABLED # true = karta w <iframe> na stronie sklepu (domyślnie false — przekierowanie; wymaga ScreenType=IFRAME u Autopay)
 # Wysyłka — Furgonetka (InPost)
 FURGONETKA_CLIENT_ID, FURGONETKA_CLIENT_SECRET
 FURGONETKA_REDIRECT_URI, FURGONETKA_REFRESH_TOKEN, FURGONETKA_WEBHOOK_SECRET
@@ -250,45 +248,46 @@ w `src/lib/xml.ts`). Zasady, od których zależy działanie integracji:
   zamówienie; gdy ITN jeszcze nie dotarł, pokazuje `payment=pending`.
 - **Danych kartowych ani kodu BLIK nie zbieramy u siebie** — klient podaje je na
   stronie Autopay. Nie wprowadzaj z powrotem pól karty do checkoutu (PCI DSS).
+- **Na umowie sklepu (ServiceID 1016072) Autopay NIE udostępnia** BLIK-0 / BLIK
+  Level 0 bez przekierowania (white label) ani płatności kartą One Click (kanał
+  1503) / płatności automatycznych (recurring) — potwierdzone przez opiekuna
+  2026-11-09. BLIK idzie przekierowaniem z `GatewayID=509` (kod wpisuje się na
+  stronie Autopay). Kanał 1503 jest odfiltrowany w `/api/autopay/gateways`
+  i odrzucany w `checkout()` (`validateGateway`). Zapisanych kart nie ma —
+  tabela `saved_cards` i kolumny `save_card_consent`/`card_token` usunięte
+  migracją `0007_remove_saved_cards`.
 - W panelu Autopay ustawione muszą być: adres powrotu → `/api/autopay/return`,
   adres ITN → `/api/webhooks/autopay`, oraz algorytm i separator zgodne z `.env`.
 - Diagnostyka: `GET /api/autopay/diagnostics` (dev + rola admin) sprawdza konfigurację,
   łączność z `paywayList` i buduje przykładową transakcję z hashem.
 
-### Trzy tryby uruchomienia płatności
+### Tryby uruchomienia płatności
 
-`checkout()` zwraca jeden z trzech wariantów i klient decyduje, co z nim zrobić:
+`checkout()` (i „Zapłać ponownie” — `payExistingOrder()`) zwraca jeden z wariantów:
 
 | Wariant | Kiedy | Co robi klient |
 |---|---|---|
-| `autopayForm` | pozostałe kanały i „Inne metody płatności” | ukryty formularz POST → strona Autopay |
-| `autopayInline` `mode: 'blik'` | BLIK-0 (`AUTOPAY_BLIK0_ENABLED`) | panel „potwierdź w aplikacji” + odpytywanie statusu |
-| `autopayInline` `mode: 'card'` | karta (`AUTOPAY_CARD_IFRAME_ENABLED`) | `<iframe>` z formularzem Autopay |
+| `autopayForm` | każdy kanał Autopay (BLIK, karta, banki, portfele) i „Inne metody płatności” | ukryty formularz POST → strona Autopay |
+| `autopayInline` `mode: 'card'` | karta, tylko przy `AUTOPAY_CARD_IFRAME_ENABLED=true` | `<iframe>` z formularzem Autopay |
 | `redirectUrl` | Przelewy24, pobranie, dev-bypass | zwykłe przekierowanie |
 
-Oba tryby `autopayInline` idą przez `startTransactionInBackground()` — wywołanie
-serwer-serwer z nagłówkiem `BmHeader: pay-bm-continue-transaction-url`. Odpowiedź
-to XML `<transaction>`: albo `status` + `redirecturl`, albo `confirmation=NOTCONFIRMED`
-+ `reason` (`WRONG_TICKET`, `TICKET_EXPIRED`, …). Hash odpowiedzi weryfikujemy tak
-samo jak ITN — z liści XML-a w kolejności dokumentu.
-
-Gdy przedtransakcja się nie powiedzie (usługa niewłączona, błąd bramki), checkout
-**schodzi do zwykłego przekierowania** zamiast blokować płatność.
+Karta w ramce idzie przez `startTransactionInBackground()` — wywołanie serwer-serwer
+z nagłówkiem `BmHeader: pay-bm-continue-transaction-url`. Odpowiedź to XML
+`<transaction>`: albo `status` + `redirecturl`, albo `confirmation=NOTCONFIRMED` +
+`reason`. Hash odpowiedzi weryfikujemy tak samo jak ITN. Gdy przedtransakcja się nie
+powiedzie (usługa niewłączona, błąd bramki), checkout **schodzi do zwykłego
+przekierowania** zamiast blokować płatność.
 
 Ważne szczegóły:
 
-- **Koszyk czyścimy dopiero po udanym starcie płatności.** BLIK-0 potrafi odrzucić
-  transakcję (zły/wygasły kod) i klient musi mieć do czego wrócić. `CheckoutClient`
-  ma z tego powodu wyjątek w warunku `EmptyCart`.
-- **Kod BLIK zbieramy w kroku podsumowania**, nie przy wyborze metody — kod żyje ~2 minuty.
-- `retryBlikPayment(orderId, code)` pozwala podać nowy kod do istniejącego zamówienia
-  bez składania go od nowa.
-- **Formularz karty jest hostowany przez Autopay** (`ScreenType: 'IFRAME'`). Nie
-  wprowadzaj pól numeru karty ani CVV do naszego kodu — to natychmiast wciąga sklep
-  w zakres PCI DSS SAQ D.
-- `/api/orders/[id]/status` to jedyny sygnał o wyniku dla trybów inline (nie ma
-  przekierowania, więc checkout odpytuje status aż ITN go rozstrzygnie). Dostęp ma
-  właściciel zamówienia — zalogowany user albo gość po cookie `guest_id`.
+- **Koszyk czyścimy dopiero po udanym starcie płatności** — gdy start się nie uda,
+  klient musi mieć do czego wrócić. `CheckoutClient` ma wyjątek w warunku `EmptyCart`
+  na czas płatności kartą w ramce.
+- **Formularz karty jest hostowany przez Autopay**. Nie wprowadzaj pól numeru karty
+  ani CVV do naszego kodu — to natychmiast wciąga sklep w zakres PCI DSS SAQ D.
+- `/api/orders/[id]/status` to jedyny sygnał o wyniku dla karty w ramce (nie ma
+  przekierowania, więc panel odpytuje status aż ITN go rozstrzygnie). Dostęp ma
+  właściciel zamówienia — zalogowany user, gość po cookie `guest_id` albo podpisany link.
 
 ## Profil klienta
 
@@ -300,7 +299,8 @@ Wszystko, co dotyczy konta, mieszka pod `/profile` (middleware wymusza tam logow
 | `/profile/orders` | lista zamówień |
 | `/profile/orders/[id]` | szczegóły zamówienia |
 | `/profile/wishlist` | polubione |
-| `/profile/payment` | zapisane karty |
+
+(Dawnej zakładki `/profile/payment` z zapisanymi kartami nie ma — sklep nie zapisuje kart.)
 
 Stare `/orders` i `/orders/[id]` zostały jako przekierowania (linkują do nich maile
 i historia przeglądarek) — `/orders/[id]` przenosi też parametry zapytania, żeby
@@ -309,38 +309,6 @@ i historia przeglądarek) — `/orders/[id]` przenosi też parametry zapytania, 
 `ProfileMenu` używa **ścieżek bezwzględnych** — przy adresach zagnieżdżonych
 (`/profile/orders/[id]`) względne `href="orders"` rozwijało się do
 `/profile/orders/orders`.
-
-### Zapisane karty (Autopay „Płatność kartą One Click”, kanał 1503)
-
-Numeru karty NIE przechowujemy (PCI DSS) — kartę trzyma Autopay, a `saved_cards`
-ma token (`ClientHash`) i dane do wyświetlenia: wydawca, 4 ostatnie cyfry, ważność.
-Token nie wychodzi do przeglądarki: kasa wysyła `savedCardId`, serwer szuka tokenu
-po id I właścicielu (`findCardTokenForUser`). Całość za flagą `AUTOPAY_RECURRING_ENABLED`.
-
-- **Zapis**: zalogowany klient płaci kartą z zaznaczonym „Zapamiętaj kartę” (pod
-  checkboksem pełna treść zgody `SAVE_CARD_AGREEMENT`) → transakcja kanałem **1503**
-  z `RecurringAcceptanceState=ACCEPTED` + `RecurringAction=INIT_WITH_PAYMENT`
-  (formularz w ramce, 3-D Secure). `payment_transactions.save_card_consent` = zgoda.
-- **Dane karty przychodzą OSOBNYM komunikatem** na adres ITN: pole `recurring` =
-  base64 XML `<recurringActivation>` (cardData: index, mask, issuer, validity…)
-  albo `<recurringDeactivation>`. Hash jak ITN (liście w kolejności dokumentu),
-  odpowiedź `<recurringConfirmations>` z hashem `serviceID|clientHash|status|klucz`
-  (`parseRecurringNotification` / `buildRecurringConfirmation`). Karta trafia na
-  konto tylko zalogowanego właściciela zamówienia ze zgodą — inaczej NOTCONFIRMED.
-  Zapis bez duplikatów (`upsertSavedCard`: ten sam token albo ta sama karta).
-- **Płatność zapisaną kartą**: `RecurringAction=MANUAL` + `ClientHash`, kanał 1503,
-  przedtransakcja z `ScreenType=IFRAME` → ramka z 3-D Secure albo od razu wynik
-  (brak `redirecturl` → `/orders/[id]?payment=pending`, rozstrzyga ITN).
-- **Kolejność hasha**: `RecurringAcceptanceState`, `RecurringAction`, `ClientHash`
-  stoją PO `LinkValidityTime`, PRZED `AuthorizationCode`/`ScreenType`/`ReturnURL`
-  (pozycje 35–37 specyfikacji; zgodne z oficjalną wtyczką Autopay do Magento).
-- **Front**: profil → Płatności (`/profile/payment`) — karty z wydawcą, ostatnimi
-  cyframi, ważnością („Wkrótce wygaśnie”, „Wygasła”) i usuwaniem z potwierdzeniem;
-  kasa — sekcja „Twoje zapisane karty” (wygasłe wyłączone). Kanał 1503 nie jest
-  pokazywany jako osobna metoda. Wspólne: `lib/savedCardsShared.ts`, serwer:
-  `lib/savedCards.server.ts`, znak wydawcy `CardBrandMark` (`PaymentLogos`).
-- Usunięcie w profilu = `isActive=false` (karta znika z profilu i kasy, token nie jest
-  używany). Tabela `saved_cards` jest w migracji `0000` — bez nowej migracji.
 
 ## Opinie o produktach
 
@@ -480,7 +448,7 @@ Sklep sam rejestruje historię cen i z niej wylicza „najniższą cenę z 30 dn
 Model jak w dużych sklepach (Allegro, empik, Zalando): zamówienie złożone z płatnością online, której klient nie dokończył (zamknął okno, wrócił „wstecz” z banku, odrzucony BLIK, błąd karty), **zostaje** w statusie `awaiting_payment` i czeka na płatność do terminu. Koszyk jest wtedy już pusty (czyszczony po starcie płatności) — klient płaci za ZAMÓWIENIE, nie składa go od nowa.
 
 - **Termin**: `createdAt + ORDER_PAYMENT_DEADLINE_HOURS` (domyślnie 72 h, zakres 2–720) — `lib/paymentDeadline.ts` (czyste: `paymentDeadline`, `isPaymentOverdue`, `formatPaymentDeadline` składany z `formatToParts`, żeby serwer i przeglądarka dały ten sam tekst, `timeLeftLabel`) i `lib/unpaidOrders.server.ts` (`PAYMENT_DEADLINE_HOURS`, `orderPaymentDeadline`). Ten sam termin idzie do Autopay jako `ValidityTime` (`autopayDateTime` — `YYYY-MM-DD HH:MM:SS` czasu polskiego), więc link bramki wygasa razem z zamówieniem.
-- **Zapłać ponownie**: strona zamówienia (`/profile/orders/[id]` i `/zamowienie/[id]`) ma sekcję `#platnosc` (`components/orders/PayOrderPanel.tsx`): kwota, „Opłać do … · zostało …”, wybór metody (`Step2PaymentForm` bez pobrania; zapisane karty i „zapamiętaj kartę” tylko dla zalogowanego właściciela), BLIK-0 z kodem. Akcja `payExistingOrder(orderId, selection, accessToken?)` (`actions/checkout.ts`): dostęp przez `resolveOrderAccess` (konto, `guest_id` albo token `?t=` z maila — także na innym urządzeniu), odrzuca opłacone/anulowane/po terminie i gdy zostało < 5 min; stare transakcje `pending` → `expired`, nowa transakcja → `initiatePayment` (te same trzy tryby co kasa). `retryBlikPayment` deleguje do niej.
+- **Zapłać ponownie**: strona zamówienia (`/profile/orders/[id]` i `/zamowienie/[id]`) ma sekcję `#platnosc` (`components/orders/PayOrderPanel.tsx`): kwota, „Opłać do … · zostało …”, wybór metody (`Step2PaymentForm` bez pobrania) i przejście na stronę Autopay (BLIK, karta, przelew). Akcja `payExistingOrder(orderId, selection, accessToken?)` (`actions/checkout.ts`): dostęp przez `resolveOrderAccess` (konto, `guest_id` albo token `?t=` z maila — także na innym urządzeniu), odrzuca opłacone/anulowane/po terminie i gdy zostało < 5 min; stare transakcje `pending` → `expired`, nowa transakcja → `initiatePayment` (te same tryby co kasa).
 - **Gdzie klient trafia**: zamknięcie okienka BLIK/karty w kasie → `/orders/[id]?payment=unpaid#platnosc`; okienko ma „Wybierz inną metodę płatności”; powrót z bramki z nieudaną transakcją → `payment=failed` (`/api/autopay/return`). Panel jest wtedy czerwony („Płatność nie została dokończona”). Pusty koszyk i pusta kasa (`EmptyCart`) pokazują `PendingPaymentNotice` — „Masz nieopłacone zamówienie #… → Zapłać” (`getPendingPaymentOrder`, konto albo ciasteczko gościa). Lista zamówień w profilu ma „Opłać do …” + „Zapłać”. Status API (`/api/orders/[id]/status`) przyjmuje `?t=` dla gościa z linku.
 - **Maile** (`sendUnpaidOrderEmail`, `lib/orderEmails.ts`): przypomnienie po 1 h, „ostatnia szansa” 12 h przed terminem (tylko gdy termin > 24 h), informacja o anulowaniu. Każdy najwyżej raz — flaga Redis `orders:payment-reminder:v1:<rodzaj>:<id>` (SET NX); nieudana wysyłka zwalnia flagę, więc następne uruchomienie ponowi. Mail potwierdzenia zamówienia czekającego na płatność ma termin i przycisk „Opłać zamówienie”.
 - **Anulowanie po terminie**: `cancelUnpaidOrder` w transakcji — `UPDATE … WHERE status='awaiting_payment'` (sprawdza `affectedRows`, więc równoległe wywołania nie dublują), `releaseDiscountForOrder` (kod rabatowy wraca), transakcje `pending` → `expired`. Wołane przez zadanie cykliczne `GET /api/cron/unpaid-orders` (`Bearer $CRON_SECRET`, co godzinę; `processUnpaidOrders`) ORAZ leniwie przy odczycie (`expireIfOverdue` w liście/szczegółach zamówienia i przy próbie zapłaty) — sklep działa poprawnie nawet bez crona, tylko bez maili. Stan magazynu nie jest rezerwowany (schodzi dopiero po opłaceniu — patrz „Automatyczne zdejmowanie stanu”), więc anulowanie nieopłaconego zamówienia nic nie oddaje do magazynu.
@@ -497,6 +465,8 @@ Model jak w dużych sklepach (Allegro, empik, Zalando): zamówienie złożone z 
 ## Automatyczne zdejmowanie stanu
 
 Migracja **`drizzle/0006_order_stock.sql` — ręcznie na bazie, PRZED wdrożeniem kodu**: tabela `stock_movements`, kolumny `orders.stock_state` / `stock_note`; dotychczasowe złożone zamówienia dostają `legacy` (wstecz nic nie zdejmujemy).
+
+Migracja **`drizzle/0007_remove_saved_cards.sql` — ręcznie na bazie, PO wdrożeniu kodu** (stary kod zapisuje `save_card_consent`): `DROP TABLE saved_cards`, usunięcie `payment_transactions.save_card_consent` i `card_token`. Nieodwracalna.
 
 - **Kiedy**: po OPŁACENIU (ITN Autopay, Przelewy24, dev-bypass — `after()`, nie opóźnia potwierdzenia ITN) albo od razu przy zamówieniu za pobraniem. Nieopłacone niczego nie rezerwują. Anulowanie w panelu (`adminUpdateOrderStatus` → `cancelled`) oddaje stan sam; zwrot (`refunded`) — dopiero przyciskiem „Towar wrócił na magazyn” (`adminRestockOrder`), bo zwrot pieniędzy ≠ paczka na magazynie.
 - **Gdzie** (`lib/inventory.ts`, czyste — `applyStockChange`): ta sama reguła co `variantStock` — wariant z własną liczbą → `variants[_key].stock`, inaczej wspólny `stock` produktu, brak liczby = nieprowadzony (bez zmian). Stan nigdy < 0: przy braku (dwie osoby kupiły ostatnią sztukę) zdejmujemy tyle, ile było, a `orders.stock_note` mówi, czego zabrakło (karta Magazyn). Rezerwacji przy złożeniu zamówienia NIE ma. Oddanie = dokładnie zdjęte sztuki (`applied_qty`).

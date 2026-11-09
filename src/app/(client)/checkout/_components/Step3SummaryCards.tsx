@@ -3,7 +3,6 @@
 import type { CheckoutAddress, CheckoutPickupPoint } from '@/actions/checkout'
 import { SquarePen, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import BlikCodeInput from './BlikCodeInput'
 import { getAssetForCarrier } from './Step2DeliveryPayment'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -21,15 +20,9 @@ interface Props {
   paymentMethod: string
   gatewayId?:    number
   gatewayName?:  string
-  /** Płatność zapisaną kartą (Autopay One Click). */
-  savedCard?:    boolean
-  /** Nowa karta zostanie zapamiętana po udanej płatności. */
-  saveCard?:     boolean
+  /** Karta otworzy się w ramce na stronie sklepu (AUTOPAY_CARD_IFRAME_ENABLED). */
+  cardIframe?:   boolean
   pickupPoint?:  CheckoutPickupPoint
-  /** BLIK-0 aktywny — zbieramy kod tutaj, tuż przed wysłaniem. */
-  blik0?:        boolean
-  blikCode:      string
-  onBlikCode:    (code: string) => void
   onEdit:        () => void
   handleSubmit:  () => void
   isPending:     boolean
@@ -41,25 +34,22 @@ interface Props {
 /**
  * Podsumowanie zamówienia.
  *
- * Danych karty ani kodu BLIK nie zbieramy u siebie — pełne dane płatnicze
- * klient podaje na stronie Autopay. To upraszcza flow i trzyma sklep poza
- * zakresem PCI DSS.
+ * Danych karty ani kodu BLIK nie zbieramy u siebie — klient podaje je na
+ * stronie Autopay (BLIK-0 i zapisane karty nie są dostępne na umowie sklepu).
+ * To trzyma sklep poza zakresem PCI DSS.
  */
 export default function Step3SummaryCards({
   address, deliveryType, serviceName: _serviceName, paymentMethod,
-  gatewayId, gatewayName, savedCard = false, saveCard = false, pickupPoint,
-  blik0, blikCode, onBlikCode,
+  gatewayId, gatewayName, cardIframe = false, pickupPoint,
   onEdit, handleSubmit, isPending, submitError,
 }: Props) {
   const isAutopay    = paymentMethod === 'autopay'
   const paymentLabel = isAutopay ? (gatewayName ?? 'Autopay') : 'Za pobraniem'
 
-  const isBlik0 = isAutopay && blik0 === true && gatewayId === BLIK_GATEWAY_ID
-  const isCard  = isAutopay && (gatewayId === CARD_GATEWAY_ID || savedCard)
+  const isBlik       = isAutopay && gatewayId === BLIK_GATEWAY_ID
+  const isCardInline = isAutopay && gatewayId === CARD_GATEWAY_ID && cardIframe
 
-  // Kod BLIK żyje ~2 minuty, więc zbieramy go dopiero tutaj — tuż przed wysłaniem.
-  const blikReady   = !isBlik0 || blikCode.replace(/\D/g, '').length === 6
-  const submitBlocked = isPending || !blikReady
+  const submitBlocked = isPending
   const asset = getAssetForCarrier(pickupPoint?.carrier ? pickupPoint?.carrier: "")
   return (
     <div className="space-y-5 flex flex-col w-full">
@@ -110,31 +100,15 @@ export default function Step3SummaryCards({
         </div>
       
 
-      {/* ── BLIK-0: kod z aplikacji banku ──────────────────────────── */}
-      {isBlik0 && (
-        <div className="border border-[#E0E0E0] rounded-2xl p-5">
-          <p className="text-[16px] font-semibold text-fancy-black">
-            Płatność{' '}
-            <span className="inline-flex items-center justify-center bg-black text-white text-[11px] font-black tracking-wide px-2.5 py-1 rounded-[6px] leading-none ml-1 translate-y-[-1px]">
-              blik
-            </span>
-          </p>
-          <p className="text-[13px] text-[#6C6C6C] mt-1">
-            Wpisz 6-cyfrowy kod z aplikacji bankowej, a potem potwierdź płatność w aplikacji.
-          </p>
-          <BlikCodeInput value={blikCode} onChange={onBlikCode} />
-        </div>
-      )}
-
       {/* ── informacja o tym, co się stanie po kliknięciu ──────────── */}
-      {isAutopay && !isBlik0 && (
+      {isAutopay && (
         <div className="flex items-start gap-3 rounded-2xl py-3">
           <ShieldCheck size={18} className="text-[#6C6C6C] mt-[2px] flex-shrink-0" />
           <p className="text-[14px] text-[#3D3D3D] leading-relaxed">
-            {savedCard
-              ? 'Zapłacisz zapisaną kartą. Jeśli bank poprosi o potwierdzenie (3-D Secure), okienko otworzy się na tej stronie.'
-              : isCard
-                ? `Formularz karty otworzy się na tej stronie — obsługuje go Autopay, więc dane karty nie trafiają na serwer sklepu.${saveCard ? ' Po udanej płatności karta zapisze się na Twoim koncie.' : ''}`
+            {isCardInline
+              ? 'Formularz karty otworzy się na tej stronie — obsługuje go Autopay, więc dane karty nie trafiają na serwer sklepu.'
+              : isBlik
+                ? 'Po kliknięciu „Zamawiam i płacę” przejdziesz na bezpieczną stronę Autopay. Wpiszesz tam 6-cyfrowy kod BLIK z aplikacji banku i potwierdzisz płatność w aplikacji.'
                 : 'Po kliknięciu „Zamawiam i płacę” przejdziesz na bezpieczną stronę Autopay, gdzie dokończysz płatność.'}
           </p>
         </div>

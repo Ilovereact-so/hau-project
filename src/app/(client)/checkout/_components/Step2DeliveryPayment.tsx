@@ -26,13 +26,10 @@ export interface Step2Result {
   paymentMethod: PaymentMethod
   gatewayId?:    number
   gatewayName?:  string
-  saveCard?:     boolean
-  /** Płatność zapisaną kartą (`saved_cards.id`). */
-  savedCardId?:  string
   /** „Inne metody płatności” — kanał wybierany po stronie Autopay. */
   other?:        boolean
-  /** BLIK-0 aktywny — kod zbieramy w podsumowaniu zamówienia. */
-  blik0?:        boolean
+  /** Karta w ramce na stronie sklepu (AUTOPAY_CARD_IFRAME_ENABLED). */
+  cardIframe?:   boolean
 }
 
 interface Props {
@@ -47,8 +44,6 @@ interface Props {
   initialPayment?: GatewaySelection
   /** Zamówienie łapie się na darmową dostawę (próg z panelu) — ceny jako „Gratis”. */
   freeShipping?: boolean
-  /** Gość (bez konta) — bez zapamiętywania karty. */
-  isGuest?: boolean
 }
 
 /** Cena dostawy albo „Gratis” (z przekreśloną ceną) przy darmowej dostawie. */
@@ -188,7 +183,7 @@ function PickupCard({
 
 // ─── component ────────────────────────────────────────────────────────────────
 
-export default function Step2DeliveryPayment({ address, deliveryType, services, onEdit, onContinue, dynamicService, initialServiceCode = '', initialPickupPoint, initialPayment, freeShipping = false, isGuest = false }: Props) {
+export default function Step2DeliveryPayment({ address, deliveryType, services, onEdit, onContinue, dynamicService, initialServiceCode = '', initialPickupPoint, initialPayment, freeShipping = false }: Props) {
   // Tylko metody jawnie aktywne — serwer (checkout.ts → fetchShippingPriceCents)
   // przyjmuje wyłącznie `active == true`, więc metoda z nieustawionym polem
   // była widoczna, ale zamówienie z nią kończyło się błędem.
@@ -361,10 +356,8 @@ export default function Step2DeliveryPayment({ address, deliveryType, services, 
       paymentMethod: payment.method,
       gatewayId:     payment.gatewayId,
       gatewayName:   payment.gatewayName,
-      saveCard:      payment.saveCard,
-      savedCardId:   payment.savedCardId,
       other:         payment.other,
-      blik0:         payment.blik0,
+      cardIframe:    payment.cardIframe,
     })
   }
 
@@ -572,7 +565,7 @@ export default function Step2DeliveryPayment({ address, deliveryType, services, 
       {/* payment */}
       <div id="payment-options" className={cn('space-y-3 rounded-[24px] p-1 -m-1 transition-all duration-300', paymentError && 'p-3 border-2 border-red-300')}>
         <h3 className="text-[clamp(15px,1.4vw,18px)] font-medium text-black">Płatność</h3>
-        <Step2PaymentForm value={payment} onChange={value => { setPayment(value); setPaymentError(null) }} allowSaveCard={!isGuest} />
+        <Step2PaymentForm value={payment} onChange={value => { setPayment(value); setPaymentError(null) }} />
         {paymentError && <p role="alert" className="text-[13px] text-red-400">{paymentError}</p>}
       </div>
 

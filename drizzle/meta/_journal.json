@@ -50,6 +50,13 @@
       "when": 1792865359521,
       "tag": "0006_order_stock",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1794245067467,
+      "tag": "0007_remove_saved_cards",
+      "breakpoints": true
     }
   ]
-}
+}

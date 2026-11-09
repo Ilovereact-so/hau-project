@@ -24,7 +24,7 @@ import Step2DeliveryPayment, { type Step2Result } from './_components/Step2Deliv
 import Step3SummaryCards from './_components/Step3SummaryCards'
 import AutopayInlinePayment from './_components/AutopayInlinePayment'
 import { buildVariantLabel, type Step } from './_components/utils'
-import type { GatewaySelection, PaymentMethod } from './_components/Step2PaymentForm'
+import type { PaymentMethod } from './_components/Step2PaymentForm'
 import { useDiscountPreview } from '@/hooks/useDiscountPreview'
 import { useDiscountStore } from '@/store/discountStore'
 import { useShopSettings } from '@/hooks/useShopSettings'
@@ -64,10 +64,7 @@ export default function CheckoutClient({ services, savedAddress, userSlot, isGue
   const [gatewayId, setGatewayId]         = useState<number | undefined>()
   const [gatewayName, setGatewayName]     = useState<string | undefined>()
   const [otherPayment, setOtherPayment]   = useState(false)
-  const [saveCard, setSaveCard]           = useState(false)
-  const [savedCardId, setSavedCardId]     = useState<string | undefined>()
-  const [blik0, setBlik0]                 = useState(false)
-  const [blikCode, setBlikCode]           = useState('')
+  const [cardIframe, setCardIframe]       = useState(false)
   const [inlinePayment, setInlinePayment] = useState<AutopayInlinePayload | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
@@ -103,7 +100,7 @@ export default function CheckoutClient({ services, savedAddress, userSlot, isGue
   // cartReady: po zalogowaniu z koszyka gościa trwa scalanie z kontem —
   // bez tego kasa mogłaby pokazać pusty/niepełny koszyk.
   if (!isClient || !cartReady) return <Loading />
-  // Koszyk jest już wyczyszczony, gdy trwa płatność BLIK-0 / kartą w ramce —
+  // Koszyk jest już wyczyszczony, gdy trwa płatność kartą w ramce —
   // bez tego wyjątku panel płatności zniknąłby razem z koszykiem.
   if (!cartItems.length && !inlinePayment) return <EmptyCart />
 
@@ -125,10 +122,7 @@ export default function CheckoutClient({ services, savedAddress, userSlot, isGue
     setGatewayId(data.gatewayId)
     setGatewayName(data.gatewayName)
     setOtherPayment(data.other ?? false)
-    setSaveCard(data.saveCard ?? false)
-    setSavedCardId(data.savedCardId)
-    setBlik0(data.blik0 ?? false)
-    setBlikCode('')
+    setCardIframe(data.cardIframe ?? false)
     setStep(2)
   }
 
@@ -151,9 +145,6 @@ export default function CheckoutClient({ services, savedAddress, userSlot, isGue
         shippingMethod: serviceCode,
         deliveryType,   pickupPoint,
         gatewayId,
-        saveCard:  saveCard && !savedCardId ? true : undefined,
-        savedCardId,
-        blikCode:  blik0 ? blikCode.replace(/\D/g, '') : undefined,
         discountCode: discountCode ?? undefined,
       })
 
@@ -171,7 +162,8 @@ export default function CheckoutClient({ services, savedAddress, userSlot, isGue
       resetCart()
       setDiscountCode(null)
 
-      // BLIK-0 i formularz karty w ramce zostają na tej stronie.
+      // Formularz karty w ramce (jeśli włączony) zostaje na tej stronie;
+      // wszystko inne — BLIK, karta, przelew — przekierowanie na Autopay.
       if (result.autopayInline) {
         setInlinePayment(result.autopayInline)
         return
@@ -254,12 +246,9 @@ export default function CheckoutClient({ services, savedAddress, userSlot, isGue
                         gatewayId,
                         gatewayName,
                         other: otherPayment,
-                        saveCard,
-                        savedCardId,
-                        blik0,
+                        cardIframe,
                       }}
                       freeShipping={freeShipping}
-                      isGuest={isGuest}
                     />
                 </div>
               </motion.div>
@@ -274,13 +263,9 @@ export default function CheckoutClient({ services, savedAddress, userSlot, isGue
                     paymentMethod={paymentMethod}
                     gatewayId={gatewayId}
                     gatewayName={gatewayName}
-                    savedCard={Boolean(savedCardId)}
-                    saveCard={saveCard && !savedCardId}
+                    cardIframe={cardIframe}
                     pickupPoint={pickupPoint}
                     submitError={submitError}
-                    blik0={blik0}
-                    blikCode={blikCode}
-                    onBlikCode={setBlikCode}
                     onEdit={() => setStep(1)}
                     handleSubmit={handleSubmit}
                     isPending={isPending}

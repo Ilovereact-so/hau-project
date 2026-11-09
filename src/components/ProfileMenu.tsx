@@ -12,7 +12,6 @@ const NAV = [
   { text: 'Moje konto',       href: '/profile/account'  },
   { text: 'Moje zamówienia',  href: '/profile/orders'   },
   { text: 'Polubione',        href: '/profile/wishlist' },
-  { text: 'Płatności',        href: '/profile/payment'  },
 ]
 
 const isGuestAllowed = (href: string) =>
@@ -33,8 +32,6 @@ const ProfileMenu = ({ selected }: { selected: number }) => {
       selected == 1 && "w-full lg:w-[300px] 3md:w-[250px] flex-row 3md:flex-col items-center 3md:items-start max-3md:mb-5 max-md:mb-3"
     } ${
       selected == 2 && "w-full 2xl:w-[300px] 3lg:w-[250px] 3md:w-[200px] min-w-[200px] flex-row 3md:flex-col items-center 3md:items-start max-3md:mb-5 max-md:mb-3"
-    } ${
-      selected == 3 && "w-full 2xl:w-[300px] 3lg:w-[250px] 3md:w-[200px] min-w-[200px] flex-row 3md:flex-col items-center 3md:items-start max-3md:mb-5 max-md:mb-3"
     } `}>
       {NAV.map((item, index) => {
         const textClass = selected !== index

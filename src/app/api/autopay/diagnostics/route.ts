@@ -5,7 +5,7 @@ import {
   isAutopayConfigured,
   fetchGateways,
   buildTransactionRequest,
-  AUTOPAY_RECURRING_ENABLED,
+  AUTOPAY_CARD_IFRAME_ENABLED,
 } from '@/lib/autopay'
 
 export const dynamic = 'force-dynamic'
@@ -37,7 +37,7 @@ export async function GET() {
     hashAlgo:          process.env.AUTOPAY_HASH_ALGO ?? 'sha256',
     hashSeparator:     process.env.AUTOPAY_HASH_SEPARATOR ?? '|',
     sendReturnUrl:     process.env.AUTOPAY_SEND_RETURN_URL === 'true',
-    recurringEnabled:  AUTOPAY_RECURRING_ENABLED,
+    cardIframeEnabled: AUTOPAY_CARD_IFRAME_ENABLED,
     appUrl:            appUrl || null,
     expectedItnUrl:    appUrl ? `${appUrl}/api/webhooks/autopay` : null,
     expectedReturnUrl: appUrl ? `${appUrl}/api/autopay/return`   : null,

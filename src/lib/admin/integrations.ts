@@ -6,9 +6,7 @@ import { FURGONETKA_ENV } from '@/lib/furgonetkaEnv'
 import { sanityClient } from '@/sanity/sanityClient.server'
 import { smtpTransporter, MAIL_FROM } from '@/lib/mail'
 import {
-  AUTOPAY_BLIK0_ENABLED,
   AUTOPAY_CARD_IFRAME_ENABLED,
-  AUTOPAY_RECURRING_ENABLED,
   autopayEnvironment,
   fetchGateways,
   isAutopayConfigured,
@@ -176,9 +174,8 @@ function checkAutopay(): IntegrationCheck {
     details: [
       { label: 'ServiceID', value: env.serviceId || '—' },
       { label: 'Bramka', value: env.baseUrl },
-      { label: 'BLIK-0', value: yesNo(AUTOPAY_BLIK0_ENABLED) },
+      { label: 'Tryb płatności', value: 'Przekierowanie na stronę Autopay (BLIK, karta, przelew)' },
       { label: 'Karta w ramce', value: yesNo(AUTOPAY_CARD_IFRAME_ENABLED) },
-      { label: 'Płatności cykliczne', value: yesNo(AUTOPAY_RECURRING_ENABLED) },
     ],
     warnings,
     testable: configured,

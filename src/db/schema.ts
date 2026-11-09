@@ -117,26 +117,9 @@ export const paymentTransactions = mysqlTable('payment_transactions', {
   sessionId:        varchar('session_id', { length: 256 }).notNull(),
   status:           mysqlEnum('status', PAYMENT_TX_STATUSES).notNull().default('pending'),
   amountCents:      int('amount_cents').notNull(),
-  saveCardConsent:  boolean('save_card_consent').notNull().default(false),
-  cardToken:        varchar('card_token', { length: 256 }),
   rawResponse:      text('raw_response'),
   createdAt:        timestamp('created_at').defaultNow(),
   updatedAt:        timestamp('updated_at').defaultNow().onUpdateNow(),
-})
-
-// ─── saved cards ──────────────────────────────────────────────────────────────
-
-export const savedCards = mysqlTable('saved_cards', {
-  id:           varchar('id', { length: 36 }).primaryKey(),
-  userId:       varchar('user_id', { length: 128 }).notNull(),
-  provider:     mysqlEnum('provider', ['autopay']).notNull().default('autopay'),
-  token:        varchar('token', { length: 256 }).notNull(),
-  maskedNumber: varchar('masked_number', { length: 20 }),
-  expiryMonth:  int('expiry_month'),
-  expiryYear:   int('expiry_year'),
-  cardBrand:    varchar('card_brand', { length: 32 }),
-  isActive:     boolean('is_active').notNull().default(true),
-  createdAt:    timestamp('created_at').defaultNow(),
 })
 
 // ─── shipments ────────────────────────────────────────────────────────────────
