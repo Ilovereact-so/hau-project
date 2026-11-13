@@ -5,7 +5,7 @@ import { useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import {
-  Check, ExternalLink, FileText, FolderTree, ImageOff, ImagePlus, Layers, Pencil, RefreshCw, Trash2, X,
+  Check, ExternalLink, FileText, FolderTree, ImageOff, ImagePlus, Layers, ListTree, Pencil, RefreshCw, Trash2, X,
 } from 'lucide-react'
 import { TaxonomySeoModal } from './TaxonomySeoModal'
 import { hasRichText } from '@/lib/richText'
@@ -48,7 +48,7 @@ export function CategoriesView({
     const all = [
       ...categories,
       ...(orphans.length
-        ? [{ id: '__orphans', title: 'Bez kategorii nadrzędnej', slug: null, description: null, metaTitle: null, metaDescription: null, seoContent: null, productCount: 0, subcategories: orphans }]
+        ? [{ id: '__orphans', title: 'Bez kategorii nadrzędnej', slug: null, description: null, metaTitle: null, metaDescription: null, seoContent: null, productCount: 0, menuHidden: false, subcategories: orphans }]
         : []),
     ]
     if (!needle) return all
@@ -84,6 +84,10 @@ export function CategoriesView({
               <PillButton icon={RefreshCw} onClick={() => startRefresh(() => router.refresh())} disabled={refreshing}>
                 Odśwież
               </PillButton>
+              <ButtonLink href="/admin/menu" size="sm" variant="secondary">
+                <ListTree size={14} strokeWidth={1.5} />
+                Kolejność w menu
+              </ButtonLink>
               <ButtonLink href="/studio/structure/category" target="_blank" rel="noopener noreferrer" size="sm" variant="secondary">
                 <ExternalLink size={14} strokeWidth={1.5} />
                 Nowa kategoria w Studio
@@ -163,6 +167,7 @@ function CategoryGroup({ category }: { category: AdminCategory }) {
           <div className="flex flex-wrap items-center gap-1.5">
             <Badge tone={category.productCount ? 'success' : 'neutral'}>{`${category.productCount} produktów`}</Badge>
             <Badge tone="info">{`${category.subcategories.length} subkategorii`}</Badge>
+            {category.menuHidden && <Badge tone="danger">ukryta w menu</Badge>}
             <SeoButton id={category.id} title={category.title} kind="category" path={category.slug ? `/category/${category.slug}` : null} seo={category} />
             {category.slug && (
               <a href={`/category/${category.slug}`} target="_blank" rel="noopener noreferrer" className="text-[11px] font-medium text-text-2 hover:text-text">
@@ -355,6 +360,7 @@ function SubcategoryCard({ sub }: { sub: AdminSubcategory }) {
         <div className="flex flex-wrap items-center gap-1.5">
           <Badge tone={sub.productCount ? 'success' : 'neutral'}>{`${sub.productCount} w sklepie`}</Badge>
           {!image && <Badge tone="primary">bez zdjęcia</Badge>}
+          {sub.menuHidden && <Badge tone="danger">ukryta w menu</Badge>}
           <SeoButton id={sub.id} title={sub.title} kind="subcategory" path={sub.slug ? `/subcategory/${sub.slug}` : null} seo={sub} />
         </div>
 

@@ -3,6 +3,7 @@ import { sanityFetch } from "../lib/live";
 import { BanerVariants, GetSlugProduct, METHODS_QUERYResult } from "sanity.types";
 import { collectionOrderClause, isCollectionSort, type CollectionSort } from "../lib/collectionRefs";
 import { client } from "../lib/client";
+import { sortForMenu, type MenuFields } from "../../lib/menuOrder";
 
 
 export const getShippingMethods = async (): Promise<METHODS_QUERYResult> => {
@@ -330,7 +331,8 @@ export type CategoryDetails = {
   metaTitle?: string | null;
   metaDescription?: string | null;
   seoContent?: unknown[] | null;
-  subcategories: Array<{
+  /** W kolejności menu sklepu; zawiera też ukryte w menu (`menuHidden`) — pigułki filtruje strona. */
+  subcategories: Array<MenuFields & {
     _id: string;
     title: string;
     slug: string;
@@ -342,14 +344,18 @@ export type CategoryDetails = {
 export const getCategoryBySlug = async (slug: string): Promise<CategoryDetails | null> => {
   const QUERY = `*[_type == "category" && slug.current == $slug][0]{
     _id, title, "slug": slug.current, description, metaTitle, metaDescription, seoContent,
-    "subcategories": *[_type == "subcategory" && parent._ref == ^._id] | order(lower(title) asc) {
-      _id, title, "slug": slug.current,
+    "subcategories": *[_type == "subcategory" && parent._ref == ^._id] {
+      _id, title, "slug": slug.current, menuOrder, menuHidden,
       availableFilters[]->{ _id, key, label, type, UX_type }
     }
   }`;
   try {
     const res = await sanityFetch({ query: QUERY, params: { slug } });
-    return (res?.data as CategoryDetails | null) ?? null;
+    const category = (res?.data as CategoryDetails | null) ?? null;
+    // Kolejność jak w menu sklepu (panel → Menu sklepu). Ukrytych NIE
+    // odfiltrowujemy tutaj — ich filtry nadal obowiązują dla produktów
+    // kategorii; pigułki filtruje strona (`visibleInMenu`).
+    return category ? { ...category, subcategories: sortForMenu(category.subcategories ?? []) } : null;
   } catch (error) {
     console.error("Error fetching category by slug:", error);
     return null;

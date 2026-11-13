@@ -651,6 +651,8 @@ export type Subcategory = {
     _weak?: boolean;
     [internalGroqTypeReferenceTo]?: "category";
   };
+  menuHidden?: boolean;
+  menuOrder?: number;
   imageWithAlt?: {
     asset?: {
       _ref: string;
@@ -695,6 +697,8 @@ export type Category = {
   }>;
   metaTitle?: string;
   metaDescription?: string;
+  menuHidden?: boolean;
+  menuOrder?: number;
 };
 
 export type SanityImagePaletteSwatch = {

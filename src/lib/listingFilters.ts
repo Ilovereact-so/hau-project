@@ -84,13 +84,25 @@ const inRange = (price: number | null, min: number | null, max: number | null) =
 }
 
 /**
- * Zostawia produkty, które mają wariant spełniający WSZYSTKIE filtry (opcje
- * + cena). `defaultVariant` = pierwszy pasujący wariant — kafelek pokaże jego
- * zdjęcie i cenę. Produkty bez wariantów sprawdzamy po wartościach filtrów
- * produktu (`filterValues`) i cenie produktu.
+ * Zostawia produkty spełniające WSZYSTKIE filtry (opcje + cena).
+ *
+ * Dwa rodzaje danych o produkcie:
+ *  - PARAMETRY — `filterValues` produktu (kolumny `filter_*` z CSV): kolor,
+ *    rozmiar psa itd., wspólne dla sklepu, niewidoczne na karcie produktu;
+ *  - WARIANTY — tylko te parametry, które produkt ma w `productOptions`
+ *    (to z nich klient wybiera na karcie).
+ *
+ * Filtr po kluczu, który jest opcją wariantów TEGO produktu, sprawdzamy na
+ * wariantach (musi istnieć jeden wariant spełniający wszystkie takie filtry
+ * i cenę — `defaultVariant` = pierwszy taki, kafelek pokaże jego zdjęcie
+ * i cenę). Każdy inny klucz sprawdzamy na parametrach produktu — dzięki temu
+ * np. szelki w 3 kolorach (warianty), ale tylko w rozmiarze „duży”
+ * (parametr), znajdują się po filtrze „Rozmiar: duży”. Wcześniej produkty
+ * z wariantami były sprawdzane wyłącznie na wariantach i w takim przypadku
+ * znikały z listy.
  *
  * `filterIdsByKey` — mapa klucz filtra → `_id` dokumentu `filter`
- * (z `availableFilters`), potrzebna dla produktów bez wariantów.
+ * (z `availableFilters`), potrzebna do dopasowania parametrów produktu.
  */
 export function filterListingProducts<T extends FilterableProduct>(
   products: T[],
@@ -102,24 +114,30 @@ export function filterListingProducts<T extends FilterableProduct>(
   const optionEntries = Object.entries(params.options)
   const result: (T & { defaultVariant?: string })[] = []
 
+  const matchesParameter = (product: T, key: string, slugs: string[]) => {
+    const filterId = filterIdsByKey.get(key)
+    return Boolean(
+      filterId &&
+        product.filterValues?.some((fv) => fv?.filter?._ref === filterId && fv.slug?.current && slugs.includes(fv.slug.current)),
+    )
+  }
+
   for (const product of products) {
     const variants = (product.variants ?? []).filter((variant) => variant?._key)
     if (!variants.length) {
       if (!inRange(effectivePrice(product, null, now), params.priceMin, params.priceMax)) continue
-      const matchesOptions = optionEntries.every(([key, slugs]) => {
-        const filterId = filterIdsByKey.get(key)
-        return Boolean(
-          filterId &&
-            product.filterValues?.some((fv) => fv?.filter?._ref === filterId && fv.slug?.current && slugs.includes(fv.slug.current)),
-        )
-      })
-      if (matchesOptions) result.push(product)
+      if (optionEntries.every(([key, slugs]) => matchesParameter(product, key, slugs))) result.push(product)
       continue
     }
 
+    const variantKeys = variantOptionKeys(variants)
+    const onVariants = optionEntries.filter(([key]) => variantKeys.has(key))
+    const onParameters = optionEntries.filter(([key]) => !variantKeys.has(key))
+    if (!onParameters.every(([key, slugs]) => matchesParameter(product, key, slugs))) continue
+
     const match = variants.find((variant) => {
       if (!inRange(effectivePrice(product, variant!._key, now), params.priceMin, params.priceMax)) return false
-      return optionEntries.every(([key, slugs]) =>
+      return onVariants.every(([key, slugs]) =>
         variant!.optionValues?.some(
           (ov) => ov?.name?.key === key && ov.value?.slug?.current && slugs.includes(ov.value.slug.current),
         ),
@@ -128,6 +146,17 @@ export function filterListingProducts<T extends FilterableProduct>(
     if (match) result.push({ ...product, defaultVariant: match._key! })
   }
   return result
+}
+
+/** Klucze filtrów, z których produkt ma warianty (opcje wyboru na karcie produktu). */
+export function variantOptionKeys(variants: FilterableProduct['variants']): Set<string> {
+  const keys = new Set<string>()
+  for (const variant of variants ?? []) {
+    for (const option of variant?.optionValues ?? []) {
+      if (option?.name?.key) keys.add(option.name.key)
+    }
+  }
+  return keys
 }
 
 /** Zakres cen listy (całe złote) — granice pól „od/do” w filtrze ceny. */

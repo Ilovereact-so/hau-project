@@ -689,6 +689,8 @@ export type AdminCategory = TaxonomySeo & {
   title: string
   slug: string | null
   productCount: number
+  /** Ukryta w menu sklepu (Produkty → Menu sklepu). */
+  menuHidden: boolean
   subcategories: AdminSubcategory[]
 }
 
@@ -700,6 +702,8 @@ export type AdminSubcategory = TaxonomySeo & {
   imageUrl: string | null
   productCount: number
   minPrice: number | null
+  /** Ukryta w menu sklepu (Produkty → Menu sklepu). */
+  menuHidden: boolean
 }
 
 export async function listAdminCategories(): Promise<{ categories: AdminCategory[]; orphans: AdminSubcategory[] }> {
@@ -710,11 +714,13 @@ export async function listAdminCategories(): Promise<{ categories: AdminCategory
     `{
       "categories": *[_type == "category"] | order(lower(title) asc) {
         "id": _id, "title": coalesce(title, "(bez nazwy)"), "slug": slug.current, description, metaTitle, metaDescription, seoContent,
+        "menuHidden": menuHidden == true,
         "productCount": count(*[_type == "product" && (category._ref == ^._id || type->parent._ref == ^._id)])
       },
       "subcategories": *[_type == "subcategory"] | order(lower(title) asc) {
         "id": _id, "title": coalesce(title, "(bez nazwy)"), "slug": slug.current, description, metaTitle, metaDescription, seoContent,
         "parentId": parent._ref,
+        "menuHidden": menuHidden == true,
         "imageUrl": imageWithAlt.asset->url,
         "productCount": count(*[_type == "product" && type._ref == ^._id]),
         "minPrice": math::min(*[_type == "product" && type._ref == ^._id && defined(price)].price)

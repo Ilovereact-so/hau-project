@@ -28,6 +28,22 @@ export const categoryType = defineType({
     }),
     seoContentField(),
     ...metaFields(),
+    defineField({
+      name: 'menuHidden',
+      title: 'Ukryj w menu sklepu',
+      type: 'boolean',
+      description: 'Kategoria (i wszystkie jej podkategorie) znika z menu i z kafelków podkategorii na stronie głównej. Jej strona nadal działa pod swoim adresem.',
+    }),
+    defineField({
+      name: 'menuOrder',
+      title: 'Kolejność w menu',
+      type: 'number',
+      description: 'Ustawiana w panelu (Produkty → Menu sklepu). Mniejsza liczba = wcześniej; puste = na końcu.',
+    }),
+  ],
+  orderings: [
+    { title: 'Kolejność w menu', name: 'menuOrder', by: [{ field: 'menuOrder', direction: 'asc' }, { field: 'title', direction: 'asc' }] },
+    { title: 'Nazwa', name: 'title', by: [{ field: 'title', direction: 'asc' }] },
   ],
   preview:{
     select:{

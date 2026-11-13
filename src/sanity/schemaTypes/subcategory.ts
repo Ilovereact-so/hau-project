@@ -19,6 +19,18 @@ export default defineType({
       type: "reference",
       to: [{ type: "category" }],
     }),
+    defineField({
+      name: 'menuHidden',
+      title: 'Ukryj w menu sklepu',
+      type: 'boolean',
+      description: 'Podkategoria znika z menu, z pigułek na stronie kategorii i z kafelków na stronie głównej. Jej strona nadal działa pod swoim adresem.',
+    }),
+    defineField({
+      name: 'menuOrder',
+      title: 'Kolejność w menu',
+      type: 'number',
+      description: 'Ustawiana w panelu (Produkty → Menu sklepu). Mniejsza liczba = wcześniej; puste = na końcu.',
+    }),
     defineField({ name: "imageWithAlt", title: "Image", type: "image", options: { hotspot:true }, fields: [
       defineField({
       name: 'alt',
@@ -29,6 +41,10 @@ export default defineType({
           Rule.required().error('Alt text jest wymagany'),
       }),
     ], }),
+  ],
+  orderings: [
+    { title: 'Kolejność w menu', name: 'menuOrder', by: [{ field: 'menuOrder', direction: 'asc' }, { field: 'title', direction: 'asc' }] },
+    { title: 'Nazwa', name: 'title', by: [{ field: 'title', direction: 'asc' }] },
   ],
   preview: { select: { title: "title", subtitle: "parent.title", media: "imageWithAlt", },
     prepare({ title, media, subtitle }) {

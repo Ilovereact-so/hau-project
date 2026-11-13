@@ -52,11 +52,19 @@ const VariantManage = ({ product, selectedVariantKey, className }: Props) => {
 
   }
 
+  // Opcja, która we wszystkich wariantach ma tę samą wartość (np. jeden
+  // rozmiar), nie jest wyborem — nie pokazujemy jej na karcie. Wartość zostaje
+  // w wariancie (koszyk, zamówienie), a do filtrowania służą parametry
+  // produktu (`filterValues`, patrz lib/listingFilters.ts). Bez żadnej opcji
+  // do wyboru znika cały blok (razem z odstępami).
+  const choices = isVariant?.optionValues?.filter((option) => distinctOptionValues(product, option?.name?.key) > 1) ?? []
+  if (!choices.length) return null
+
   return (
     <div className={twMerge('w-full h-auto flex flex-col', className)}>
         {
-          isVariant?.optionValues?.map((option, i) => (
-            <OptionByVariant option={option} key={i} product={product} setValue={setValue} />
+          choices.map((option, i) => (
+            <OptionByVariant option={option} key={option?._key ?? i} product={product} setValue={setValue} />
           ))
         }
     </div>
@@ -99,6 +107,19 @@ const OptionByVariant = ({option, product, setValue}:optionProps) => {
       )
       )
   )
+}
+
+/** Ile różnych wartości danej opcji (np. `color`) mają warianty produktu. */
+function distinctOptionValues(product: GetSlugProduct, key: string | null | undefined): number {
+  if (!key) return 0
+  const values = new Set<string>()
+  for (const variant of product?.variants ?? []) {
+    for (const ov of variant?.optionValues ?? []) {
+      const slug = ov?.value?.slug?.current
+      if (ov?.name?.key === key && slug) values.add(slug)
+    }
+  }
+  return values.size
 }
 
 export default VariantManage

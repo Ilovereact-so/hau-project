@@ -1,6 +1,7 @@
 import { GetSlugProduct, Product, Subcategory } from "../../../sanity.types"
 import { client } from "../lib/client"
 import type { ProductPromotion } from "@/lib/promotion"
+import { buildMenuTree, MENU_FIELDS_GROQ } from "../../lib/menuOrder"
 
 type SubcategoryNode = {
     _id: string;
@@ -23,19 +24,22 @@ export async function getSubcategories(): Promise<CategoryNode[]> {
     }
     if (subcategoriesInflight) return subcategoriesInflight
 
+    // Kolejność i ukrycie z panelu (Produkty → Menu sklepu) — ukryta
+    // podkategoria (albo cała kategoria) nie trafia do kafelków na stronie głównej.
     const query = `*[_type=="category"]{
   _id,
   title,
   "slug": slug.current,
+  ${MENU_FIELDS_GROQ},
   "subcategory": *[_type=="subcategory" && parent._ref == ^._id]{
-    _id, title, "slug": slug.current, imageWithAlt
+    _id, title, "slug": slug.current, imageWithAlt, ${MENU_FIELDS_GROQ}
   }
 }`
 
     const promise = (async () => {
         try {
             const data = await client.fetch<CategoryNode[]>(query);
-            const sumData = data.map((c:any)=>({
+            const sumData = buildMenuTree(data ?? []).map((c)=>({
                 _id: c._id,
                 title: c.title,
                 slug: c.slug,

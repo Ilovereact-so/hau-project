@@ -17,6 +17,7 @@ import { sortProductsForListing } from "@/lib/productListing";
 import { filterListingProducts, listingPriceBounds, parseListingParams } from "@/lib/listingFilters";
 import { breadcrumbJsonLd, jsonLdScript, pageMetadata } from "@/lib/seo/metadata";
 import { isProductCategory } from "@/lib/categoryNavigation";
+import { visibleInMenu } from "@/lib/menuOrder";
 
 /*
  * Strona kategorii głównej (Zabawki, Przysmaki…) — klik w nazwę kategorii
@@ -62,6 +63,8 @@ const CategoryPage = async ({ params, searchParams }: PageProps) => {
         }
     }
     const availableFilters = [...filterMap.values()];
+    // Pigułki podkategorii: kolejność i ukrycie jak w menu sklepu (panel → Menu sklepu).
+    const menuSubcategories = visibleInMenu(category.subcategories);
     const details: SubcategoryWithCategory = {
         _id: category._id,
         title: category.title,
@@ -109,9 +112,9 @@ const CategoryPage = async ({ params, searchParams }: PageProps) => {
                         </div>
                     </div>
 
-                    {category.subcategories.length > 0 && (
+                    {menuSubcategories.length > 0 && (
                         <nav aria-label="Podkategorie" className="flex flex-wrap gap-2 mt-5">
-                            {category.subcategories.map((sub) => (
+                            {menuSubcategories.map((sub) => (
                                 <Link
                                     key={sub._id}
                                     href={`/subcategory/${sub.slug}`}

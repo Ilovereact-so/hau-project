@@ -64,6 +64,7 @@ export const NAV_ITEMS: NavItem[] = [
     children: [
       { label: 'Katalog', href: '/admin/products' },
       { label: 'Kategorie', href: '/admin/categories' },
+      { label: 'Menu sklepu', href: '/admin/menu' },
       { label: 'Kolekcje', href: '/admin/collections' },
       { label: 'Import CSV', href: '/admin/import' },
     ],
@@ -107,7 +108,7 @@ export const NAV_ITEMS: NavItem[] = [
 export function activeLabelFor(pathname: string, search: URLSearchParams): string {
   if (pathname === '/admin/products' && search.get('filter') === 'low') return 'Magazyn'
   if (pathname === '/admin' || pathname === '/admin/') return 'Dashboard'
-  if (pathname.startsWith('/admin/categories') || pathname.startsWith('/admin/collections') || pathname.startsWith('/admin/import')) return 'Produkty'
+  if (pathname.startsWith('/admin/categories') || pathname.startsWith('/admin/menu') || pathname.startsWith('/admin/collections') || pathname.startsWith('/admin/import')) return 'Produkty'
   if (pathname.startsWith('/admin/newsletter') || pathname.startsWith('/admin/campaigns') || pathname.startsWith('/admin/discounts') || pathname.startsWith('/admin/home')) return 'Marketing'
 
   let best: NavItem | undefined
@@ -142,6 +143,7 @@ const HEADINGS: Array<[prefix: string, heading: Heading]> = [
   ['/admin/orders', { title: 'Zamówienia', subtitle: 'Lista zamówień z bazy sklepu — filtry, statusy i realizacja.' }],
   ['/admin/products', { title: 'Produkty', subtitle: 'Katalog z Sanity: publikacja, stany magazynowe, flagi i edycja.' }],
   ['/admin/categories', { title: 'Kategorie', subtitle: 'Kategorie i subkategorie sklepu z Sanity — nazwy, zdjęcia, liczniki produktów.' }],
+  ['/admin/menu', { title: 'Menu sklepu', subtitle: 'Kolejność i widoczność kategorii oraz podkategorii w menu sklepu — przeciągnij, przestaw strzałkami, ukryj okiem.' }],
   ['/admin/collections', { title: 'Kolekcje', subtitle: 'Kolekcje produktów z Sanity — strony /kolekcje, przypisanie produktów i link z banera.' }],
   ['/admin/import', { title: 'Import CSV', subtitle: 'Hurtowe dodawanie i aktualizacja produktów w Sanity z pliku CSV (+ ZIP ze zdjęciami).' }],
   ['/admin/blog/new', { title: 'Nowy artykuł', subtitle: 'Pisz, formatuj i wstawiaj zdjęcia, filmy, ramki i produkty. Autozapis do szkicu — sklep widzi tekst dopiero po publikacji.' }],
