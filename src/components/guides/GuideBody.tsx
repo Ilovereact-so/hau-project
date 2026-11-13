@@ -1,7 +1,7 @@
 import React from 'react'
 import { PortableText, type PortableTextComponents } from '@portabletext/react'
 import { portableTextBaseComponents } from '@/components/PortableTextContent'
-import { guideHeadings } from '@/lib/guides/content'
+import { guideHeadings, numberedListIndexes } from '@/lib/guides/content'
 import VideoPlayer, { type VideoValue } from './VideoPlayer'
 import { GuideCallout, GuideDivider, GuideFigure, GuideProductEmbed, type EmbedProduct } from './GuideBlocks'
 
@@ -41,7 +41,12 @@ export type GuideBodyProps = {
   preview?: boolean
 }
 
-function buildComponents(anchors: Map<string, string>, products: ProductMap | undefined, preview: boolean): PortableTextComponents {
+function buildComponents(
+  anchors: Map<string, string>,
+  listNumbers: Map<string, number>,
+  products: ProductMap | undefined,
+  preview: boolean,
+): PortableTextComponents {
   const headingId = (value: { _key?: string }) => (value?._key ? anchors.get(value._key) : undefined)
   return {
     ...portableTextBaseComponents,
@@ -81,7 +86,16 @@ function buildComponents(anchors: Map<string, string>, products: ProductMap | un
     },
     list: {
       bullet: ({ children }) => <ul className="my-6 list-disc space-y-2.5 pl-6 marker:text-[#9CCFC7]">{children}</ul>,
-      number: ({ children }) => <ol className="my-6 list-decimal space-y-2.5 pl-6 marker:font-semibold marker:text-[#5E9E94]">{children}</ol>,
+      // Lista przerwana akapitem/zdjęciem liczy dalej (`numberedListIndexes`) — `start` z numeru jej pierwszego punktu.
+      number: ({ children, value }) => {
+        const firstKey = (value as { children?: Array<{ _key?: string }> })?.children?.[0]?._key
+        const start = firstKey ? listNumbers.get(firstKey) : undefined
+        return (
+          <ol start={start && start > 1 ? start : undefined} className="my-6 list-decimal space-y-2.5 pl-6 marker:font-semibold marker:text-[#5E9E94]">
+            {children}
+          </ol>
+        )
+      },
     },
     listItem: {
       bullet: ({ children }) => <li className={`pl-1.5 ${TEXT}`}>{children}</li>,
@@ -112,7 +126,7 @@ function buildComponents(anchors: Map<string, string>, products: ProductMap | un
 const GuideBody = ({ value, products, preview = false }: GuideBodyProps) => {
   if (!value || value.length === 0) return null
   const anchors = new Map(guideHeadings(value).map((heading) => [heading.key, heading.id]))
-  return <PortableText value={value as any} components={buildComponents(anchors, products, preview)} />
+  return <PortableText value={value as any} components={buildComponents(anchors, numberedListIndexes(value), products, preview)} />
 }
 
 export default GuideBody

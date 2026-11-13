@@ -4,9 +4,11 @@ import { adminDenied, errorMessage } from '@/lib/admin/guard'
 import { addProductImage, setSubcategoryImage, withTimeout } from '@/lib/admin/catalog'
 import { setCollectionImage } from '@/lib/admin/collections'
 import { uploadHomeImage } from '@/lib/admin/homeLayout'
+import { uploadGuideImage } from '@/lib/admin/guides'
 
 /*
- * Wysyłka zdjęć z panelu (kolekcje, subkategorie, produkty, import ZIP).
+ * Wysyłka zdjęć z panelu (kolekcje, subkategorie, produkty, import ZIP,
+ * strona główna, kampanie, blog).
  *
  * Zwykła trasa zamiast server action: na hostingu wywołanie akcji z plikiem
  * potrafiło zawisnąć bez odpowiedzi — panel pokazywał „Wysyłam…” bez końca,
@@ -17,15 +19,17 @@ import { uploadHomeImage } from '@/lib/admin/homeLayout'
  */
 
 export const runtime = 'nodejs'
-export const maxDuration = 120
+export const maxDuration = 160
 
 /**
- * `home` — zdjęcie do sekcji „O nas”, `campaign` — zdjęcie do kampanii newslettera.
- * Oba tylko wgrywają plik do Sanity (bez `id`); zapis w treści robi formularz.
+ * `home` — zdjęcie do sekcji „O nas”, `campaign` — zdjęcie do kampanii newslettera,
+ * `guide` — okładka albo zdjęcie w treści poradnika. Te trzy tylko wgrywają plik
+ * do Sanity (`id` służy wyłącznie do logu); zapis w treści robi formularz.
  */
-type Target = 'product' | 'collection' | 'subcategory' | 'home' | 'campaign'
-const TARGETS: Target[] = ['product', 'collection', 'subcategory', 'home', 'campaign']
-const SAVE_TIMEOUT_MS = 30_000
+type Target = 'product' | 'collection' | 'subcategory' | 'home' | 'campaign' | 'guide'
+const TARGETS: Target[] = ['product', 'collection', 'subcategory', 'home', 'campaign', 'guide']
+/** Odbiór pliku od przeglądarki — 60 s (10 MB przy wolnym łączu); Sanity ma osobne 90 s. Klient czeka 150 s. */
+const RECEIVE_TIMEOUT_MS = 60_000
 
 export async function POST(req: Request) {
   const denied = await adminDenied()
@@ -34,7 +38,7 @@ export async function POST(req: Request) {
   let stage = 'odczyt pliku'
   const started = Date.now()
   try {
-    const form = await withTimeout(req.formData(), SAVE_TIMEOUT_MS, 'Plik nie dotarł do serwera w ciągu 30 s.')
+    const form = await withTimeout(req.formData(), RECEIVE_TIMEOUT_MS, 'Plik nie dotarł do serwera w ciągu 60 s — sprawdź łącze albo wyślij mniejszy plik.')
     const target = String(form.get('target') ?? '') as Target
     const id = String(form.get('id') ?? '')
     const alt = String(form.get('alt') ?? '')
@@ -50,13 +54,16 @@ export async function POST(req: Request) {
       data = await addProductImage(id, file, alt, variantKeys)
     } else if (target === 'home' || target === 'campaign') {
       data = await uploadHomeImage(file)
+    } else if (target === 'guide') {
+      data = await uploadGuideImage(file)
     } else if (target === 'collection') {
       data = await setCollectionImage(id, file, alt)
       revalidatePath('/kolekcje', 'layout')
     } else {
       data = await setSubcategoryImage(id, file, alt)
     }
-    revalidatePath('/admin', 'layout')
+    // Zdjęcie do poradnika to sam plik — nic w panelu się jeszcze nie zmieniło.
+    if (target !== 'guide') revalidatePath('/admin', 'layout')
     console.info(`[images] ${target} ${id}: gotowe (${Date.now() - started} ms)`)
     return NextResponse.json({ ok: true, data })
   } catch (error) {

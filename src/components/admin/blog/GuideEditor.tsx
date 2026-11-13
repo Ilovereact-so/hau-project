@@ -39,9 +39,9 @@ import {
   adminReloadGuide,
   adminSaveGuide,
   adminUnpublishGuide,
-  adminUploadGuideImage,
-  adminUploadGuideVideo,
 } from '@/actions/adminGuides'
+import { uploadAdminImage, uploadGuideVideoFile } from '@/lib/adminImageUpload'
+import { BLOG_IMAGE_PREP, prepareImageForUpload } from '@/lib/imageUpload'
 import type { GuideEditorDoc, GuideImageValue, GuideInput, GuideVideoValue } from '@/lib/admin/guides'
 import {
   GUIDE_ALT_MAX,
@@ -50,6 +50,7 @@ import {
   GUIDE_SEO_DESCRIPTION_MAX,
   GUIDE_SEO_TITLE_MAX,
   GUIDE_TITLE_MAX,
+  GUIDE_VIDEO_MAX_BYTES,
   guideChecks,
   guideHeadings,
   guideStats,
@@ -164,10 +165,23 @@ function clearBackup(key: string) {
   }
 }
 
-async function uploadWith(action: typeof adminUploadGuideImage, file: File): Promise<UploadResult> {
-  const data = new FormData()
-  data.set('file', file)
-  const result = await action(data)
+/*
+ * Zdjęcia i filmy idą zwykłymi trasami API z limitem czasu (lib/adminImageUpload),
+ * nie server action — ta potrafiła na hostingu zawisnąć bez odpowiedzi przy
+ * większych plikach („mieli” w nieskończoność). Zdjęcie przed wysyłką zmniejsza
+ * przeglądarka (do 2560 px / ~2,5 MB), więc nawet plik prosto z aparatu
+ * przechodzi szybko i mieści się w limicie serwera (10 MB).
+ */
+async function uploadGuideImageFile(file: File, guideId: string | null): Promise<UploadResult> {
+  const prepared = await prepareImageForUpload(file, BLOG_IMAGE_PREP)
+  const result = await uploadAdminImage<{ ref: string; url: string }>({ target: 'guide', id: guideId || 'nowy', file: prepared })
+  return result.ok ? result.data : { error: result.error }
+}
+
+async function uploadGuideVideo(file: File): Promise<UploadResult> {
+  // Sprawdzamy od razu — inaczej za duży film leciałby cały na serwer tylko po to, żeby dostać odmowę.
+  if (file.size > GUIDE_VIDEO_MAX_BYTES) return { error: 'Film jest większy niż 11 MB — wrzuć go na YouTube/Vimeo i wklej link.' }
+  const result = await uploadGuideVideoFile(file)
   return result.ok ? result.data : { error: result.error }
 }
 
@@ -520,7 +534,7 @@ export function GuideEditor({
 
   const uploadCover = async (file: File) => {
     setBusy(true)
-    const result = await uploadWith(adminUploadGuideImage, file)
+    const result = await uploadGuideImageFile(file, meta.id)
     setBusy(false)
     if ('error' in result) return toast.error(result.error)
     update('cover', { ref: result.ref, alt: form.cover?.alt || form.title.slice(0, 120) })
@@ -762,8 +776,8 @@ export function GuideEditor({
                 onInvalidValue={setInvalidBody}
                 products={products}
                 guides={guides.filter((guide) => guide.id !== meta.id)}
-                uploadImage={(file) => uploadWith(adminUploadGuideImage, file)}
-                uploadVideo={(file) => uploadWith(adminUploadGuideVideo, file)}
+                uploadImage={(file) => uploadGuideImageFile(file, meta.id)}
+                uploadVideo={uploadGuideVideo}
               />
             </div>
           </div>

@@ -15,8 +15,6 @@ import {
   setGuideFeatured,
   unpublishGuide,
   updateGuideCategory,
-  uploadGuideImage,
-  uploadGuideVideo,
   type AdminGuideCategory,
   type GuideCategoryInput,
   type GuideEditorDoc,
@@ -111,21 +109,8 @@ export async function adminSetGuideFeatured(id: string, featured: boolean): Prom
   }, 'Nie udało się zmienić wyróżnienia.')
 }
 
-export async function adminUploadGuideImage(formData: FormData): Promise<ActionResult<{ ref: string; url: string }>> {
-  return runAdminAction(async () => {
-    const file = formData.get('file')
-    if (!(file instanceof File)) throw new Error('Nie wybrano pliku.')
-    return uploadGuideImage(file)
-  }, 'Nie udało się wgrać zdjęcia.')
-}
-
-export async function adminUploadGuideVideo(formData: FormData): Promise<ActionResult<{ ref: string; url: string }>> {
-  return runAdminAction(async () => {
-    const file = formData.get('file')
-    if (!(file instanceof File)) throw new Error('Nie wybrano pliku.')
-    return uploadGuideVideo(file)
-  }, 'Nie udało się wgrać filmu.')
-}
+// Zdjęcia i filmy NIE idą przez server action (na hostingu akcja z plikiem
+// potrafiła zawisnąć) — trasy /api/admin/images (target `guide`) i /api/admin/guide-video.
 
 export async function adminCreateGuideCategory(input: GuideCategoryInput): Promise<ActionResult<AdminGuideCategory>> {
   return runAdminAction(async () => {

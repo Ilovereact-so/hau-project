@@ -66,6 +66,8 @@ export const GUIDE_ALT_MAX = 300
 export const GUIDE_CAPTION_MAX = 300
 export const GUIDE_BODY_MAX_BLOCKS = 1500
 export const PRODUCT_EMBED_MAX = 4
+/** Plik wideo wgrany do poradnika (większe — YouTube/Vimeo). Sprawdzany w edytorze i na serwerze. */
+export const GUIDE_VIDEO_MAX_BYTES = 11 * 1024 * 1024
 /** Sufiks dokładany do tytułu przez szablon metadanych (`%s — HAU`). */
 export const SITE_TITLE_SUFFIX = ' — HAU'
 
@@ -162,6 +164,59 @@ export function guideHeadings(body: unknown): GuideHeading[] {
       text,
       id: seen ? `${base}-${seen + 1}` : base,
     })
+  }
+  return result
+}
+
+// ─── numeracja list ──────────────────────────────────────────────────────────
+
+/** Bloki, po których lista numerowana zaczyna się znowu od 1. */
+const LIST_NUMBERING_BREAK_STYLES = new Set(['h1', 'h2', 'h3', 'h4'])
+
+/**
+ * Numery punktów list numerowanych (`_key` punktu → numer), liczone w poprzek
+ * przerw: akapit, zdjęcie, film, ramka czy lista punktowana MIĘDZY punktami
+ * NIE zaczyna numeracji od nowa — „1. krok, akapit z wyjaśnieniem, 2. krok”.
+ * Od 1 zaczyna dopiero śródtytuł (H2–H4) albo separator.
+ *
+ * Portable Text nie ma „kontynuacji listy”: każdy przerwany fragment to osobna
+ * lista, a renderer (i edytor) liczyłby od 1. Ta funkcja jest jedynym źródłem
+ * numerów — sklep ustawia z niej `<ol start>` (`GuideBody`), edytor rysuje
+ * z niej numery przy punktach (`ArticleEditor`), więc oba widoki się zgadzają.
+ *
+ * Poziomy liczone osobno; punkt na poziomie N zeruje licznik głębszych
+ * poziomów (podlista pod nowym punktem zaczyna od 1), a każda przerwa zeruje
+ * poziomy > 1 (zagnieżdżenie nie przeżywa akapitu między punktami).
+ */
+export function numberedListIndexes(body: unknown): Map<string, number> {
+  const result = new Map<string, number>()
+  if (!Array.isArray(body)) return result
+  const counters = new Map<number, number>()
+  const dropDeeper = (level: number) => {
+    for (const key of [...counters.keys()]) if (key > level) counters.delete(key)
+  }
+  for (const block of body) {
+    if (!isObject(block)) continue
+    if (block._type === 'divider') {
+      counters.clear()
+      continue
+    }
+    const isText = block._type === 'block'
+    if (isText && typeof block.listItem === 'string') {
+      const level = Number.isInteger(block.level) && (block.level as number) >= 1 ? (block.level as number) : 1
+      dropDeeper(level)
+      if (block.listItem !== 'number') continue
+      const next = (counters.get(level) ?? 0) + 1
+      counters.set(level, next)
+      if (typeof block._key === 'string') result.set(block._key, next)
+      continue
+    }
+    if (isText && LIST_NUMBERING_BREAK_STYLES.has(String(block.style))) {
+      counters.clear()
+      continue
+    }
+    // Akapit, cytat, zdjęcie, film, ramka, produkty — numeracja leci dalej.
+    dropDeeper(1)
   }
   return result
 }

@@ -8,6 +8,7 @@ import {
   publishDocument,
   unpublishDocument,
   uploadImageAsset,
+  withTimeout,
   type PublishState,
 } from '@/lib/admin/catalog'
 import {
@@ -16,6 +17,7 @@ import {
   GUIDE_SEO_DESCRIPTION_MAX,
   GUIDE_SEO_TITLE_MAX,
   GUIDE_TITLE_MAX,
+  GUIDE_VIDEO_MAX_BYTES,
   WORDS_PER_MINUTE,
   guideKey,
   publishBlockers,
@@ -555,8 +557,12 @@ export async function uploadGuideImage(file: File) {
   return { ref: asset._id, url: asset.url }
 }
 
-/** Server Actions mają limit 12 MB na żądanie — większe filmy tylko przez YouTube/Vimeo albo Studio. */
-export const GUIDE_VIDEO_MAX_BYTES = 11 * 1024 * 1024
+/**
+ * Plik wideo wgrany do Sanity ściąga każdy czytelnik, więc trzymamy go małym —
+ * dłuższe filmy przez YouTube/Vimeo albo Studio. (Wysyłka idzie trasą
+ * `/api/admin/guide-video`, nie server action — patrz CLAUDE.md.)
+ */
+const VIDEO_UPLOAD_TIMEOUT_MS = 120_000
 const VIDEO_TYPES = new Set(['video/mp4', 'video/webm', 'video/quicktime'])
 
 export async function uploadGuideVideo(file: File) {
@@ -564,7 +570,11 @@ export async function uploadGuideVideo(file: File) {
   if (!VIDEO_TYPES.has(file.type)) throw new Error('Film musi być w formacie MP4, WebM albo MOV.')
   if (file.size > GUIDE_VIDEO_MAX_BYTES) throw new Error('Film jest większy niż 11 MB — wrzuć go na YouTube/Vimeo i wklej link.')
   const buffer = Buffer.from(await file.arrayBuffer())
-  const asset = await sanityClient.assets.upload('file', buffer, { filename: file.name || 'film', contentType: file.type })
+  const asset = await withTimeout(
+    sanityClient.assets.upload('file', buffer, { filename: file.name || 'film', contentType: file.type }),
+    VIDEO_UPLOAD_TIMEOUT_MS,
+    'Sanity nie odpowiedziało na wysyłkę filmu w ciągu 2 min.',
+  )
   return { ref: asset._id, url: asset.url }
 }
 

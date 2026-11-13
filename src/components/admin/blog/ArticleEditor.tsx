@@ -52,6 +52,7 @@ import {
   EDITOR_STYLES,
   GUIDE_STYLE_LABELS,
   normalizeHref,
+  numberedListIndexes,
   type CalloutTone,
   type GuideStyle,
 } from '@/lib/guides/content'
@@ -244,6 +245,20 @@ function EditorSurface({
   const [uploading, setUploading] = useState(false)
   const imageInput = useRef<HTMLInputElement>(null)
   const productMap = useMemo(() => new Map(products.map((product) => [product.id, product])), [products])
+  // Numery punktów list numerowanych — te same co w sklepie (lista przerwana
+  // akapitem liczy dalej, patrz `numberedListIndexes`). Selektor zwraca tekst,
+  // więc komponent przelicza się tylko, gdy numeracja faktycznie się zmieni,
+  // a nie przy każdym wpisanym znaku.
+  const listNumbersSignature = useEditorSelector(editor, (snapshot) =>
+    [...numberedListIndexes(snapshot.context.value)].map(([key, n]) => `${key}:${n}`).join(','),
+  )
+  const listNumbers = useMemo(
+    () => new Map(listNumbersSignature ? listNumbersSignature.split(',').map((entry) => {
+      const at = entry.lastIndexOf(':')
+      return [entry.slice(0, at), Number(entry.slice(at + 1))] as const
+    }) : []),
+    [listNumbersSignature],
+  )
 
   const focus = useCallback(() => window.setTimeout(() => editor.send({ type: 'focus' }), 0), [editor])
   const closeDialog = useCallback(() => {
@@ -462,10 +477,17 @@ function EditorSurface({
         }
         default:
           // Blok tekstowy — przekazujemy dalej (styl i lista mają własne render*).
-          return <div className={cn(props.listItem && 'hau-li')}>{props.children}</div>
+          return (
+            <div
+              className={cn(props.listItem && 'hau-li')}
+              data-num={props.listItem === 'number' ? listNumbers.get(key) : undefined}
+            >
+              {props.children}
+            </div>
+          )
       }
     },
-    [editor, productMap, setBlock],
+    [editor, listNumbers, productMap, setBlock],
   )
 
   return (
