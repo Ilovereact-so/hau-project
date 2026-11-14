@@ -161,16 +161,19 @@ export function matchFileToProduct(filename: string, prefixes: string[], knownVa
   let remaining = rest
   let order = 0
   while (remaining) {
-    const number = remaining.match(/^(\d+)(?:-|$)/)
-    if (number) {
-      order = Number(number[1])
-      remaining = remaining.slice(number[0].length)
-      continue
-    }
+    // Najpierw znane wartości, potem numer: wartość może zaczynać się od
+    // liczby („250-ml”, „1-l” z opcji pojemności) — sprawdzana jako numer
+    // dałaby kolejność 250 i zdjęcie wspólne zamiast zdjęcia wariantu.
     const value = known.find((v) => remaining === v || remaining.startsWith(`${v}-`))
     if (value) {
       values.push(value)
       remaining = remaining.slice(value.length).replace(/^-/, '')
+      continue
+    }
+    const number = remaining.match(/^(\d+)(?:-|$)/)
+    if (number) {
+      order = Number(number[1])
+      remaining = remaining.slice(number[0].length)
       continue
     }
     // Nieznany fragment (np. „front”, „detal”) — ignorujemy go, nie odrzucamy pliku.
