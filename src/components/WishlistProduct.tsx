@@ -11,6 +11,7 @@ import AddToCartButton from './AddToCardButton'
 import { Edit } from 'lucide-react'
 import ProductRatingBadge from './reviews/ProductRatingBadge'
 import Link from 'next/link'
+import { productHref } from '@/lib/productHref'
 interface Props {
   product: GetSlugProduct
 }
@@ -23,7 +24,7 @@ const WishlistProduct = memo(function WishlistProduct({ product }: Props) {
     <div className="flex flex-col justify-between h-full calc relative  max-sm:w-[calc((100vw-60px)/2))] max-md:w-[calc((100vw-90px)/2))] max-lg:w-[calc((100vw-330px)/2))]  max-xl:w-[calc((100vw-330px)/3))] max-3xl:w-[calc((100vw-440px)/3))] w-[calc((100vw-156px)/5))] 4xl:w-[calc((1900px-156px)/5))] ">
       <div className='flex flex-col h-auto'>
         {product?.images && 
-        <Link href={`/product/${product?.slug?.current}?variant=${product?.variants?.[0]?._key}`} className='' >
+        <Link href={productHref(product?.slug?.current, product?.variants?.[0]?._key)} className='' >
           <div className='max-sm:w-[calc((100vw-70px)/2))]  flex justify-center  max-md:w-[calc((100vw-90px)/2))] max-lg:w-[calc((100vw-330px)/2))] max-xl:w-[calc((100vw-330px)/3))] calc max-3xl:w-[calc((100vw-440px)/3))] w-[calc((100vw-156px)/5))] 4xl:w-[calc((1900px-156px)/5))] max-sm:h-[150px] max-md:h-[190px] max-lg:h-[calc((100vw-156px)/3.5))] max-2.5xl:h-[230px] h-[250px] 4xl:h-[calc((1900px-156px)/5))]] brightness-93 overflow-hidden'>
             <Image src={urlFor(product?.images[0]).url()} alt={String(product?.title)} width={400} height={400}  className='h-full w-auto 2xl:scale-[1.4] 2lg:scale-[1.2] 3md:scale-[1.5] 1md:scale-[1.4] 3xs:scale-[1.6] 2xs:scale-[1.3] scale-[1.1] max-sm:mt-3'/>
           </div>
@@ -36,7 +37,7 @@ const WishlistProduct = memo(function WishlistProduct({ product }: Props) {
       </div>
       <ProductRatingBadge
         productId={product._id}
-        href={`/product/${product?.slug?.current}?variant=${product?.variants?.[0]?._key}#opinie`}
+        href={productHref(product?.slug?.current, product?.variants?.[0]?._key, 'opinie')}
         className='sm:my-3 my-1 flex-wrap gap-y-1'
         textClassName='text-[#6C6C6C] sm:text-[14px] text-[12px]'
       />
@@ -92,4 +93,4 @@ const WishlistProduct = memo(function WishlistProduct({ product }: Props) {
   )
 })
 
-export default WishlistProduct
+export default WishlistProduct

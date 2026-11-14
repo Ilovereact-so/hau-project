@@ -3,7 +3,7 @@ import { Portal } from '@/hooks/Portal'
 import { SubcategoryWithCategory } from '@/sanity/helpers'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Check, FilterIcon, Trash, X } from 'lucide-react'
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { GetSlugProduct } from 'sanity.types'
 import { Filter, FilterValue } from './OptionWidthImageFromVariant'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
@@ -36,6 +36,13 @@ type FilterStateItem = {
   type: string;
   UX_type: string;
 };
+/**
+ * Filtr pokazywany jako lista wartości do zaznaczenia. Brak typu (nowy filtr
+ * dodany w Studio albo przez import CSV) = lista, jak `enum` — wcześniej taki
+ * filtr dawał pigułkę z pustą listą.
+ */
+const isListFilter = (filter: { type?: string | null } | null | undefined) => filter?.type !== 'range' && filter?.type !== 'boolean'
+
 const priceFormatter = new Intl.NumberFormat("pl-PL", {
         style: "currency",
         currency: "PLN",
@@ -46,7 +53,13 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
     const mobileSize = useMediaQuery('(max-width: 768px)', initialMobile)
     const miniSize = useMediaQuery('(max-width: 470px)', initialMobile)
     const avaibleFilters = subcategoryDetails?.availableFilters
-    const comboAvailableFilters = avaibleFilters?.map(item => ({
+    // Filtr bez żadnej wartości wśród produktów listy (np. świeżo dodany do
+    // podkategorii, zanim produkty dostały parametr) nie pokazuje pustej
+    // pigułki. Filtry z typem `range` / `boolean` nie mają jeszcze własnego
+    // widoku — tylko lista wartości — więc też ich nie pokazujemy.
+    // useMemo: lista jest zależnością pomiaru pigułek (efekty niżej) — nowa
+    // tablica przy każdym renderze uruchamiałaby pomiar w kółko.
+    const comboAvailableFilters = useMemo(() => avaibleFilters?.filter((f): f is NonNullable<typeof f> => Boolean(f) && isListFilter(f)).map(item => ({
     ...item,
     // Rozmiary (mikro → duży, XS → XXL) rosnąco, reszta w kolejności z danych.
     filters: sortFilterValues((
@@ -72,7 +85,7 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
         value: v.value ?? undefined,
         slug: v.slug ?? undefined,
     })), (v) => v.value)
-    }))
+    })).filter(item => item.filters.length > 0), [avaibleFilters, products])
     
     type hydrated ={
         parent_id : string;
@@ -205,7 +218,7 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
     const moreRef = useRef<HTMLDivElement>(null)
     const widthsRef = useRef(new Map<string, number>());
     const [ready, setReady] = useState(false);
-    const [visibleCount, setVisibleCount] = useState(avaibleFilters?.length || 0)
+    const [visibleCount, setVisibleCount] = useState(comboAvailableFilters?.length || 0)
 
     // Ile pigułek filtrów zmieści się w rzędzie. Miejsce zajęte przez pigułkę
     // ceny i „Więcej..” jest MIERZONE (wcześniej stała 400 px, która nie
@@ -216,26 +229,26 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
     // ResizeObserver oddaje miejsce w miarę, jak pigułka ceny się kurczy.
     const calculateVisibleCount = useCallback(() => {
         const container = containerRef.current
-        if (!container || !avaibleFilters) return;
+        if (!container || !comboAvailableFilters) return;
         const containerWidth = container.clientWidth;
         const measuredPrice = priceBoxRef.current?.offsetWidth ?? 0
         const priceWidth = isOpenPrice ? Math.max(measuredPrice, PRICE_PILL_OPEN_WIDTH) : measuredPrice
         const moreWidth = moreRef.current?.offsetWidth ?? 0
         let used = priceWidth + moreWidth + (priceWidth ? PILL_GAP : 0);
         let count = 0;
-        for (const f of avaibleFilters) {
+        for (const f of comboAvailableFilters) {
             const w = widthsRef.current.get(f._id);
             if (!w || used + PILL_GAP + w > containerWidth) break;
             used += PILL_GAP + w;
             count++;
         }
         setVisibleCount(count);
-    }, [avaibleFilters, isOpenPrice]);
+    }, [comboAvailableFilters, isOpenPrice]);
 
     const handleMeasure = (id: string, width: number) => {
         widthsRef.current.set(id, width);
 
-        if (widthsRef.current.size === avaibleFilters?.length) {
+        if (widthsRef.current.size === comboAvailableFilters?.length) {
             setReady(true);
         }
     };
@@ -243,7 +256,7 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
     useLayoutEffect(() => {
         if (!ready) return;
         calculateVisibleCount();
-    }, [ready, avaibleFilters, calculateVisibleCount]);
+    }, [ready, comboAvailableFilters, calculateVisibleCount]);
 
     useEffect(() => {
         if (!containerRef.current) return;
@@ -256,7 +269,7 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
         return () => {
             resizeObserver.disconnect();
         };
-    }, [avaibleFilters, calculateVisibleCount]);
+    }, [comboAvailableFilters, calculateVisibleCount]);
     
     
 
@@ -326,7 +339,7 @@ const SubcategoryFilterContainer = ({subcategoryDetails, products, paramsFilter,
                                         <div className='flex flex-col px-2 md:my-3 my-1 space-y-2'>
                                             <p className='text-[clamp(12px,2vw,16px)] text-black'>{item.label}:</p>
                                             <div className='flex flex-wrap auto-cols-max gap-2'>
-                                                {item.type === "enum" && item.filters.map((Fitem,index)=>(
+                                                {item.filters.map((Fitem,index)=>(
                                                     <div 
                                                         key={index} 
                                                         //onClick={()=> setSelectList(prev => prev?.map(Sitem=> Sitem._id === item._id ? {...Sitem, selected: [...Sitem.selected, Fitem] }: Sitem))} 
@@ -547,7 +560,7 @@ const FilterCard = ({item, setSelectList, isSelectedList, changeFilter}: filterC
         {isOpenInlineMenu && (
             <AnimatePresence mode='wait' >
             <motion.div ref={menuRef} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{opacity:0}} transition={{duration:0.2, ease:"easeInOut"}} className='bg-[#b3d8d4] absolute shadow-[0_18px_40px_rgba(0,0,0,0.18)] top-[calc(100%+8px)] rounded-b-[12px] px-5 space-y-3 py-3 rounded-r-[12px] flex flex-col min-w-[calc(100%+26px)]'>
-                    {item.type === "enum" && item.filters.map((Fitem,index)=>(
+                    {item.filters.map((Fitem,index)=>(
                         <label key={index} 
                         onClick={()=>setSelectList(prev =>
                             prev?.map(Sitem =>

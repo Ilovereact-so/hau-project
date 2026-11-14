@@ -10,6 +10,7 @@ import ProductBadges from './ProductBadges'
 import { WishlistButton } from './WishlistButton'
 import ProductRatingBadge from './reviews/ProductRatingBadge'
 import AddToCartButton from './AddToCardButton'
+import { productHref } from '@/lib/productHref'
 
 
 const ProductItem2 = memo(function ProductItem2({ product }: { product: GetSlugProduct }) {
@@ -18,7 +19,7 @@ const ProductItem2 = memo(function ProductItem2({ product }: { product: GetSlugP
   return (
     <div className='relative w-max flex flex-col justify-between h-fit rounded-[20px] max-md:bg-[#ededed]'>
       {product?.images && 
-        <Link href={`/product/${product?.slug?.current}?variant=${product?.variants?.[0]?._key}`} className='' >
+        <Link href={productHref(product?.slug?.current, product?.variants?.[0]?._key)} className='' >
           <div className='max-sm:w-[230px] flex justify-center max-sm:rounded-[20px] max-lg:w-[280px] max-2.5xl:w-[calc((100vw-156px)/3.6))] w-[calc((100vw-156px)/5))] 4xl:w-[calc((1900px-156px)/5))] max-sm:h-[150px] max-lg:h-[calc((100vw-156px)/3.5))] max-2.5xl:h-[230px] h-[250px] 4xl:h-[calc((1900px-156px)/5))]] brightness-93 overflow-hidden'>
             <Image src={urlFor(product?.images[0]).url()} alt={String(product?.title)} width={400} height={400}  className='h-full w-auto scale-[1.4] max-sm:mt-3'/>
           </div>
@@ -35,7 +36,7 @@ const ProductItem2 = memo(function ProductItem2({ product }: { product: GetSlugP
         {/* <p className='mb-1 text-[#6C6C6C] sm:text-[14px] text-[12px] line-clamp-1'>{product.type?.title}</p> */}
         <ProductRatingBadge
           productId={product._id}
-          href={`/product/${product?.slug?.current}?variant=${product?.variants?.[0]?._key}#opinie`}
+          href={productHref(product?.slug?.current, product?.variants?.[0]?._key, 'opinie')}
           className='sm:my-3 my-1'
         />
         <OmnibusNote
@@ -71,4 +72,4 @@ const ProductItem2 = memo(function ProductItem2({ product }: { product: GetSlugP
   )
 })
 
-export default ProductItem2
+export default ProductItem2

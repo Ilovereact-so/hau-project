@@ -7,6 +7,7 @@ import { urlFor } from '@/sanity/lib/image'
 import { Heart } from 'lucide-react'
 import Link from 'next/link'
 import { OmnibusNote, PriceRow, useProductPrice } from './price/ProductPrice'
+import { productHref } from '@/lib/productHref'
 
 
 const ProductItem = ({product}:{product: GetSlugProduct}) => {
@@ -15,7 +16,7 @@ const ProductItem = ({product}:{product: GetSlugProduct}) => {
   return (
     <div className='relative 1xl:min-w-[290px] lg:min-w-[230px] min-w-[200px] 1xl:min-h-[290px] lg:min-h-[230px] min-h-[200px] flex flex-col justify-between w-fit'>
       {product?.images && 
-        <Link href={`/product/${product?.slug?.current}?variant=${product?.variants?.[0]?._key}`} >
+        <Link href={productHref(product?.slug?.current, product?.variants?.[0]?._key)} >
           <Image src={urlFor(product?.images[0]).url()} alt={String(product?.title)} width={290} height={290} className='1xl:w-[290px] lg:w-[230px] w-[200px] 1xl:h-[290px] lg:h-[230px] h-[200px] brightness-90'/>
         </Link>
       }
@@ -44,4 +45,4 @@ const ProductItem = ({product}:{product: GetSlugProduct}) => {
   )
 }
 
-export default ProductItem
+export default ProductItem

@@ -38,6 +38,8 @@ const SIZE_ALIASES: Record<string, string> = { xs: 'mikro', s: 'maly', m: 'sredn
 const nanoid = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 12)
 const raw = sanityClient.withConfig({ perspective: 'raw', useCdn: false })
 const DRAFT = 'drafts.'
+/** `_id` filtrów zakładanych przez import z nowej kolumny `filter_*` (ImportSession.createFilter). */
+const IMPORTED_FILTER_PREFIX = 'filter-import-'
 
 type Ref = { _type: 'reference'; _ref: string }
 const ref = (id: string): Ref => ({ _type: 'reference', _ref: id })
@@ -95,6 +97,69 @@ export class ImportSession {
     await this.loadFilters()
     const wanted = normalizeToken(key)
     return this.filters!.find((f) => normalizeToken(f.key ?? '') === wanted) ?? null
+  }
+
+  /**
+   * Nowy filtr z kolumny `filter_<nazwa>`, której nie zna sklep (np.
+   * `filter_pojemność`). Powstaje jako lista wartości (`enum`,
+   * `only-value-list`) z nazwą z nagłówka — dzięki temu dodanie nowego
+   * parametru/opcji wariantu nie wymaga wcześniejszej wizyty w Studio.
+   * `_id` = `filter-import-<klucz>` (deterministyczne, bez duplikatów między
+   * partiami); po tym prefiksie import rozpoznaje filtry, które sam założył
+   * (`ensureSubcategoryFilter`). Etykietę i UX_type można potem zmienić w Studio.
+   */
+  async createFilter(rawKey: string): Promise<FilterDoc | null> {
+    await this.loadFilters()
+    const key = normalizeToken(rawKey)
+    if (!key) return null
+    const existing = this.filters!.find((f) => normalizeToken(f.key ?? '') === key)
+    if (existing) return existing
+    const words = rawKey.replace(/[_-]+/g, ' ').trim()
+    const label = (words.charAt(0).toUpperCase() + words.slice(1)).slice(0, 60) || key
+    const doc = { _id: `${IMPORTED_FILTER_PREFIX}${key}`.slice(0, 120), _type: 'filter', key, label, type: 'enum', UX_type: 'only-value-list' }
+    if (this.dryRun) {
+      this.log(`[dry-run] Zostanie utworzony nowy filtr „${label}” (klucz ${key}) z kolumny filter_${rawKey}`)
+    } else {
+      await sanityClient.createIfNotExists(doc)
+      this.log(`Utworzono nowy filtr „${label}” (klucz ${key}) z kolumny filter_${rawKey} — nazwę i wygląd (lista / próbki ze zdjęciami) zmienisz w Studio`)
+    }
+    const created: FilterDoc = { _id: doc._id, key, label }
+    this.filters!.push(created)
+    return created
+  }
+
+  private subcategoryFilterChecked = new Set<string>()
+
+  /**
+   * Filtr założony przez import (`filter-import-*`) dopinamy do filtrów
+   * podkategorii produktu (`availableFilters`), żeby od razu pojawił się
+   * w filtrach listingu. Istniejących filtrów (kolor, rozmiar psa) NIE
+   * dopinamy — ich zestaw na podkategorii ustawia się świadomie w Studio.
+   */
+  async ensureSubcategoryFilter(subcategoryId: string, filter: FilterDoc) {
+    if (!filter._id.startsWith(IMPORTED_FILTER_PREFIX)) return
+    const cacheKey = `${subcategoryId}:${filter._id}`
+    if (this.subcategoryFilterChecked.has(cacheKey)) return
+    this.subcategoryFilterChecked.add(cacheKey)
+    const versions = await raw.fetch<Array<{ _id: string; title?: string; refs?: string[] | null }>>(
+      `*[_id in [$id, $draft]]{ _id, title, "refs": availableFilters[]._ref }`,
+      { id: subcategoryId, draft: `${DRAFT}${subcategoryId}` },
+    )
+    const missing = versions.filter((version) => !(version.refs ?? []).includes(filter._id))
+    if (!missing.length) return
+    const title = versions[0]?.title ?? subcategoryId
+    if (this.dryRun) {
+      this.log(`[dry-run] Filtr „${filter.label ?? filter.key}” zostanie dodany do filtrów podkategorii „${title}”`)
+      return
+    }
+    const tx = sanityClient.transaction()
+    for (const version of missing) {
+      tx.patch(version._id, (patch) =>
+        patch.setIfMissing({ availableFilters: [] }).append('availableFilters', [{ _type: 'reference', _ref: filter._id, _key: nanoid() }]),
+      )
+    }
+    await tx.commit()
+    this.log(`Dodano filtr „${filter.label ?? filter.key}” do filtrów podkategorii „${title}”`)
   }
 
   /**
@@ -261,20 +326,19 @@ export async function importProductRow(
     if (created.length) session.log(`${dryRun ? '[dry-run] Utworzono by' : 'Utworzono'} szkic kolekcji: ${created.join(', ')}`)
   }
 
-  // Opcje wariantów i wartości filtrów.
+  // Parametry (kolumny filter_*) i opcje wariantów (productOptions).
+  // Kolumna nieznanego filtra zakłada nowy filtr (`createFilter`) — dodanie
+  // np. „pojemności” to sama kolumna `filter_pojemność` w CSV.
   const optionKeys = splitList(row.productOptions ?? '').map((key) => normalizeToken(key))
   const optionRefs: Ref[] = []
   const valueRefs: Ref[] = []
   const options: Array<{ filter: FilterDoc; values: Array<{ id: string; label: string; slug: string }> }> = []
-  for (const key of optionKeys) {
-    const filter = await session.filter(key)
-    if (filter) optionRefs.push(ref(filter._id))
-    else session.log(`FilterOption NOT FOUND for key: ${key}`)
-  }
+  const usedFilters: FilterDoc[] = []
+  const valuesByKey = new Map<string, Array<{ id: string; label: string; slug: string }>>()
   for (const column of filterColumns(row)) {
-    const filter = await session.filter(column.key)
+    const filter = (await session.filter(column.key)) ?? (await session.createFilter(column.key))
     if (!filter) {
-      session.log(`Filter NOT FOUND for column filter_${column.key} — dodaj filtr „${column.key}” w Studio`)
+      session.log(`UWAGA: kolumna filter_${column.key}: nieprawidłowa nazwa filtra — pominięta`)
       continue
     }
     const resolved = []
@@ -285,7 +349,26 @@ export async function importProductRow(
         valueRefs.push(ref(found.id))
       }
     }
-    if (optionKeys.includes(normalizeToken(column.key)) && resolved.length) options.push({ filter, values: resolved })
+    if (resolved.length) {
+      usedFilters.push(filter)
+      valuesByKey.set(normalizeToken(filter.key ?? column.key), resolved)
+    }
+  }
+  for (const key of optionKeys) {
+    const filter = await session.filter(key)
+    if (!filter) {
+      session.log(`UWAGA: SKU ${partial.sku}: opcja „${key}” z productOptions nie istnieje — dodaj kolumnę filter_${key} z wartościami (filtr powstanie sam)`)
+      continue
+    }
+    optionRefs.push(ref(filter._id))
+    const values = valuesByKey.get(key)
+    if (values?.length) options.push({ filter, values })
+    else session.log(`UWAGA: SKU ${partial.sku}: opcja „${filter.label ?? key}” jest w productOptions, ale kolumna filter_${key} jest pusta — wariantów z tej opcji nie będzie`)
+  }
+  // Nowy filtr od razu w filtrach listingu podkategorii produktu.
+  const subcategoryRef = (partial.type as Ref | undefined)?._ref
+  if (subcategoryRef) {
+    for (const filter of usedFilters) await session.ensureSubcategoryFilter(subcategoryRef, filter)
   }
   partial.productOptions = optionRefs.length ? ensureArrayKeys(optionRefs) : []
   partial.filterValues = ensureArrayKeys(valueRefs) ?? []

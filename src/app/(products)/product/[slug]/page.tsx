@@ -131,9 +131,12 @@ const ProductPage = async ({
   // ze śmieciową wartością. Zamiast przekierowania renderujemy pierwszy wariant:
   // adres /product/<slug> jest wtedy poprawną, kanoniczną stroną (200, bez
   // przeskoku), a wyszukiwarka nie indeksuje osobnych adresów per wariant.
+  // Produkt BEZ wariantów (pusta kolumna productOptions — np. miska w jednym
+  // kolorze, kolor jest tylko parametrem do filtrowania) to pełnoprawny produkt:
+  // pusty klucz wariantu = cena, stan i zdjęcia produktu (tak samo liczą koszyk
+  // i kasa — `variantId: ''`). Wcześniej taki produkt dawał tu 404.
   const variantKeys = product.variants?.map(v => v._key).filter((key): key is string => Boolean(key)) ?? [];
-  const selectedVariant = variant && variantKeys.includes(variant) ? variant : variantKeys[0];
-  if (!selectedVariant) return notFound();
+  const selectedVariant = variant && variantKeys.includes(variant) ? variant : (variantKeys[0] ?? '');
   const maxW = 'md:max-w-[450px]'
   const galleryImages = imagesForVariant(product.images, selectedVariant)
 
@@ -374,4 +377,4 @@ const ProductPage = async ({
   );
 };
 
-export default ProductPage;
+export default ProductPage;

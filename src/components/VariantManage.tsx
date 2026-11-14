@@ -1,10 +1,11 @@
 'use client'
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { GetSlugProduct } from '../../sanity.types';
 import { useRouter, useSearchParams } from "next/navigation"
 import SizeSelect from './SizeSelect';
 import { twMerge } from 'tailwind-merge';
 import OptionWidthImageFromVariant from './OptionWidthImageFromVariant';
+import { optionChoices, optionsOf, pickVariant } from '@/lib/variantSelection';
 
 
 type Props ={
@@ -19,37 +20,22 @@ const VariantManage = ({ product, selectedVariantKey, className }: Props) => {
   const productAtVariant = product?.variants?.find(v => v._key === selectedVariantKey);
 
   const [isVariant, setVariant] = useState(productAtVariant)
+  // Wstecz/dalej w przeglądarce zmienia ?variant= — wybór idzie za adresem.
+  useEffect(() => {
+    setVariant(productAtVariant)
+  }, [productAtVariant])
   const router = useRouter()
   const searchParams = useSearchParams()
 
   const setValue = (value: string, key: string) => {
     const params = new URLSearchParams(searchParams.toString())
-
-    const oldVariant = product?.variants?.find(v => v._key === selectedVariantKey);
-    const selectedOptions = Object.fromEntries(
-      oldVariant?.optionValues?.map(opt => [
-        opt.name?.key,                 // np. "color"
-        opt.value?.slug?.current       // np. "mint"
-      ]) ?? []
-    );
-
-    
-    const nextSelectedOptions = {
-      ...selectedOptions,
-      [key]: value
-    };
-    const nextVariant = product?.variants?.find(variant =>
-      variant.optionValues?.every(opt =>
-        nextSelectedOptions[opt.name?.key ?? ''] === opt.value?.slug?.current
-      )
-    )?._key;
-    if(nextVariant){
-        params.set("variant", nextVariant)
-        setVariant(product?.variants?.find(v => v._key === nextVariant))
-    }
-
+    // Kombinacja, której nie ma (np. kolor tylko w innym rozmiarze), wybiera
+    // najbliższy wariant z klikniętą wartością — `pickVariant`.
+    const nextVariant = pickVariant(product?.variants, optionsOf(isVariant ?? productAtVariant), key, value)
+    if (!nextVariant) return
+    params.set("variant", nextVariant)
+    setVariant(product?.variants?.find(v => v._key === nextVariant))
     router.replace(`?${params.toString()}`, { scroll: false })
-
   }
 
   // Opcja, która we wszystkich wariantach ma tę samą wartość (np. jeden
@@ -82,8 +68,14 @@ type optionProps={
   setValue: (value: string, key: string) => void;
 }
 const OptionByVariant = ({option, product, setValue}:optionProps) => {
-  const filterValues = product?.filterValues
-  const productValues = filterValues?.filter(fv => option?.name?._id === fv?.filter?._ref)
+  // Wartości do wyboru = te, dla których istnieje wariant (nie wszystkie
+  // parametry produktu — parametr może mieć wartość bez wariantu do kupienia).
+  const productValues = optionChoices(product?.variants, product?.filterValues, option?.name?.key).map((choice) => ({
+    _id: choice._id,
+    value: choice.value,
+    slug: { _type: 'slug' as const, current: choice.slug.current },
+    filter: option?.name?._id ? { _ref: option.name._id, _type: 'reference' as const } : null,
+  }))
   const images = product.images;
   // Opcje wybranego wariantu (np. rozmiar) — próbki koloru pokazują zdjęcie
   // wariantu w tym samym rozmiarze, jeśli ma własne.
@@ -98,28 +90,20 @@ const OptionByVariant = ({option, product, setValue}:optionProps) => {
     setValue(value, option?.name?.key || "");
   }
 
-  return(
-      option?.name?.UX_type === "with-image-from-variant" ? (
-        <OptionWidthImageFromVariant option={option} images={images} variants={product.variants} current={current} setValue={handleChange} filterValues={productValues} />
-      ) : (
-        option?.name?.UX_type === "only-value-list" && (
-        <SizeSelect filterValues={productValues} option={option} setValue={handleChange} />
-      )
-      )
+  // Próbki ze zdjęciami tylko dla filtrów oznaczonych tak w Sanity (kolor).
+  // Każdy inny filtr — także nowy, bez ustawionego UX_type — dostaje listę
+  // wartości; wcześniej opcja bez UX_type po prostu się nie pokazywała
+  // i klient nie mógł wybrać wariantu.
+  return option?.name?.UX_type === "with-image-from-variant" ? (
+    <OptionWidthImageFromVariant option={option} images={images} variants={product.variants} current={current} setValue={handleChange} filterValues={productValues} />
+  ) : (
+    <SizeSelect filterValues={productValues} option={option} setValue={handleChange} />
   )
 }
 
 /** Ile różnych wartości danej opcji (np. `color`) mają warianty produktu. */
 function distinctOptionValues(product: GetSlugProduct, key: string | null | undefined): number {
-  if (!key) return 0
-  const values = new Set<string>()
-  for (const variant of product?.variants ?? []) {
-    for (const ov of variant?.optionValues ?? []) {
-      const slug = ov?.value?.slug?.current
-      if (ov?.name?.key === key && slug) values.add(slug)
-    }
-  }
-  return values.size
+  return optionChoices(product?.variants, null, key).length
 }
 
 export default VariantManage

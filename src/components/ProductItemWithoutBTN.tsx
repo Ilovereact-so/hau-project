@@ -11,6 +11,7 @@ import ProductBadges from './ProductBadges'
 import { isProductAvailable } from '@/lib/stock'
 import { WishlistButton } from './WishlistButton'
 import { ProductRatingBadge } from './reviews/ProductRatingBadge'
+import { productHref } from '@/lib/productHref'
 
 const ProductItemWithoutBTN = ({product}:{product: GetSlugProduct & { defaultVariant?: string }}) => {
   // Wariant wybrany filtrami listingu (np. kolor) — jego zdjęcie, cena i link.
@@ -21,7 +22,7 @@ const ProductItemWithoutBTN = ({product}:{product: GetSlugProduct & { defaultVar
   return (
     <div className='relative w-max flex flex-col justify-between h-fit'>
       {product?.images && 
-        <Link href={`/product/${product?.slug?.current}?variant=${variantKey}`} className='relative block' >
+        <Link href={productHref(product?.slug?.current, variantKey)} className='relative block' >
           <Image src={urlFor(image!).url()} alt={String(product?.title)} width={290} height={290} className={`${soldOut ? 'opacity-60 ' : ''} max-sm:w-[calc((100vw-66px)/2))] max-md:w-[calc((100vw-110px)/3))] max-lg:w-[calc((100vw-156px)/3))] max-1.5xl:w-[calc((100vw-156px)/4))] w-[calc((100vw-156px)/5))] 4xl:w-[calc((1900px-156px)/5))] max-sm:h-[calc((100vw-100px)/2))] max-md:h-[calc((100vw-110px)/3))] max-lg:h-[calc((100vw-156px)/3))] max-1.5xl:h-[calc((100vw-156px)/4))] h-[calc((100vw-156px)/5))] 4xl:h-[calc((1900px-156px)/5))] brightness-92`}/>
           {soldOut && (
             <span className='absolute left-1/2 -translate-x-1/2 bottom-3 rounded-full bg-white/90 sm:px-3 px-2 py-1 text-[11px] sm:text-[13px] text-black font-medium whitespace-nowrap'>Chwilowo niedostępny</span>
@@ -45,7 +46,7 @@ const ProductItemWithoutBTN = ({product}:{product: GetSlugProduct & { defaultVar
         </div>
         <ProductRatingBadge
           productId={product._id}
-          href={`/product/${product?.slug?.current}?variant=${product?.variants?.[0]?._key}#opinie`}
+          href={productHref(product?.slug?.current, variantKey, 'opinie')}
           className='sm:my-3 my-1'
         />
         <OmnibusNote
@@ -68,4 +69,4 @@ const ProductItemWithoutBTN = ({product}:{product: GetSlugProduct & { defaultVar
   )
 }
 
-export default ProductItemWithoutBTN
+export default ProductItemWithoutBTN

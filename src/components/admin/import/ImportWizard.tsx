@@ -148,9 +148,10 @@ export function ImportWizard() {
     const created = logs.filter((line) => line.startsWith('Created')).length
     const updated = logs.filter((line) => line.startsWith('Updated')).length
     const failed = logs.filter((line) => line.startsWith('Failed')).length
-    const warnings = logs.filter((line) => line.includes('NOT FOUND')).length
+    const warnings = logs.filter((line) => line.includes('NOT FOUND') || line.includes('UWAGA:')).length
     const values = logs.filter((line) => line.startsWith('Utworzono wartość filtra')).length
-    return { created, updated, failed, warnings, values }
+    const filters = logs.filter((line) => line.startsWith('Utworzono nowy filtr')).length
+    return { created, updated, failed, warnings, values, filters }
   }, [logs])
 
   const explicitImages = useMemo(() => {
@@ -495,6 +496,8 @@ export function ImportWizard() {
           <summary className="cursor-pointer font-medium text-text">Jak przygotować pliki (najmniej pracy)</summary>
           <ul className="mt-1.5 mb-0 grid gap-1 pl-4">
             <li><strong>Warianty</strong>: w <code>productOptions</code> wpisz opcje (np. <code>color;size</code>), a wartości w kolumnach <code>filter_color</code> = <code>mint;beige</code>, <code>filter_size</code> = <code>mikro;maly;sredni;duzy</code>. Powstanie 8 wariantów. Rozmiarów psa może być dowolnie wiele (np. tylko <code>mikro</code> dla produktów dla najmniejszych psów); stare <code>XS/S/M/L</code> też zadziałają. Brakujące wartości (nowy kolor) utworzą się same.</li>
+            <li><strong>Parametry a warianty</strong>: każda kolumna <code>filter_…</code> to parametr do filtrowania (na karcie produktu go nie widać). Wariantem — wyborem na karcie — jest tylko to, co wpiszesz w <code>productOptions</code>. Miska w jednym kolorze: <code>filter_color</code> = <code>mint</code> i puste <code>productOptions</code>.</li>
+            <li><strong>Nowy filtr / nowa opcja</strong> (np. pojemność): dodaj kolumnę <code>filter_pojemność</code> = <code>250 ml;500 ml;1 l</code> — filtr „Pojemność” powstanie sam i trafi do filtrów podkategorii produktu. Żeby klient wybierał pojemność na karcie, dopisz <code>pojemnosc</code> do <code>productOptions</code>. Nazwę filtra i wygląd (lista albo próbki ze zdjęciami) zmienisz potem w Studio.</li>
             <li><strong>Zakładki na karcie produktu</strong>: kolumny <code>info_Skład</code>, <code>info_Dodatkowe informacje</code> — albo dowolne <code>info_&lt;Tytuł&gt;</code>. Pusta komórka = zakładka się nie pokaże.</li>
             <li><strong>Eksport → poprawki → import</strong>: „Eksport CSV” daje plik w tym samym formacie. Popraw go (np. w Excelu, zapisz jako CSV UTF-8) i wgraj tutaj — produkty zaktualizują się po SKU. Zmieniają się tylko kolumny obecne w pliku, a pusta komórka niczego nie kasuje.</li>
             <li><strong>Aktualizacja</strong> istniejącego SKU zachowuje warianty (klucze, SKU, własne ceny i stany), zdjęcia i adres strony. Pusta kolumna <code>stock</code> nie zmienia stanów.</li>
@@ -675,11 +678,12 @@ export function ImportWizard() {
             <div className="flex flex-wrap gap-1.5">
               {csvText && <Badge tone="success">{`${summary.created} utworzonych`}</Badge>}
               {csvText && <Badge tone="info">{`${summary.updated} zaktualizowanych`}</Badge>}
+              {summary.filters > 0 && <Badge tone="purple">{`${summary.filters} nowych filtrów`}</Badge>}
               {summary.values > 0 && <Badge tone="purple">{`${summary.values} nowych wartości filtrów`}</Badge>}
               {imageStats && <Badge tone="success">{`${imageStats.uploaded} zdjęć wysłanych`}</Badge>}
               {imageStats?.skipped ? <Badge tone="neutral">{`${imageStats.skipped} już było`}</Badge> : null}
               {summary.failed + (imageStats?.failed ?? 0) > 0 && <Badge tone="danger">{`${summary.failed + (imageStats?.failed ?? 0)} błędów`}</Badge>}
-              {summary.warnings > 0 && <Badge tone="primary">{`${summary.warnings} ostrzeżeń (brakujące filtry/kategorie)`}</Badge>}
+              {summary.warnings > 0 && <Badge tone="primary">{`${summary.warnings} ostrzeżeń (kategorie, opcje bez wartości)`}</Badge>}
             </div>
             {summary.created > 0 && (
               <NoticeBox className="border-primary/30 bg-primary/5">
