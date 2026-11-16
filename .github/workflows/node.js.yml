@@ -1,42 +1,3 @@
-# Build + wdrożenie na STAGING (e-hau-prod.wibbly.pl, DirectAdmin + Passenger).
-#
-# UKŁAD NA SERWERZE — wypracowany ręcznie, workflow tylko go odtwarza:
-#
-#   public_html/                    <- „Katalog główny aplikacji” w panelu Node.js
-#   ├─ package.json                 <- dla przycisku „Uruchom NPM Install”:
-#   ├─ package-lock.json               TYLKO zależności runtime (scripts/deployPackage.mjs)
-#   ├─ node_modules/                <- instalowane NA SERWERZE, nie wgrywane
-#   ├─ _next/static/…               <- statyki serwowane wprost przez Apache
-#   └─ standalone/
-#      ├─ start.js                  <- „Plik startowy aplikacji”
-#      ├─ server.js
-#      ├─ .env                      <- wgrany ręcznie, workflow go nie dotyka
-#      ├─ .next/  (BUILD_ID, manifesty, server/, static/)
-#      └─ public/
-#
-# PIĘĆ RZECZY, NA KTÓRYCH TO STOI — każda kosztowała osobną awarię:
-#
-#  1. NIEUDANY BUILD NIE JEST WDRAŻANY (żadnego `if: always()`).
-#  2. `server.js`, `.next/BUILD_ID` i `_next/static/<BUILD_ID>` MUSZĄ pochodzić
-#     z JEDNEGO builda. `server.js` ma konfigurację Next wklejoną w środku
-#     (`const nextConfig = {...}`), więc podmieniony osobno kłamie na temat
-#     m.in. `images.remotePatterns` — objawia się to błędem 400 na obrazkach.
-#  3. `HOSTNAME=localhost` ustawia `start.js`, ZANIM załaduje się `server.js`.
-#     Bez tego Next buduje adres bazowy routera z innego hosta niż rewrite
-#     zwracany przez middleware (Clerk), uznaje go za adres zewnętrzny
-#     i proxuje żądanie sam do siebie: zawieszenie i 500 po 30 sekundach.
-#  4. `node_modules` NIE idzie przez FTP (~20 tys. plików na jednym połączeniu
-#     bez ponawiania — transfer się urywa i akcja gubi katalog roboczy).
-#     Instaluje się je na serwerze przyciskiem „Uruchom NPM Install”;
-#     wgrywany package.json zawiera tylko zależności runtime (kilkadziesiąt
-#     pakietów, bez esbuilda i skryptów instalacyjnych).
-#  5. `NEXT_PUBLIC_*` są wkompilowywane w paczkę przeglądarki, więc muszą być
-#     PRZY BUDOWANIU (GitHub → Settings → Environments → `staging`). To samo
-#     dotyczy nagłówków z `next.config.ts`, w tym `CSP_MODE`.
-#
-# Reszta konfiguracji (baza, Redis, klucze płatności, SMTP) to zmienne runtime
-# — te siedzą w `standalone/.env` na serwerze i workflow ich nie rusza.
-
 name: Deploy staging
 
 on:
@@ -128,11 +89,7 @@ jobs:
           # --- decyzje zapadające przy budowaniu ---
           CSP_MODE: ${{ vars.CSP_MODE || 'report-only' }}
           SITE_INDEXABLE: ${{ vars.SITE_INDEXABLE || 'false' }}
-        # Pusty sekret NIE jest pomijany: pusta zmienna z CI przykrywa wartość
-        # z `.env` i trafia do paczki jako "". Tak zniknął klucz mapy
-        # paczkomatów — widżet dostawał 403 z api.furgonetka.pl. Lepiej
-        # zatrzymać build z nazwą brakującego sekretu niż wdrożyć sklep,
-        # który sypie się dopiero w kasie.
+        
         run: |
           missing=0
           for name in NEXT_PUBLIC_APP_URL NEXT_PUBLIC_SANITY_PROJECT_ID \
@@ -146,8 +103,7 @@ jobs:
           [ "$missing" = 0 ] || exit 1
           npm run build
 
-      # `output: 'standalone'` daje `server.js` i odchudzone `node_modules`,
-      # ale statyków ani `public` nie kopiuje. Tu składamy komplet.
+      
       - name: Skompletowanie paczki
         run: |
           set -euo pipefail
@@ -203,11 +159,7 @@ jobs:
           echo "--- plików w standalone/.next: $(find .next/standalone/.next -type f | wc -l)"
           echo "--- plików w reszcie paczki:  $(find .next/standalone -type f -not -path "*/node_modules/*" -not -path "*/.next/*" | wc -l)"
 
-      # Próba generalna PRZED wysyłką: układ jak na serwerze (node_modules
-      # z deploy-root obok `standalone/`, bez node_modules ze standalone — ten
-      # nie idzie przez FTP), instalacja ZE skryptami, jak robi to panel,
-      # i start przez `start.js`. Brak zależności runtime = czerwony build,
-      # a nie niedziałający staging.
+     
       - name: Test paczki serwerowej
         run: |
           set -euo pipefail
@@ -234,34 +186,7 @@ jobs:
             exit 1
           fi
 
-      # Konto FTP loguje się do /home/srv45036/domains/e-hau-prod.wibbly.pl,
-      # więc ścieżki zaczynają się od /public_html/.
-      #
-      # Akcja kasuje na serwerze wyłącznie pliki, które sama wcześniej wgrała
-      # (pilnuje tego plik stanu w katalogu docelowym). `.env`, `node_modules`
-      # i wszystko wgrane ręcznie jest bezpieczne — pod warunkiem, że
-      # `dangerous-clean-slate` zostaje `false`.
-      #
-      # DLACZEGO CZTERY OSOBNE KROKI, A NIE JEDEN: ten serwer FTP zrywa
-      # połączenie przy długich transferach (`ECONNRESET (data socket)`),
-      # a akcja zapisuje plik stanu dopiero po UDANYM przebiegu. Jeden wielki
-      # transfer po zerwaniu zaczynał od zera i nigdy nie dochodził do końca.
-      # Każdy krok ma własny katalog docelowy, czyli własny plik stanu —
-      # po ponownym uruchomieniu workflow kroki, które przeszły, są pomijane
-      # w kilka sekund i transfer posuwa się do przodu.
-      #
-      # Przerwy między krokami są celowe: konto FTP na współdzielonym hostingu
-      # bywa przycinane przy szybkim otwieraniu kolejnych sesji.
-
-      # Protokół wszystkich kroków FTP: zmienna `FTP_PROTOCOL` środowiska
-      # (domyślnie `ftp`). Zwykłe FTP wysyła login, hasło i pliki otwartym
-      # tekstem — ustaw `ftps`, gdy hosting je obsługuje (DirectAdmin zwykle
-      # tak; `security: loose` akceptuje certyfikat hostingu bez weryfikacji).
-      # Jeśli pierwszy deploy po zmianie padnie na połączeniu, usuń zmienną.
-      #
-      # Statyki idą PIERWSZE: przez chwilę po wdrożeniu przeglądarki mogą
-      # jeszcze prosić o pliki starego builda, ale nowy HTML nigdy nie wskaże
-      # plików, których na serwerze jeszcze nie ma.
+      
       - name: FTP — statyki (_next/static)
         uses: SamKirkland/FTP-Deploy-Action@v4.3.6
         with:
@@ -282,8 +207,7 @@ jobs:
       - name: Przerwa
         run: sleep 20
 
-      # Najcięższa część paczki (skompilowane trasy) w osobnym kroku, żeby
-      # zerwane połączenie nie przekreślało reszty.
+      
       - name: FTP — skompilowana aplikacja (standalone/.next)
         uses: SamKirkland/FTP-Deploy-Action@v4.3.6
         with:
