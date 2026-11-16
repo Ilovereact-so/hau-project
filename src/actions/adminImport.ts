@@ -5,6 +5,7 @@ import Papa from 'papaparse'
 import { sanityClient } from '@/sanity/sanityClient.server'
 import { hashFromSanityUrl, type CatalogProduct } from '@/lib/zipImageMatching'
 import { parseDecimal } from '@/sanity/helpers/productImportHelpers'
+import { normalizeToken } from '@/lib/variantImages'
 
 export async function requireAdmin() {
   const { sessionClaims } = await auth()
@@ -94,6 +95,21 @@ export async function adminValidateProductsCsv(csvText: string) {
     }),
   }
 }
+/**
+ * Nazwy filtrów (klucz → nazwa, np. `color` → „Kolor”) dla „Uzupełnij stany
+ * i ceny wariantów” — żeby wpisy z nazwą filtra („Kolor: Różowy=3”) też pasowały.
+ */
+export async function adminFilterLabels(): Promise<Record<string, string>> {
+  await requireAdmin()
+  const filters = await sanityClient.fetch<Array<{ key?: string | null; label?: string | null }>>(`*[_type == "filter"]{ key, label }`)
+  const labels: Record<string, string> = {}
+  for (const filter of filters ?? []) {
+    const key = normalizeToken(String(filter.key ?? ''))
+    if (key && filter.label) labels[key] = filter.label
+  }
+  return labels
+}
+
 /**
  * Lekki katalog do dopasowania zdjęć z ZIP-a (slug, SKU, warianty z wartościami
  * opcji, skróty już wgranych zdjęć). `ids` zawęża do produktów z importu.

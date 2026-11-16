@@ -7,9 +7,10 @@ import toast from 'react-hot-toast'
 import Papa from 'papaparse'
 import JSZip from 'jszip'
 import {
-  CheckCircle2, Download, FileArchive, FileSpreadsheet, Images, ListChecks, Upload, X,
+  CheckCircle2, Download, FileArchive, FileSpreadsheet, Images, ListChecks, Upload, Wand2, X,
 } from 'lucide-react'
-import { adminImageMatchCatalog, adminValidateProductsCsv } from '@/actions/adminImport'
+import { adminFilterLabels, adminImageMatchCatalog, adminValidateProductsCsv } from '@/actions/adminImport'
+import { completeVariantColumnsCsv, type TemplateReport } from '@/lib/csvVariantTemplate'
 import {
   generateVariants, mapCsvRowToProductPartial, parseCollectionNames, parseDecimal, slugifyTitle, splitList,
 } from '@/sanity/helpers/productImportHelpers'
@@ -27,6 +28,7 @@ import { ErrorBox, NoticeBox } from '../kit/EmptyState'
 import { formatCurrencyPrecise } from '../kit/format'
 import { cn } from '../kit/utils'
 import { ExportProductsButton } from '../products/ExportProductsButton'
+import { ImportChangesPreview, summarizeChanges, type CheckedRow } from './ImportChangesPreview'
 
 type DryResult = {
   total: number
@@ -53,11 +55,13 @@ type Progress = { label: string; done: number; total: number }
 
 /* Wzór zgodny z importerem: opcje wariantów w `productOptions`, ich wartości
    w kolumnach `filter_<opcja>`, zdjęcia w ZIP-ie nazwane po slugu. */
-const SAMPLE_CSV = `title,subtitle,intro,sku,slug,shortDescription,description,price,currency,stock,category_slug,type,brand,vendor,tags,productOptions,filter_color,filter_size,images,properties_width_cm,properties_height_cm,properties_depth_cm,properties_units,weight_g,info_Skład,info_Dodatkowe informacje,isMachineWashable,isWaterproof,isFeatured,isBestseller,isNew,chew_strength,collections
-"Pluszowa dynia","Miękka dynia z corduroy","Idealna miękka zabawka dla psów","PUM-001","pluszowa-dynia","Pluszowa dynia — 4 rozmiary","Miękka dynia z materiału corduroy, idealna dla psów od mikro do dużych.",29.99,PLN,50,toys,plush,PetCo,PetCo,"dynia;halloween","color;size","orange;beige","mikro;maly;sredni;duzy","",12,13,12,cm,140,"Corduroy (100% bawełna), wypełnienie: włókno poliestrowe","Prać ręcznie w letniej wodzie. Zabawka nie jest niezniszczalna — używaj pod nadzorem.",false,false,true,false,true,medium,"Halloween 2026;Zabawki pluszowe"`
+const SAMPLE_CSV = `title,subtitle,intro,sku,slug,shortDescription,description,price,currency,stock,category_slug,type,brand,vendor,tags,productOptions,filter_color,filter_size,images,properties_width_cm,properties_height_cm,properties_depth_cm,properties_units,weight_g,info_Skład,info_Dodatkowe informacje,isMachineWashable,isWaterproof,isFeatured,isBestseller,isNew,chew_strength,collections,stany_wariantow,ceny_wariantow
+"Pluszowa dynia","Miękka dynia z corduroy","Idealna miękka zabawka dla psów","PUM-001","pluszowa-dynia","Pluszowa dynia — 4 rozmiary","Miękka dynia z materiału corduroy, idealna dla psów od mikro do dużych.",29.99,PLN,50,toys,plush,PetCo,PetCo,"dynia;halloween","color;size","orange;beige","mikro;maly;sredni;duzy","",12,13,12,cm,140,"Corduroy (100% bawełna), wypełnienie: włókno poliestrowe","Prać ręcznie w letniej wodzie. Zabawka nie jest niezniszczalna — używaj pod nadzorem.",false,false,true,false,true,medium,"Halloween 2026;Zabawki pluszowe","color: orange · size: mikro=0 | color: orange · size: maly=1 | color: orange · size: sredni=2 | color: orange · size: duzy=3 | color: beige · size: mikro=4 | color: beige · size: maly=5 | color: beige · size: sredni=6 | color: beige · size: duzy=7","color: orange · size: mikro=— | color: orange · size: maly=— | color: orange · size: sredni=34.99 | color: orange · size: duzy=34.99 | color: beige · size: mikro=— | color: beige · size: maly=— | color: beige · size: sredni=34.99 | color: beige · size: duzy=34.99"`
 
 const STEPS = ['Pliki', 'Sprawdzenie', 'Import', 'Gotowe'] as const
 const ROWS_PER_BATCH = 10
+/** Suchy przebieg („Sprawdź”) niczego nie zapisuje — większe partie, szybciej. */
+const CHECK_ROWS_PER_BATCH = 25
 const UPLOAD_CONCURRENCY = 3
 
 const MIME: Record<string, string> = {
@@ -127,6 +131,9 @@ export function ImportWizard() {
   const zipRef = useRef<JSZip | null>(null)
   const [preview, setPreview] = useState<PreviewRow[]>([])
   const [dry, setDry] = useState<DryResult | null>(null)
+  const [checkedRows, setCheckedRows] = useState<CheckedRow[] | null>(null)
+  const [template, setTemplate] = useState<{ report: TemplateReport; csv: string; name: string } | null>(null)
+  const [filling, setFilling] = useState(false)
   const [plan, setPlan] = useState<FilePlan[] | null>(null)
   const [catalog, setCatalog] = useState<CatalogProduct[]>([])
   const [manual, setManual] = useState<Record<string, string>>({})
@@ -147,11 +154,12 @@ export function ImportWizard() {
   const summary = useMemo(() => {
     const created = logs.filter((line) => line.startsWith('Created')).length
     const updated = logs.filter((line) => line.startsWith('Updated')).length
+    const unchanged = logs.filter((line) => line.startsWith('Unchanged')).length
     const failed = logs.filter((line) => line.startsWith('Failed')).length
     const warnings = logs.filter((line) => line.includes('NOT FOUND') || line.includes('UWAGA:')).length
     const values = logs.filter((line) => line.startsWith('Utworzono wartość filtra')).length
     const filters = logs.filter((line) => line.startsWith('Utworzono nowy filtr')).length
-    return { created, updated, failed, warnings, values, filters }
+    return { created, updated, unchanged, failed, warnings, values, filters }
   }, [logs])
 
   const explicitImages = useMemo(() => {
@@ -181,6 +189,8 @@ export function ImportWizard() {
     zipRef.current = null
     setPreview([])
     setDry(null)
+    setCheckedRows(null)
+    setTemplate(null)
     setPlan(null)
     setCatalog([])
     setManual({})
@@ -195,6 +205,7 @@ export function ImportWizard() {
 
   const invalidateCheck = () => {
     setDry(null)
+    setCheckedRows(null)
     setPlan(null)
     setManual({})
     setLogs([])
@@ -279,6 +290,7 @@ export function ImportWizard() {
             typeof entry === 'string' ? { row: 0, field: 'csv', message: entry } : entry
           )
           setDry({ total: res.total, errors, dupes: res.dupes ?? [], perRow: res.perRow ?? [] })
+          setCheckedRows(await checkRows())
         }
         if (zipNames.length) {
           const existing = await adminImageMatchCatalog()
@@ -291,6 +303,34 @@ export function ImportWizard() {
         setError(reason instanceof Error ? reason.message : 'Sprawdzenie nie powiodło się.')
       }
     })
+
+  // Suchy przebieg importu: ta sama funkcja co zapis, bez zapisu — podgląd zmian.
+  const checkRows = async (): Promise<CheckedRow[]> => {
+    const header = Papa.parse<string[]>(csvText, { preview: 1 }).data[0] ?? []
+    const results: CheckedRow[] = []
+    const total = csvRows.length
+    for (let start = 0; start < total; start += CHECK_ROWS_PER_BATCH) {
+      const batch = csvRows.slice(start, start + CHECK_ROWS_PER_BATCH)
+      setProgress({ label: 'Sprawdzam, co się zmieni', done: start, total })
+      const form = new FormData()
+      form.append('csvText', Papa.unparse({ fields: header, data: batch.map((row) => header.map((column) => row[column] ?? '')) }))
+      form.append('csvName', csvFile?.name ?? 'produkty.csv')
+      form.append('firstRow', String(start + 2))
+      form.append('totalRows', String(total))
+      form.append('dryRun', '1')
+      const res = await fetch('/api/sanity/import-csv', { method: 'POST', body: form })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json?.error ?? `Błąd sprawdzania (HTTP ${res.status}) — wiersze od ${start + 2}`)
+      const failed = new Map<number, string>()
+      for (const line of (json.logs ?? []) as string[]) {
+        const match = /^Failed (\d+): (.*)$/.exec(line)
+        if (match) failed.set(Number(match[1]), match[2])
+      }
+      for (const result of (json.results ?? []) as CheckedRow[]) results.push(result.ok ? result : { ...result, error: failed.get(result.row) })
+    }
+    setProgress(null)
+    return results
+  }
 
   // ─── krok 3: import ─────────────────────────────────────────────────────────
   const importRows = async (): Promise<ImportResult[]> => {
@@ -394,6 +434,11 @@ export function ImportWizard() {
   const runImport = async () => {
     if (!hasInput) return
     if (problems && !window.confirm(`Sprawdzenie pokazało ${problems} problemów w CSV. Importować mimo to? Wiersze z błędami mogą się nie zapisać.`)) return
+    const changeStats = checkedRows ? summarizeChanges(checkedRows) : null
+    if (
+      changeStats?.destructive &&
+      !window.confirm(`${changeStats.destructive} produktów straci dane — wyczyszczone pola albo usunięte warianty (lista w „Usuwa dane”). Importować?`)
+    ) return
     if (planStats?.unmatched && !window.confirm(`${planStats.unmatched} zdjęć nie ma przypisanego produktu — zostaną pominięte. Kontynuować?`)) return
     setRunning(true)
     setError('')
@@ -411,6 +456,35 @@ export function ImportWizard() {
       setRunning(false)
       setProgress(null)
     }
+  }
+
+  // Stany i ceny wariantów: każda kombinacja productOptions × filter_* w pliku
+  // do uzupełnienia w Excelu (lib/csvVariantTemplate.ts). Plik nie idzie na serwer.
+  const fillVariantColumns = async () => {
+    if (!csvText) return
+    setFilling(true)
+    try {
+      const labels = await adminFilterLabels().catch(() => ({}))
+      const { csv, report } = completeVariantColumnsCsv(csvText, labels)
+      const name = `${(csvFile?.name ?? 'produkty.csv').replace(/\.csv$/i, '')}-warianty.csv`
+      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = name
+      link.click()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      setTemplate({ report, csv, name })
+      toast.success(report.filled.length ? `Uzupełniono warianty w ${report.filled.length} produktach — plik pobrany` : 'Wszystkie warianty były już wypisane — plik pobrany')
+    } finally {
+      setFilling(false)
+    }
+  }
+
+  const applyTemplateFile = () => {
+    if (!template) return
+    const file = new File([template.csv], template.name, { type: 'text/csv' })
+    setTemplate(null)
+    pickCsv(file)
   }
 
   const downloadSample = () => {
@@ -492,6 +566,44 @@ export function ImportWizard() {
           />
         </div>
 
+        {csvText && (
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="secondary" onClick={() => void fillVariantColumns()} disabled={filling || running}>
+                <Wand2 size={14} strokeWidth={1.5} />
+                {filling ? 'Uzupełniam…' : 'Uzupełnij stany i ceny wariantów'}
+              </Button>
+              <span className="text-[11px] text-text-2">
+                Wypisze w <code>stany_wariantow</code> i <code>ceny_wariantow</code> każdą kombinację z <code>productOptions</code> (stan 0, cena „—” = jak produkt) i pobierze plik do poprawienia w Excelu. Wpisane wartości zostają.
+              </span>
+            </div>
+            {template && (
+              <NoticeBox className="border-primary/30 bg-primary/5">
+                <strong className="text-text">
+                  Pobrano {template.name}: uzupełnione warianty w {template.report.filled.length} produktach
+                  {template.report.filled.length ? ` (${template.report.filled.reduce((sum, entry) => sum + entry.added, 0)} nowych kombinacji ze stanem 0)` : ''}.
+                </strong>
+                <p className="mt-1 mb-0">Otwórz plik w Excelu, wpisz stany (i ceny wariantów droższych/tańszych), zapisz jako CSV UTF-8 i wgraj tutaj.</p>
+                {template.report.removed.length > 0 && (
+                  <p className="mt-1 mb-0 text-danger">
+                    Usunięte wpisy, które nie pasują do żadnej kombinacji: {template.report.removed.slice(0, 8).map((entry) => `${entry.sku} (${entry.entries.join(', ')})`).join('; ')}
+                    {template.report.removed.length > 8 ? ` … i ${template.report.removed.length - 8} więcej` : ''}
+                  </p>
+                )}
+                {template.report.skipped.length > 0 && (
+                  <p className="mt-1 mb-0">
+                    Pominięte: {template.report.skipped.slice(0, 8).map((entry) => `${entry.sku} — ${entry.reason}`).join('; ')}
+                    {template.report.skipped.length > 8 ? ` … i ${template.report.skipped.length - 8} więcej` : ''}
+                  </p>
+                )}
+                <Button size="sm" variant="ghost" className="mt-1.5" onClick={applyTemplateFile}>
+                  Wgraj uzupełniony plik bez edycji
+                </Button>
+              </NoticeBox>
+            )}
+          </div>
+        )}
+
         <details className="rounded-xs border border-border bg-surface px-3 py-2 text-[11px] leading-[1.6] text-text-2">
           <summary className="cursor-pointer font-medium text-text">Jak przygotować pliki (najmniej pracy)</summary>
           <ul className="mt-1.5 mb-0 grid gap-1 pl-4">
@@ -499,8 +611,10 @@ export function ImportWizard() {
             <li><strong>Parametry a warianty</strong>: każda kolumna <code>filter_…</code> to parametr do filtrowania (na karcie produktu go nie widać). Wariantem — wyborem na karcie — jest tylko to, co wpiszesz w <code>productOptions</code>. Miska w jednym kolorze: <code>filter_color</code> = <code>mint</code> i puste <code>productOptions</code>.</li>
             <li><strong>Nowy filtr / nowa opcja</strong> (np. pojemność): dodaj kolumnę <code>filter_pojemność</code> = <code>250 ml;500 ml;1 l</code> — filtr „Pojemność” powstanie sam i trafi do filtrów podkategorii produktu. Żeby klient wybierał pojemność na karcie, dopisz <code>pojemnosc</code> do <code>productOptions</code>. Nazwę filtra i wygląd (lista albo próbki ze zdjęciami) zmienisz potem w Studio.</li>
             <li><strong>Zakładki na karcie produktu</strong>: kolumny <code>info_Skład</code>, <code>info_Dodatkowe informacje</code> — albo dowolne <code>info_&lt;Tytuł&gt;</code>. Pusta komórka = zakładka się nie pokaże.</li>
-            <li><strong>Eksport → poprawki → import</strong>: „Eksport CSV” daje plik w tym samym formacie. Popraw go (np. w Excelu, zapisz jako CSV UTF-8) i wgraj tutaj — produkty zaktualizują się po SKU. Zmieniają się tylko kolumny obecne w pliku, a pusta komórka niczego nie kasuje.</li>
-            <li><strong>Aktualizacja</strong> istniejącego SKU zachowuje warianty (klucze, SKU, własne ceny i stany), zdjęcia i adres strony. Pusta kolumna <code>stock</code> nie zmienia stanów.</li>
+            <li><strong>Aktualizacja = plik nadpisuje</strong>: produkt rozpoznajemy po <code>sku</code>. Każda kolumna z pliku zastępuje dane w sklepie — także pusta komórka, która czyści pole (opis, tagi, wymiary, zakładki, parametr). Kolumn, których w pliku nie ma, import nie rusza (plik z samym <code>sku</code> i <code>price</code> zmienia tylko ceny). Pustą komórką nie wyczyścisz nazwy, ceny ani adresu strony. „1. Sprawdź” pokazuje każdy produkt: co nowe, co zmienione (przed → po), co wyczyszczone i które warianty znikną.</li>
+            <li><strong>Eksport → poprawki → import</strong>: „Eksport CSV” daje plik w tym samym formacie. Popraw go (np. w Excelu, zapisz jako CSV UTF-8) i wgraj tutaj — niezmienione produkty import pominie.</li>
+            <li><strong>Stany i ceny wariantów</strong>: kolumny <code>stany_wariantow</code> i <code>ceny_wariantow</code> (format z eksportu): <code>Rozmiar psa: Mały=5 | Rozmiar psa: Duży=2</code>, dla kilku opcji <code>Rozmiar psa: Mały · Kolor: Różowy=3</code>, „—” = stan nieprowadzony / cena jak produktu. Bez nich kolumna <code>stock</code> daje ten sam stan każdemu wariantowi. Zachowane warianty (ta sama kombinacja wartości) mają te same klucze, SKU i zdjęcia.</li>
+            <li><strong>Usunięcie wariantów</strong>: puste <code>productOptions</code> (i puste <code>stany_wariantow</code>) = produkt bez wariantów. Gdy <code>stany_wariantow</code> wymienia warianty, a <code>productOptions</code> jest puste (eksport wariantów ułożonych ręcznie), warianty zostają, a zmieniają się ich stany i ceny.</li>
             <li><strong>Zdjęcia w ZIP-ie</strong> (także w podfolderach): <code>slug.jpg</code>, <code>slug-2.jpg</code> — wspólne (pierwsze = główne); <code>slug-mint.jpg</code>, <code>slug-mint-3.jpg</code> — wszystkie warianty w kolorze mint; <code>slug-mint-m.jpg</code> — tylko mint/M. Zamiast sluga można użyć SKU.</li>
             <li>Nazwy dowolne? Wypisz je w kolumnie <code>images</code>: <code>front.jpg; tyl.jpg; zielona.jpg=mint; zielona-m.jpg=mint+m</code>.</li>
             <li>Duże zdjęcia (ponad 10 MB) zmniejszymy w przeglądarce. Zdjęcia już wgrane do produktu są pomijane, więc ZIP można wysłać ponownie.</li>
@@ -581,6 +695,8 @@ export function ImportWizard() {
             {!problems && <p className="mt-1 mb-0 text-success">Dane wyglądają dobrze.</p>}
           </NoticeBox>
         )}
+
+        {checkedRows && <ImportChangesPreview rows={checkedRows} />}
 
         {plan && planStats && (
           <div className="flex flex-col gap-2">
@@ -678,6 +794,7 @@ export function ImportWizard() {
             <div className="flex flex-wrap gap-1.5">
               {csvText && <Badge tone="success">{`${summary.created} utworzonych`}</Badge>}
               {csvText && <Badge tone="info">{`${summary.updated} zaktualizowanych`}</Badge>}
+              {summary.unchanged > 0 && <Badge tone="neutral">{`${summary.unchanged} bez zmian`}</Badge>}
               {summary.filters > 0 && <Badge tone="purple">{`${summary.filters} nowych filtrów`}</Badge>}
               {summary.values > 0 && <Badge tone="purple">{`${summary.values} nowych wartości filtrów`}</Badge>}
               {imageStats && <Badge tone="success">{`${imageStats.uploaded} zdjęć wysłanych`}</Badge>}
