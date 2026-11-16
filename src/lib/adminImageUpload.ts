@@ -6,6 +6,8 @@
  * bez odpowiedzi (patrz CLAUDE.md, „Zdjęcia z panelu”).
  */
 
+import { freshSessionToken } from './adminRequest'
+
 const TIMEOUT_MS = 150_000
 
 type UploadResponse<T> = { ok: true; data: T } | { ok: false; error: string }
@@ -39,9 +41,18 @@ async function postAdminUpload<T>(url: string, form: FormData, what: 'zdjęcie' 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
   try {
-    const res = await fetch(url, { method: 'POST', body: form, signal: controller.signal })
+    // Świeży token sesji: przy długiej wysyłce (ZIP, karta w tle) ciasteczko Clerka
+    // zdąży wygasnąć i trasa odpowiada 401 — patrz lib/adminRequest.ts.
+    const token = await freshSessionToken()
+    const res = await fetch(url, {
+      method: 'POST',
+      body: form,
+      signal: controller.signal,
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    })
     const json = await res.json().catch(() => null)
     if (json && typeof json.ok === 'boolean') return json
+    if (res.status === 401) return { ok: false, error: 'Sesja wygasła — zaloguj się ponownie i spróbuj jeszcze raz.' }
     if (res.status === 413) {
       return { ok: false, error: `Serwer odrzucił plik jako za duży (413) — ${what === 'film' ? 'zmniejsz film albo wrzuć go na YouTube/Vimeo' : 'zmniejsz zdjęcie'}.` }
     }

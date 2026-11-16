@@ -1,7 +1,7 @@
 'use client'
 
 import { uploadAdminImage } from '@/lib/adminImageUpload'
-import { useMemo, useRef, useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import Papa from 'papaparse'
@@ -20,6 +20,7 @@ import {
   type CatalogProduct, type ExplicitImage, type FilePlan,
 } from '@/lib/zipImageMatching'
 import { prepareImageForUpload } from '@/lib/imageUpload'
+import { AdminRequestError, keepSessionAlive, postAdminForm } from '@/lib/adminRequest'
 import { Badge } from '../kit/Badge'
 import { Button } from '../kit/Button'
 import { Card, CardHeader } from '../kit/Card'
@@ -52,6 +53,9 @@ type PreviewRow = {
 
 type ImportResult = { row: number; ok: boolean; id?: string; sku?: string; slug?: string; action?: 'create' | 'update' }
 type Progress = { label: string; done: number; total: number }
+/** Miejsce, od którego „Wznów import” kontynuuje po przerwaniu (wiersze są idempotentne). */
+type ResumePoint = { next: number; jobId: string; results: ImportResult[] }
+type ImportResponse = { logs?: string[]; results?: ImportResult[]; jobId?: string }
 
 /* Wzór zgodny z importerem: opcje wariantów w `productOptions`, ich wartości
    w kolumnach `filter_<opcja>`, zdjęcia w ZIP-ie nazwane po slugu. */
@@ -144,8 +148,23 @@ export function ImportWizard() {
   const [error, setError] = useState('')
   const [checking, startChecking] = useTransition()
   const [running, setRunning] = useState(false)
+  const [resume, setResume] = useState<ResumePoint | null>(null)
   const csvInput = useRef<HTMLInputElement>(null)
   const zipInput = useRef<HTMLInputElement>(null)
+
+  // Nowy plik = import od początku.
+  useEffect(() => setResume(null), [csvText, zipNames])
+
+  // Zamknięcie/odświeżenie karty w trakcie importu przerywa go — ostrzegamy.
+  useEffect(() => {
+    if (!running) return
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [running])
 
   const hasInput = Boolean(csvText || zipNames.length)
   const checked = Boolean(dry || plan)
@@ -197,6 +216,7 @@ export function ImportWizard() {
     setLogs([])
     setImageStats(null)
     setProgress(null)
+    setResume(null)
     setDone(false)
     setError('')
     if (csvInput.current) csvInput.current.value = ''
@@ -284,6 +304,7 @@ export function ImportWizard() {
     startChecking(async () => {
       setError('')
       try {
+        await keepSessionAlive()
         if (csvText) {
           const res = await adminValidateProductsCsv(csvText)
           const errors = (res.errors ?? []).map((entry) =>
@@ -293,6 +314,7 @@ export function ImportWizard() {
           setCheckedRows(await checkRows())
         }
         if (zipNames.length) {
+          await keepSessionAlive()
           const existing = await adminImageMatchCatalog()
           const merged = mergeCatalog(existing, csvCatalog(csvRows))
           setCatalog(merged)
@@ -309,8 +331,10 @@ export function ImportWizard() {
     const header = Papa.parse<string[]>(csvText, { preview: 1 }).data[0] ?? []
     const results: CheckedRow[] = []
     const total = csvRows.length
-    for (let start = 0; start < total; start += CHECK_ROWS_PER_BATCH) {
-      const batch = csvRows.slice(start, start + CHECK_ROWS_PER_BATCH)
+    let size = CHECK_ROWS_PER_BATCH
+    let start = 0
+    while (start < total) {
+      const batch = csvRows.slice(start, start + size)
       setProgress({ label: 'Sprawdzam, co się zmieni', done: start, total })
       const form = new FormData()
       form.append('csvText', Papa.unparse({ fields: header, data: batch.map((row) => header.map((column) => row[column] ?? '')) }))
@@ -318,42 +342,71 @@ export function ImportWizard() {
       form.append('firstRow', String(start + 2))
       form.append('totalRows', String(total))
       form.append('dryRun', '1')
-      const res = await fetch('/api/sanity/import-csv', { method: 'POST', body: form })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(json?.error ?? `Błąd sprawdzania (HTTP ${res.status}) — wiersze od ${start + 2}`)
+      let json: ImportResponse
+      try {
+        json = await postAdminForm<ImportResponse>('/api/sanity/import-csv', form, {
+          onRetry: (attempt, attempts) => setProgress({ label: `Sprawdzam — ponawiam (${attempt}/${attempts})`, done: start, total }),
+        })
+      } catch (err) {
+        // Za długo / zerwane połączenie: ta sama partia w mniejszych kawałkach.
+        if (err instanceof AdminRequestError && err.retryable && !err.sessionExpired && size > 1) {
+          size = Math.max(1, Math.ceil(size / 2))
+          continue
+        }
+        throw new Error(`${err instanceof Error ? err.message : 'Błąd sprawdzania'} — wiersze od ${start + 2}`)
+      }
       const failed = new Map<number, string>()
       for (const line of (json.logs ?? []) as string[]) {
         const match = /^Failed (\d+): (.*)$/.exec(line)
         if (match) failed.set(Number(match[1]), match[2])
       }
-      for (const result of (json.results ?? []) as CheckedRow[]) results.push(result.ok ? result : { ...result, error: failed.get(result.row) })
+      for (const result of (json.results ?? []) as unknown as CheckedRow[]) results.push(result.ok ? result : { ...result, error: failed.get(result.row) })
+      start += batch.length
     }
     setProgress(null)
     return results
   }
 
   // ─── krok 3: import ─────────────────────────────────────────────────────────
-  const importRows = async (): Promise<ImportResult[]> => {
+  const importRows = async (from: ResumePoint | null): Promise<ImportResult[]> => {
     const header = Papa.parse<string[]>(csvText, { preview: 1 }).data[0] ?? []
-    const results: ImportResult[] = []
-    let jobId = ''
+    const results: ImportResult[] = [...(from?.results ?? [])]
+    let jobId = from?.jobId ?? ''
     const total = csvRows.length
-    for (let start = 0; start < total; start += ROWS_PER_BATCH) {
-      const batch = csvRows.slice(start, start + ROWS_PER_BATCH)
+    let size = ROWS_PER_BATCH
+    let start = from?.next ?? 0
+    while (start < total) {
+      const batch = csvRows.slice(start, start + size)
       setProgress({ label: 'Zapisuję produkty', done: start, total })
       const form = new FormData()
       form.append('csvText', Papa.unparse({ fields: header, data: batch.map((row) => header.map((column) => row[column] ?? '')) }))
       form.append('csvName', csvFile?.name ?? 'produkty.csv')
       form.append('firstRow', String(start + 2))
       form.append('totalRows', String(total))
-      form.append('last', start + ROWS_PER_BATCH >= total ? '1' : '0')
+      form.append('last', start + batch.length >= total ? '1' : '0')
       if (jobId) form.append('jobId', jobId)
-      const res = await fetch('/api/sanity/import-csv', { method: 'POST', body: form })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(json?.error ?? `Błąd importu (HTTP ${res.status}) — wiersze od ${start + 2}`)
+      let json: ImportResponse
+      try {
+        json = await postAdminForm<ImportResponse>('/api/sanity/import-csv', form, {
+          onRetry: (attempt, attempts) => setProgress({ label: `Zapisuję produkty — ponawiam (${attempt}/${attempts})`, done: start, total }),
+        })
+      } catch (err) {
+        // Partia nie zmieściła się w limicie hostingu albo połączenie się zrywa —
+        // dzielimy ją na mniejsze (ponowny zapis wiersza niczego nie dubluje).
+        if (err instanceof AdminRequestError && err.retryable && !err.sessionExpired && size > 1) {
+          size = Math.max(1, Math.ceil(size / 2))
+          continue
+        }
+        setResume({ next: start, jobId, results: [...results] })
+        const reason = err instanceof Error ? err.message : 'Błąd importu'
+        throw new Error(
+          `${reason} Zapisano ${start} z ${total} wierszy — „Wznów import” dokończy od wiersza ${start + 2} (już zapisane produkty nie zostaną zdublowane).`
+        )
+      }
       jobId = json.jobId ?? jobId
       results.push(...(json.results ?? []))
       setLogs((current) => [...current, ...(json.logs ?? [])])
+      start += batch.length
     }
     setProgress({ label: 'Zapisuję produkty', done: total, total })
     return results
@@ -364,6 +417,7 @@ export function ImportWizard() {
     if (!zip || !plan) return
     // Świeży katalog: prawdziwe klucze wariantów nowych produktów.
     setProgress({ label: 'Przygotowuję zdjęcia', done: 0, total: plan.length })
+    await keepSessionAlive()
     const fresh = await adminImageMatchCatalog()
     const idBySku = new Map(fresh.map((product) => [normalizeToken(product.sku), product.id]))
     for (const result of imported) if (result.id && result.sku) idBySku.set(normalizeToken(result.sku), result.id)
@@ -402,13 +456,20 @@ export function ImportWizard() {
               continue
             }
             const file = await prepareImageForUpload(original)
-            const result = await uploadAdminImage<{ key: string; url: string; variantKeys: string[] }>({
-              target: 'product',
-              id: productId,
-              alt: product?.title ?? '',
-              file,
-              variantKeys: entry.variantKeys,
-            })
+            const send = () =>
+              uploadAdminImage<{ key: string; url: string; variantKeys: string[] }>({
+                target: 'product',
+                id: productId,
+                alt: product?.title ?? '',
+                file,
+                variantKeys: entry.variantKeys,
+              })
+            // Chwilowy błąd (sesja, połączenie, 5xx) — do 3 prób; zbyt duży plik nie ma sensu ponawiać.
+            let result = await send()
+            for (let attempt = 2; !result.ok && attempt <= 3 && !/413|za duż/i.test(result.error); attempt++) {
+              await new Promise((resolve) => setTimeout(resolve, 2_000 * attempt))
+              result = await send()
+            }
             if (result.ok) {
               stats.uploaded += 1
               hashes.add(hash)
@@ -431,26 +492,34 @@ export function ImportWizard() {
     setLogs((current) => [...current, `Zdjęcia: wysłano ${stats.uploaded}, pominięto już wgrane ${stats.skipped}, błędy ${stats.failed}`])
   }
 
-  const runImport = async () => {
+  const runImport = async (from: ResumePoint | null = null) => {
     if (!hasInput) return
-    if (problems && !window.confirm(`Sprawdzenie pokazało ${problems} problemów w CSV. Importować mimo to? Wiersze z błędami mogą się nie zapisać.`)) return
-    const changeStats = checkedRows ? summarizeChanges(checkedRows) : null
-    if (
-      changeStats?.destructive &&
-      !window.confirm(`${changeStats.destructive} produktów straci dane — wyczyszczone pola albo usunięte warianty (lista w „Usuwa dane”). Importować?`)
-    ) return
-    if (planStats?.unmatched && !window.confirm(`${planStats.unmatched} zdjęć nie ma przypisanego produktu — zostaną pominięte. Kontynuować?`)) return
+    if (!from) {
+      if (problems && !window.confirm(`Sprawdzenie pokazało ${problems} problemów w CSV. Importować mimo to? Wiersze z błędami mogą się nie zapisać.`)) return
+      const changeStats = checkedRows ? summarizeChanges(checkedRows) : null
+      if (
+        changeStats?.destructive &&
+        !window.confirm(`${changeStats.destructive} produktów straci dane — wyczyszczone pola albo usunięte warianty (lista w „Usuwa dane”). Importować?`)
+      ) return
+      if (planStats?.unmatched && !window.confirm(`${planStats.unmatched} zdjęć nie ma przypisanego produktu — zostaną pominięte. Kontynuować?`)) return
+    }
     setRunning(true)
     setError('')
-    setLogs([])
-    setImageStats(null)
+    if (!from) {
+      setLogs([])
+      setImageStats(null)
+    }
+    setResume(null)
+    let imported: ImportResult[] = from?.results ?? []
     try {
-      const imported = csvText ? await importRows() : []
+      imported = csvText ? await importRows(from) : []
       if (zipNames.length) await uploadImages(imported)
       setDone(true)
       toast.success('Import zakończony — sprawdź raport')
       router.refresh()
     } catch (reason) {
+      // Dane zapisane, przerwało się przy zdjęciach → wznowienie wysyła tylko zdjęcia.
+      setResume((current) => current ?? { next: csvRows.length, jobId: '', results: imported })
       setError(reason instanceof Error ? reason.message : 'Błąd podczas importu.')
     } finally {
       setRunning(false)
@@ -622,6 +691,16 @@ export function ImportWizard() {
         </details>
 
         {error && <ErrorBox>{error}</ErrorBox>}
+        {resume && !running && (
+          <NoticeBox>
+            <span>
+              Import przerwany po {resume.next} z {csvRows.length} wierszy{resume.next >= csvRows.length && zipNames.length ? ' (zostały zdjęcia)' : ''}.
+            </span>{' '}
+            <Button size="sm" onClick={() => void runImport(resume)}>
+              Wznów import
+            </Button>
+          </NoticeBox>
+        )}
 
         {preview.length > 0 && (
           <div className="flex flex-col gap-2">
@@ -782,7 +861,7 @@ export function ImportWizard() {
             <ListChecks size={15} strokeWidth={1.5} />
             {checking ? 'Sprawdzam…' : '1. Sprawdź'}
           </Button>
-          <Button onClick={() => void runImport()} disabled={!hasInput || !checked || running || checking}>
+          <Button onClick={() => void runImport(null)} disabled={!hasInput || !checked || running || checking}>
             <Upload size={15} strokeWidth={1.5} />
             {running ? 'Importuję… (nie zamykaj karty)' : csvText ? (zipNames.length ? '2. Importuj dane i zdjęcia' : '2. Importuj dane') : '2. Wyślij zdjęcia'}
           </Button>

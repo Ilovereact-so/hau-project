@@ -329,7 +329,12 @@ function show(kind: SimpleKind | 'list' | 'dims' | 'ref', value: unknown): strin
 }
 
 const sameValue = (a: unknown, b: unknown) => {
-  if (isEmptyValue(a) && isEmptyValue(b)) return true
+  // Brak wartości ≠ 0: GROQ zwraca brak pola jako null, a Number(null) === 0 —
+  // bez tego „stock: 0” z pliku nie trafiał do produktu bez stanu (zostawał
+  // „nieprowadzony” = zawsze dostępny, mimo że w pliku jest 0 sztuk).
+  const emptyA = isEmptyValue(a)
+  const emptyB = isEmptyValue(b)
+  if (emptyA || emptyB) return emptyA && emptyB
   if (typeof a === 'number' || typeof b === 'number') return Number(a) === Number(b)
   if (typeof a === 'string' || typeof b === 'string') return plainText(a) === plainText(b)
   return JSON.stringify(a ?? null) === JSON.stringify(b ?? null)

@@ -49,6 +49,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: `Za dużo wierszy w jednej partii (maks. ${MAX_ROWS_PER_REQUEST}).` }, { status: 400 });
     }
 
+    const startedAt = Date.now();
     const session = new ImportSession(dryRun);
     const results: ImportRowResult[] = [];
     for (let i = 0; i < rows.length; i++) {
@@ -112,6 +113,9 @@ export async function POST(req: Request) {
       if (ids.length) await recordPriceChanges([...new Set(ids)], "import");
     }
 
+    // Czas partii w logu serwera — przy przerwanym imporcie widać, czy partie
+    // nie zbliżają się do limitu czasu hostingu (klient wtedy sam je zmniejsza).
+    console.info(`[import] ${dryRun ? "sprawdzenie" : "zapis"} wierszy ${firstRow}–${firstRow + rows.length - 1}: ${Date.now() - startedAt} ms`);
     return NextResponse.json({ logs, results, jobId });
   } catch (err) {
     console.error(err);
