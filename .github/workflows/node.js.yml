@@ -73,21 +73,15 @@ jobs:
 
           # --- czytane przy prerenderowaniu stron ---
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
-          SANITY_API_TOKEN: ${{ secrets.SANITY_API_TOKEN }}
-
-          # --- decyzje zapadające przy budowaniu ---
-          # Nagłówki z next.config.ts trafiają do manifestu — na serwerze
-          # tej wartości już nie zmienisz. Na start `report-only`; po
-          # sprawdzeniu konsoli ustaw zmienną CSP_MODE=enforce w środowisku.
+          SANITY_API_TOKEN: ${{ secrets.SANITY_API_TOKEN }}     
           CSP_MODE: ${{ vars.CSP_MODE || 'report-only' }}
           # Staging poza indeksem Google — kopia sklepu pod inną domeną
-          # konkurowałaby z produkcją o te same treści.
           SITE_INDEXABLE: ${{ vars.SITE_INDEXABLE || 'false' }}
         run: npm run build
 
       # `output: 'standalone'` daje `server.js` i odchudzone `node_modules`,
       # ale statyków i `public` nie kopiuje (udokumentowane zachowanie Next).
-      # `server.js` szuka ich WEWNĄTRZ swojego katalogu, stąd ten krok.
+      # `server.js` szuka ich WEWNĄTRZ swojego katalogu
       - name: Skompletowanie paczki standalone
         run: |
           set -euo pipefail
@@ -108,26 +102,7 @@ jobs:
           echo "--- liczba plików: ---"
           find .next/standalone -type f | wc -l
 
-      # Konto FTP loguje się do /home/srv45036/domains/e-hau-prod.wibbly.pl,
-      # więc `/public_html/` to katalog aplikacji Node (ten z `server.js`).
-      #
-      # Akcja kasuje na serwerze tylko te pliki, które sama wcześniej wgrała
-      # (pilnuje tego plik stanu `.ftp-deploy-sync-state.json` w katalogu
-      # docelowym). Wgrany ręcznie `.env` i zainstalowane na serwerze
-      # `node_modules` są więc bezpieczne — pod warunkiem, że
-      # `dangerous-clean-slate` zostaje `false`.
-      #
-      # DLACZEGO `node_modules` NIE IDZIE PRZEZ FTP: to ~15–20 tys. plików na
-      # jednym połączeniu bez ponawiania. Gdy transfer się urwie i akcja wstanie
-      # na nowo, traci katalog roboczy i próbuje wejść do `node_modules`
-      # względem katalogu logowania — stąd `550 node_modules: Nie ma takiego
-      # pliku ani katalogu`. Zależności instalujemy na serwerze:
-      #
-      #     cd /home/srv45036/domains/e-hau-prod.wibbly.pl/public_html
-      #     npm ci --omit=dev
-      #
-      # (albo przycisk „NPM install” w panelu hostingu). Powtarzasz to tylko po
-      # zmianie `package.json` / `package-lock.json`, nie po każdym deployu.
+      
       - name: Wdrożenie przez FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.6
         with:
@@ -144,8 +119,6 @@ jobs:
           log-level: standard
           # NIGDY `true` — skasowałoby `.env` i wszystko wgrane ręcznie.
           dangerous-clean-slate: false
-          # `node_modules` zostaje na serwerze (patrz komentarz wyżej) — akcja
-          # go nie wgrywa i, skoro nie ma go w pliku stanu, nigdy nie skasuje.
           exclude: |
             **/node_modules/**
             **/.git*
@@ -155,8 +128,7 @@ jobs:
             **/cgi-bin*
             **/*.map
 
-      # Next nie podmienia się w locie — po wgraniu plików proces trzeba
-      # zrestartować. Ten krok tylko przypomina, czego workflow nie zrobi sam.
+      
       - name: Co zrobić na serwerze
         run: |
           echo "----------------------------------------------------------"
