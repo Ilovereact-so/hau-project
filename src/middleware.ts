@@ -81,6 +81,24 @@ const isProtectedRoute = createRouteMatcher(['/profile(.*)'])
 // animowana zmiana layoutu zamiast żadnej.
 const MOBILE_UA_RE = /Android|iPhone|iPod|iPad|Mobile|Windows Phone/i
 
+/**
+ * Żądanie z przeglądarki, które NIE jest wejściem na stronę: dane RSC
+ * (nawigacja w panelu, `router.refresh()`), prefetch, server action.
+ * Clerk odświeża przeterminowany token sesji tylko przy wejściu na stronę
+ * (tzw. handshake) — przy takich żądaniach `userId` jest pusty także wtedy,
+ * gdy użytkownik JEST zalogowany, a token (~60 s) po prostu wygasł, np. po
+ * powrocie do karty, która stała w tle.
+ */
+function isBackgroundRequest(req: Request): boolean {
+  const h = req.headers
+  return h.get('rsc') === '1' || h.has('next-router-prefetch') || h.has('next-action')
+}
+
+/** Ciasteczko `__client_uat` (także z sufiksem instancji) ≠ 0 → przeglądarka ma sesję Clerka. */
+function hasClientSession(req: { cookies: { getAll: () => Array<{ name: string; value: string }> } }): boolean {
+  return req.cookies.getAll().some((cookie) => cookie.name.startsWith('__client_uat') && cookie.value !== '' && cookie.value !== '0')
+}
+
 export default clerkMiddleware(async (auth, req) => {
   const { userId, sessionClaims } = await auth()
 
@@ -107,6 +125,16 @@ export default clerkMiddleware(async (auth, req) => {
 
   // admin routes — require admin role
   if (isAdminRoute(req)) {
+    // Zalogowany z przeterminowanym tokenem przy żądaniu w tle: NIE wysyłamy do
+    // logowania (tak panel „losowo wylogowywał”). Odpowiedź inna niż RSC sprawia,
+    // że Next przeładowuje stronę w całości — a przy wejściu na stronę Clerk
+    // sam odświeża sesję i panel wraca w tym samym miejscu.
+    if (!userId && isBackgroundRequest(req) && hasClientSession(req)) {
+      return new NextResponse('Sesja wymaga odświeżenia', {
+        status: 401,
+        headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' },
+      })
+    }
     // Niezalogowany → logowanie z powrotem pod żądany adres (zamiast 403).
     if (!userId) {
       const url = new URL('/sign-in', req.url)

@@ -12,7 +12,7 @@
  *    rozpoznaje SKU, także szkic z nieudanej próby), więc ponowienie jest bezpieczne.
  */
 
-type ClerkSessionLike = { getToken: (options?: { skipCache?: boolean }) => Promise<string | null> }
+type ClerkSessionLike = { id?: string; getToken: (options?: { skipCache?: boolean }) => Promise<string | null> }
 type ClerkLike = { session?: ClerkSessionLike | null; loaded?: boolean }
 
 declare global {
@@ -36,9 +36,52 @@ export class AdminRequestError extends Error {
   }
 }
 
+// ─── bezczynność w panelu (AdminSessionGuard) ───────────────────────────────
+/** Po tylu minutach bez aktywności panel wylogowuje (ostrzeżenie minutę wcześniej). */
+export const ADMIN_IDLE_MINUTES = 15
+const ACTIVITY_KEY = 'hau_admin_last_activity'
+let lastWrite = 0
+let currentSessionId: string | null = null
+
+/** Ustawia AdminSessionGuard (sesja z `useAuth`), żeby wszystkie zapisy szły pod ten sam klucz. */
+export function setAdminSessionId(sessionId: string | null | undefined): void {
+  currentSessionId = sessionId ?? null
+}
+
+/** Klucz per sesja Clerka: nowe logowanie zaczyna liczenie od zera. */
+function activityKey(sessionId?: string | null): string {
+  return `${ACTIVITY_KEY}:${sessionId ?? currentSessionId ?? window.Clerk?.session?.id ?? 'anon'}`
+}
+
+/** Zapis „ktoś pracuje w panelu” — wspólny dla wszystkich kart (localStorage). */
+export function markAdminActivity(force = false): void {
+  if (typeof window === 'undefined') return
+  const now = Date.now()
+  if (!force && now - lastWrite < 5_000) return
+  lastWrite = now
+  try {
+    window.localStorage.setItem(activityKey(), String(now))
+  } catch {
+    /* prywatne okno — liczymy tylko w tej karcie */
+  }
+}
+
+/** Ostatnia aktywność w panelu w tej sesji (null = brak zapisu). */
+export function lastAdminActivity(sessionId?: string | null): number | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const value = Number(window.localStorage.getItem(activityKey(sessionId)))
+    return Number.isFinite(value) && value > 0 ? value : null
+  } catch {
+    return lastWrite || null
+  }
+}
+
 /** Świeży token sesji (null = brak sesji albo clerk-js niedostępny). */
 export async function freshSessionToken(force = false): Promise<string | null> {
   if (typeof window === 'undefined') return null
+  // Każde żądanie panelu (partie importu, zdjęcia) = praca w toku, nie bezczynność.
+  markAdminActivity()
   const session = window.Clerk?.session
   if (!session) return null
   try {

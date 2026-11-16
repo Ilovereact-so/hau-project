@@ -9,6 +9,7 @@ import { cn } from '../kit/utils'
 import { Sidebar, type AdminUser } from './Sidebar'
 import { Topbar } from './Topbar'
 import { AdminCounters, THEME_COOKIE, activeLabelFor, headingFor } from './navigation'
+import { AdminSessionGuard } from './AdminSessionGuard'
 
 const COLLAPSE_KEY = 'hau_admin_sidebar_collapsed'
 
@@ -100,16 +101,23 @@ function ShellFrame({
 
   /* Liczby na dashboardzie i liczniki w sidebarze zmieniają się w trakcie
      pracy (sklep przyjmuje zamówienia). Odświeżamy dane serwerowe co 60 s,
-     po cichu i tylko w widocznej karcie. */
-  const refresh = useCallback(() => {
+     po cichu i tylko w widocznej karcie. Najpierw świeży token sesji: po powrocie
+     do karty, która stała w tle, ciasteczko Clerka bywa przeterminowane, a
+     odświeżenie z takim ciasteczkiem kończyło się ekranem logowania. (Bez
+     `freshSessionToken` z lib/adminRequest — ono liczy się jako aktywność,
+     a automatyczne odświeżanie nie może blokować wylogowania po bezczynności.) */
+  const refresh = useCallback(async () => {
+    if (document.hidden) return
+    await window.Clerk?.session?.getToken().catch(() => null)
     if (!document.hidden) router.refresh()
   }, [router])
   useEffect(() => {
-    const timer = window.setInterval(refresh, 60_000)
-    document.addEventListener('visibilitychange', refresh)
+    const run = () => void refresh()
+    const timer = window.setInterval(run, 60_000)
+    document.addEventListener('visibilitychange', run)
     return () => {
       window.clearInterval(timer)
-      document.removeEventListener('visibilitychange', refresh)
+      document.removeEventListener('visibilitychange', run)
     }
   }, [refresh])
 
@@ -181,6 +189,8 @@ function ShellFrame({
           </div>
         )}
       </div>
+
+      <AdminSessionGuard />
 
       <Toaster
         position="top-center"
